@@ -102,6 +102,16 @@ describe('bank sms parser', () => {
     if (parsed.kind !== 'parsed') return
     expect(parsed.value.amountRial).toBeNull()
   })
+
+  it('correctly parses 2-digit Jalali years and BlueBank/Resalat messages', () => {
+    const blu = parseBankSms('بلو:\nخرید 250,000 تومان\n03/07/15-14:35\nمانده: 1,500,000 تومان', now)
+    expect(blu.kind).toBe('parsed')
+    if (blu.kind !== 'parsed') return
+    expect(blu.value.bankLabel).toContain('بلوبانک')
+    expect(blu.value.amountRial).toBe(2_500_000)
+    expect(blu.value.date).toBe('2024-10-06')
+    expect(blu.value.time).toBe('14:35')
+  })
 })
 
 describe('sms review queue', () => {

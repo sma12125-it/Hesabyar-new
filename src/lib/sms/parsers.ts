@@ -136,16 +136,47 @@ function extractWhen(text: string): { date: string | null; time: string | null }
   const time = timeMatch && hour <= 23 && minute <= 59
     ? `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
     : null
-  const dateMatch = /(?<!\d)(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})(?!\d)/.exec(text)
-  if (!dateMatch) return { date: null, time }
-  const year = Number(dateMatch[1])
-  const month = Number(dateMatch[2])
-  const day = Number(dateMatch[3])
-  if (year >= 1300 && year <= 1499) {
-    return { date: jalaliToIso(year, month, day), time }
+
+  // Match 3-part dates: 1403/07/15 or 03/07/15 or 1403-07-15
+  const dateMatch = /(?<!\d)(\d{2,4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})(?!\d)/.exec(text)
+  if (dateMatch) {
+    let p1 = Number(dateMatch[1])
+    let p2 = Number(dateMatch[2])
+    let p3 = Number(dateMatch[3])
+
+    let year: number
+    let month: number
+    let day: number
+
+    // If format has 4-digit Jalali year at the end (e.g. 15/07/1403)
+    if (p3 >= 1300 && p3 <= 1499 && p1 <= 31 && p2 <= 12) {
+      day = p1
+      month = p2
+      year = p3
+    } else {
+      // Standard Persian banking order: year/month/day (e.g. 1403/07/15 or 03/07/15)
+      year = p1
+      month = p2
+      day = p3
+    }
+
+    // Convert 2-digit Persian year (e.g. 03 -> 1403, 04 -> 1404, 99 -> 1399)
+    if (year >= 0 && year <= 49) {
+      year = 1400 + year
+    } else if (year >= 50 && year <= 99) {
+      year = 1300 + year
+    }
+
+    if (year >= 1300 && year <= 1499 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      const iso = jalaliToIso(year, month, day)
+      if (iso && isValidIsoDate(iso)) return { date: iso, time }
+    }
+
+    const iso = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    if (isValidIsoDate(iso)) return { date: iso, time }
   }
-  const iso = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
-  return { date: isValidIsoDate(iso) ? iso : null, time }
+
+  return { date: null, time }
 }
 
 function extractCard(text: string): string | null {
@@ -163,8 +194,35 @@ function extractReference(text: string): string | null {
   return match?.[1] ?? null
 }
 
+const KNOWN_BANKS: Array<{ id: string; label: string; re: RegExp }> = [
+  { id: 'blubank', label: 'بلوبانک (سامان)', re: /بلوبانک|بلو\s*[:：]|\bblubank\b/i },
+  { id: 'resalat', label: 'بانک قرض‌الحسنه رسالت', re: /رسالت|قرض\s*الحسنه\s*رسالت/ },
+  { id: 'mehr', label: 'بانک قرض‌الحسنه مهر ایران', re: /مهر\s*ایران/ },
+  { id: 'melli', label: 'بانک ملی', re: /بانک[\s\u200c]*ملی|بام[\s\u200c]*ملی/ },
+  { id: 'mellat', label: 'بانک ملت', re: /بانک[\s\u200c]*ملت/ },
+  { id: 'tejarat', label: 'بانک تجارت', re: /بانک[\s\u200c]*تجارت/ },
+  { id: 'saderat', label: 'بانک صادرات', re: /بانک[\s\u200c]*صادرات|صپاد/ },
+  { id: 'sepah', label: 'بانک سپه', re: /بانک[\s\u200c]*سپه|انصار|قوامین|حکمت/ },
+  { id: 'pasargad', label: 'بانک پاسارگاد', re: /پاسارگاد|ویپاد/ },
+  { id: 'saman', label: 'بانک سامان', re: /بانک[\s\u200c]*سامان/ },
+  { id: 'parsian', label: 'بانک پارسیان', re: /پارسیان/ },
+  { id: 'ayandeh', label: 'بانک آینده', re: /بانک[\s\u200c]*آینده/ },
+  { id: 'shahr', label: 'بانک شهر', re: /بانک[\s\u200c]*شهر/ },
+  { id: 'maskan', label: 'بانک مسکن', re: /مسکن/ },
+  { id: 'keshavarzi', label: 'بانک کشاورزی', re: /کشاورزی/ },
+  { id: 'refah', label: 'بانک رفاه', re: /رفاه/ },
+  { id: 'sina', label: 'بانک سینا', re: /بانک[\s\u200c]*سینا/ },
+  { id: 'gardeshgari', label: 'بانک گردشگری', re: /گردشگری/ },
+  { id: 'dey', label: 'بانک دی', re: /بانک[\s\u200c]*دی/ },
+  { id: 'postbank', label: 'پست بانک', re: /پست[\s\u200c]*بانک/ },
+  { id: 'karafarin', label: 'بانک کارآفرین', re: /کارآفرین/ },
+]
+
 function extractBankLabel(text: string): { id: string; label: string } {
-  const match = /بانک\s+(\S{2,24})/.exec(text)
+  for (const item of KNOWN_BANKS) {
+    if (item.re.test(text)) return { id: item.id, label: item.label }
+  }
+  const match = /بانک[\s\u200c]+(\S{2,24})/.exec(text)
   if (!match) return { id: 'unknown', label: 'بانک شناسایی‌نشده' }
   return { id: `name:${match[1]}`, label: `بانک ${match[1]}` }
 }

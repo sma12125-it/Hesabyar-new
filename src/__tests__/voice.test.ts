@@ -18,6 +18,8 @@ describe('voice and reports', () => {
   it('parses a Persian expense amount', () => {
     expect(parseVoiceCommand('هزینه ۵۰ هزار خوراک')).toMatchObject({ kind: 'expense', amount: 50_000 })
     expect(parseVoiceCommand('درآمد ۲ میلیون حقوق')?.kind).toBe('income')
+    expect(parseVoiceCommand('۵۰ هزار تومان خرید میوه')).toMatchObject({ kind: 'expense', amount: 500_000, note: 'میوه' })
+    expect(parseVoiceCommand('صد و پنجاه هزار تومن بنزین')).toMatchObject({ kind: 'expense', amount: 1_500_000, note: 'بنزین' })
   })
 
   it('sums expenses of the current Jalali month by category', () => {

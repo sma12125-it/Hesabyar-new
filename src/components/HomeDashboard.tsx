@@ -4,7 +4,7 @@ import { expenseByCategory, monthKey, monthTotals, monthlySeries, spentInCategor
 import { formatPersianDate, formatRelativeFromIso } from '../lib/dates'
 import { homeInstallmentHints } from '../lib/installments'
 import { todayIso } from '../lib/iso'
-import { formatCompactRial, formatRial, toFaDigits } from '../lib/money'
+import { toFaDigits } from '../lib/money'
 import { txTitle, visibleLedger } from './TxRow'
 import { useUiActions } from './UiActions'
 import { useExtras } from '../store/Extras'
@@ -24,7 +24,7 @@ function percent(part: number, whole: number) {
 
 export function HomeDashboard({ onAll }: { onAll: () => void }) {
   const { transactions, accounts, plans, items, customCategories, totalBalance, activeAccounts } = useStore()
-  const { budgets, goals } = useExtras()
+  const { budgets, goals, formatMoney, formatCompactMoney } = useExtras()
   const actions = useUiActions()
   const navigate = useNavigate()
   const today = todayIso()
@@ -62,7 +62,7 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
       <div className="home-kpis">
         <article className="home-kpi lg">
           <span>موجودی کل</span>
-          <strong>{formatCompactRial(totalBalance)}</strong>
+          <strong>{formatCompactMoney(totalBalance)}</strong>
           <small className={balanceDelta != null && balanceDelta >= 0 ? 'up' : 'down'}>
             {balanceDelta == null
               ? `${toFaDigits(activeAccounts.length)} حساب فعال`
@@ -71,17 +71,17 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
         </article>
         <article className="home-kpi lg">
           <span>درآمد این ماه</span>
-          <strong className="up">{formatCompactRial(totals.income)}</strong>
+          <strong className="up">{formatCompactMoney(totals.income)}</strong>
           <small>{incomeCount === 0 ? 'دریافتی ثبت نشده' : `${toFaDigits(incomeCount)} دریافت`}</small>
         </article>
         <article className="home-kpi lg">
           <span>هزینه این ماه</span>
-          <strong className="down">{formatCompactRial(totals.expense)}</strong>
+          <strong className="down">{formatCompactMoney(totals.expense)}</strong>
           <small>{totals.income > 0 ? `${toFaDigits(expenseShare)}٪ از درآمد` : 'هنوز درآمدی ثبت نشده'}</small>
         </article>
         <article className="home-kpi lg">
           <span>پس‌انداز</span>
-          <strong>{formatCompactRial(savingsAmount)}</strong>
+          <strong>{formatCompactMoney(savingsAmount)}</strong>
           <small>نرخ {toFaDigits(savingsRate)}٪</small>
         </article>
       </div>
@@ -124,11 +124,11 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
           <div className="home-budget-lines">
             <div>
               <span>{usingBudget ? 'بودجه ماهانه' : 'درآمد ماه'}</span>
-              <strong>{formatCompactRial(ringLimit)}</strong>
+              <strong>{formatCompactMoney(ringLimit)}</strong>
             </div>
             <div>
               <span>باقی‌مانده</span>
-              <strong>{formatCompactRial(ringLeft)}</strong>
+              <strong>{formatCompactMoney(ringLeft)}</strong>
             </div>
           </div>
         </section>
@@ -150,7 +150,7 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
                 <div key={bar.id} className="home-cat">
                   <span>{bar.name}</span>
                   <span className="track"><span style={{ width: `${(bar.amount / catMax) * 100}%` }} /></span>
-                  <strong>{formatCompactRial(bar.amount)}</strong>
+                  <strong>{formatCompactMoney(bar.amount)}</strong>
                 </div>
               ))}
             </div>
@@ -178,7 +178,7 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
                     <small>{kind === 'overdue' ? 'معوق' : 'به‌زودی'}</small>
                   </span>
                   <em>{formatPersianDate(item.dueDate)}</em>
-                  <b>{formatCompactRial(item.amount)}</b>
+                  <b>{formatCompactMoney(item.amount)}</b>
                 </button>
               ))}
             </div>
@@ -213,7 +213,7 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
                     </span>
                     <b className={positive ? 'up' : 'down'}>
                       {positive ? '+' : '−'}
-                      {formatRial(tx.amount)}
+                      {formatMoney(tx.amount)}
                     </b>
                   </button>
                 )
@@ -228,7 +228,7 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
               <h2>بینش مالی</h2>
             </div>
           </header>
-          <p>{insightText(series, totals.income, totals.expense, totals.net)}</p>
+          <p>{insightText(series, totals.income, totals.expense, totals.net, formatCompactMoney)}</p>
         </section>
       </div>
     </div>
@@ -240,6 +240,7 @@ function insightText(
   income: number,
   expense: number,
   net: number,
+  formatCompact: (amount: number) => string,
 ) {
   if (series.every((point) => point.income === 0 && point.expense === 0)) {
     return 'با ثبت چند درآمد و هزینه، اینجا جمع‌بندی وضع حساب را می‌بینید.'
@@ -251,7 +252,7 @@ function insightText(
     return `هزینه این ماه ${toFaDigits(rise)}٪ بیشتر از ماه قبل است. اگر همین روند بماند، تا پایان ماه فشار روی موجودی بیشتر می‌شود.`
   }
   if (net > 0 && income > 0) {
-    return `این ماه ${formatCompactRial(net)} ریال از هزینه جلو هستید. این مازاد می‌تواند به پس‌انداز یا قسط‌های نزدیک برسد.`
+    return `این ماه ${formatCompact(net)} از هزینه جلو هستید. این مازاد می‌تواند به پس‌انداز یا قسط‌های نزدیک برسد.`
   }
   if (expense > income) {
     return 'هزینه این ماه از درآمد بیشتر شده است. دسته‌های بزرگ‌تر را در ترکیب هزینه‌ها ببینید تا موجودی حفظ شود.'

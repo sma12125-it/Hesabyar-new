@@ -3,8 +3,8 @@ import { formatRelativeFromIso } from '../lib/dates'
 import { accountIcon, getCategory } from '../lib/categories'
 import { useStore } from '../store/Store'
 import { actorLabel } from '../lib/actor'
-import { formatRial } from '../lib/money'
 import type { Account, Transaction } from '../types'
+import { useExtras } from '../store/Extras'
 import { SwipeRow } from './SwipeRow'
 import { useUiActions } from './UiActions'
 
@@ -47,6 +47,7 @@ export const TxRow = memo(function TxRow({
 }) {
   const actions = useUiActions()
   const { customCategories } = useStore()
+  const { formatMoney, unitLabel } = useExtras()
   const account = accounts.find((a) => a.id === tx.accountId)
   const amtClass = tx.kind === 'income' ? 'income' : tx.kind === 'expense' ? 'expense' : ''
   const subBits = [formatRelativeFromIso(tx.date)]
@@ -72,8 +73,8 @@ export const TxRow = memo(function TxRow({
           <div className="tx-sub">{subBits.join(' · ')}</div>
         </div>
         <div className={`tx-amt ${amtClass}`.trim()}>
-          {formatRial(tx.amount)}
-          <span className="unit">ریال</span>
+          {formatMoney(tx.amount, false)}
+          <span className="unit">{unitLabel}</span>
         </div>
       </div>
     </SwipeRow>
@@ -88,6 +89,7 @@ export const AccountRow = memo(function AccountRow({
   onClick: () => void
 }) {
   const actions = useUiActions()
+  const { formatMoney, unitLabel } = useExtras()
   const canSwipe = !account.archived && Boolean(actions)
 
   return (
@@ -103,8 +105,8 @@ export const AccountRow = memo(function AccountRow({
           {account.shareId ? <span className="badge bank">مشترک</span> : null}
         </div>
         <div className="acct-bal">
-          {formatRial(account.balance)}
-          <span className="unit">ریال</span>
+          {formatMoney(account.balance, false)}
+          <span className="unit">{unitLabel}</span>
         </div>
       </button>
     </SwipeRow>

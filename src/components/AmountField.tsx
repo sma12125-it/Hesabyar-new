@@ -14,7 +14,7 @@ export function AmountField({
   placeholder = '۰',
   autoFocus,
   ariaLabel = 'مبلغ به ریال',
-  hint = 'مبلغ',
+  hint = 'مبلغ به ریال',
   caret,
   over = false,
   className,
@@ -71,15 +71,18 @@ export function AmountField({
       placeholder={variant === 'field' ? placeholder : undefined}
       onChange={handleChange}
       aria-label={ariaLabel}
+      style={{ touchAction: 'manipulation' }}
     />
   )
 
   if (variant === 'field') return input
 
+  const tomanEquivalent = Math.trunc(value / 10)
+
   return (
     <div
       className={`amount-block${className ? ` ${className}` : ''}`}
-      style={style}
+      style={{ touchAction: 'manipulation', cursor: 'text', ...style }}
       onClick={() => inputRef.current?.focus()}
     >
       <div className="hint">{hint}</div>
@@ -91,6 +94,11 @@ export function AmountField({
         {value > 0 ? formatRial(value) : '۰'}
         <span className="cur">ریال</span>
       </div>
+      {value > 0 ? (
+        <div style={{ fontSize: '13px', color: 'var(--hy-text-tertiary)', marginTop: '4px', fontWeight: 600 }}>
+          معادل {formatRial(tomanEquivalent)} تومان
+        </div>
+      ) : null}
       {input}
     </div>
   )

@@ -183,3 +183,25 @@ export interface ReminderSettings {
   enabled: boolean
   leadDays: number
 }
+
+export type CurrencyUnit = 'IRT' | 'IRR'
+
+export type ChequeDirection = 'payable' | 'receivable'
+export type ChequeStatus = 'pending' | 'cleared' | 'bounced'
+
+export interface Cheque {
+  id: string
+  direction: ChequeDirection
+  sayadId: string
+  bankName: string
+  amount: number
+  dueDate: string
+  party: string
+  status: ChequeStatus
+  accountId?: string
+  note: string
+  createdAt: number
+  clearedAt?: string
+  transactionId?: string
+}
+
