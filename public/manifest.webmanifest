@@ -1,9 +1,9 @@
 {
   "name": "حساب‌یار",
   "short_name": "حساب‌یار",
-  "description": "حسابداری شخصی با موجودی ریال",
-  "start_url": "/",
-  "scope": "/",
+  "description": "حسابداری شخصی با موجودی ریال و تومان",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#FAFBFC",

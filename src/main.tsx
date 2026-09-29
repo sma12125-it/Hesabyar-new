@@ -15,9 +15,21 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   })
 }
 
+function getBasename(): string {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+  if (base) return base
+  if (typeof window !== 'undefined' && window.location.hostname.endsWith('github.io')) {
+    const segments = window.location.pathname.split('/').filter(Boolean)
+    if (segments.length > 0) {
+      return `/${segments[0]}`
+    }
+  }
+  return '/'
+}
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '') || '/'}>
+    <BrowserRouter basename={getBasename()}>
       <App />
     </BrowserRouter>
   </StrictMode>,
