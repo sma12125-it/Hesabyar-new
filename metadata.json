@@ -1,0 +1,8 @@
+{
+  "name": "حساب‌یار (HesabYar)",
+  "description": "حسابداری شخصی با مدیریت حساب‌ها، تراکنش‌ها، چک و اقساط",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ],
+  "permissions": []
+}

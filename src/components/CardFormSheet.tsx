@@ -1,0 +1,162 @@
+import { useState } from 'react'
+import { createPortal } from 'react-dom'
+import { toJalaali } from '../lib/jalaali'
+import { validateCard } from '../lib/vault'
+import { digitsOnly } from '../lib/money'
+import { notifyUser } from '../lib/sync'
+import { useExtras } from '../store/Extras'
+import type { BankCard } from '../types'
+
+const COLORS = [
+  'linear-gradient(135deg, #0f766e 0%, #115e59 48%, #1e1b4b 100%)',
+  'linear-gradient(135deg, #1d4ed8 0%, #1e3a8a 50%, #0f172a 100%)',
+  'linear-gradient(135deg, #b45309 0%, #9a3412 50%, #7c2d12 100%)',
+  'linear-gradient(135deg, #be123c 0%, #9f1239 48%, #4c0519 100%)',
+  'linear-gradient(135deg, #6d28d9 0%, #4c1d95 50%, #1e1b4b 100%)',
+  'linear-gradient(135deg, #0f172a 0%, #334155 100%)',
+]
+
+export const IRAN_BANKS = [
+  'بانک ملی ایران',
+  'بانک سپه',
+  'بانک ملت',
+  'بانک تجارت',
+  'بانک صادرات',
+  'بانک کشاورزی',
+  'بانک مسکن',
+  'بانک رفاه کارگران',
+  'پست بانک',
+  'بانک پاسارگاد',
+  'بانک پارسیان',
+  'بانک اقتصاد نوین',
+  'بانک سامان',
+  'بانک سرمایه',
+  'بانک سینا',
+  'بانک کارآفرین',
+  'بانک شهر',
+  'بانک دی',
+  'بانک آینده',
+  'بانک گردشگری',
+  'بانک ایران زمین',
+  'بانک خاورمیانه',
+  'بانک قرض‌الحسنه مهر ایران',
+  'بانک قرض‌الحسنه رسالت',
+]
+
+function groupPan(raw: string): string {
+  const digits = digitsOnly(raw).slice(0, 16)
+  return digits.replace(/(\d{4})(?=\d)/g, '$1 ').trim()
+}
+
+const months = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'))
+const today = new Date()
+const jalaliYear = toJalaali(today.getFullYear(), today.getMonth() + 1, today.getDate()).jy
+const years = Array.from({ length: 12 }, (_, i) => ({
+  value: String((jalaliYear + i) % 100).padStart(2, '0'),
+  label: String(jalaliYear + i),
+}))
+
+export function CardFormSheet({ card, onClose }: { card?: BankCard; onClose: () => void }) {
+  const { saveCard } = useExtras()
+  const known = card ? IRAN_BANKS.includes(card.bankName) : true
+  const [bankChoice, setBankChoice] = useState(card ? (known ? card.bankName : 'سایر') : IRAN_BANKS[0]!)
+  const [customBank, setCustomBank] = useState(card && !known ? card.bankName : '')
+  const [holder, setHolder] = useState(card?.holder ?? '')
+  const [pan, setPan] = useState(card ? groupPan(card.pan) : '')
+  const [month, setMonth] = useState(card?.expiry.slice(0, 2) || months[0]!)
+  const [year, setYear] = useState(card?.expiry.slice(3, 5) || years[0]!.value)
+  const [cvv, setCvv] = useState(card?.cvv ?? '')
+  const [shebaDigits, setShebaDigits] = useState(card?.sheba.replace(/^IR/i, '') ?? '')
+  const [color, setColor] = useState(card?.color || COLORS[0]!)
+  const [error, setError] = useState<string | null>(null)
+  const bankName = bankChoice === 'سایر' ? customBank : bankChoice
+
+  async function save() {
+    const expiry = `${month}/${year}`
+    const sheba = shebaDigits ? `IR${shebaDigits}` : ''
+    const problem = validateCard({ bankName, holder, pan, expiry, cvv })
+    if (problem) {
+      setError(problem)
+      return
+    }
+    if (sheba && !/^IR\d{24}$/.test(sheba)) {
+      setError('شبا بعد از IR باید ۲۴ رقم باشد')
+      return
+    }
+    try {
+      await saveCard({ id: card?.id, bankName, holder, pan: digitsOnly(pan), expiry, cvv, sheba, note: card?.note ?? '', color })
+      onClose()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'کارت ذخیره نشد'
+      setError(message)
+      notifyUser(message)
+    }
+  }
+
+  return createPortal(
+    <>
+      <div className="sheet-scrim sheet-front" onClick={onClose} />
+      <div className="glass-sheet sheet-front" role="dialog" aria-label={card ? 'ویرایش کارت' : 'کارت جدید'}>
+        <div className="sheet-handle" />
+        <div className="sheet-header">
+          <h1>{card ? 'ویرایش کارت' : 'کارت جدید'}</h1>
+          <button className="sheet-close" type="button" onClick={onClose} aria-label="بستن">✕</button>
+        </div>
+        <div className="sheet-body-scroll">
+          {error ? <div className="banner error"><span>{error}</span></div> : null}
+          <div className="field-stack">
+            <select className="field-input" value={bankChoice} onChange={(e) => setBankChoice(e.target.value)}>
+              {IRAN_BANKS.map((name) => <option key={name} value={name}>{name}</option>)}
+              <option value="سایر">سایر</option>
+            </select>
+            {bankChoice === 'سایر' ? (
+              <input className="field-input" placeholder="نام بانک" value={customBank} onChange={(e) => setCustomBank(e.target.value)} />
+            ) : null}
+            <input className="field-input" placeholder="صاحب کارت" value={holder} onChange={(e) => setHolder(e.target.value)} />
+            <input
+              className="field-input"
+              inputMode="numeric"
+              placeholder="۱۲۳۴ ۵۶۷۸ ۹۰۱۲ ۳۴۵۶"
+              dir="ltr"
+              value={pan}
+              onChange={(e) => setPan(groupPan(e.target.value))}
+            />
+            <div className="expiry-row">
+              <label>
+                ماه
+                <select value={month} onChange={(e) => setMonth(e.target.value)}>
+                  {months.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </label>
+              <label>
+                سال شمسی
+                <select value={year} onChange={(e) => setYear(e.target.value)}>
+                  {years.map((item) => <option key={item.label} value={item.value}>{item.label}</option>)}
+                </select>
+              </label>
+            </div>
+            <input className="field-input" inputMode="numeric" placeholder="CVV" value={cvv} onChange={(e) => setCvv(digitsOnly(e.target.value).slice(0, 4))} />
+            <div className="sheba-row">
+              <span>IR</span>
+              <input
+                className="field-input"
+                inputMode="numeric"
+                placeholder="۲۴ رقم"
+                dir="ltr"
+                value={shebaDigits}
+                onChange={(e) => setShebaDigits(digitsOnly(e.target.value).slice(0, 24))}
+              />
+            </div>
+            <div className="swatch-row" aria-label="رنگ کارت">
+              {COLORS.map((item) => (
+                <button key={item} type="button" className={`swatch${color === item ? ' on' : ''}`} style={{ background: item }} onClick={() => setColor(item)} />
+              ))}
+            </div>
+            <button className="cta-confirm" type="button" onClick={() => void save()}>{card ? 'ذخیره تغییرات' : 'ثبت کارت'}</button>
+          </div>
+        </div>
+      </div>
+    </>,
+    document.body,
+  )
+}

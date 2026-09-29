@@ -1,0 +1,130 @@
+/* HesabYar v2 — Liquid Glass tokens (glass-only revision; pale wall APPROVED) */
+:root {
+  /* Brand / semantic */
+  --hy-teal: #0D9488;
+  --hy-teal-deep: #0F766E;
+  --hy-violet: #7C3AED;
+  --hy-sky: #0EA5E9;
+  --hy-income: #16A34A;
+  --hy-expense: #DC2626;
+  --hy-transfer: #2563EB;
+
+  /* Wallpaper base — DO NOT CHANGE (Mohammad approved) */
+  --wall-base: #FAFBFC;
+  --wall-base-alt: #F7F8FA;
+
+  /* Text */
+  --hy-text: rgba(15, 23, 42, 0.94);
+  --hy-text-secondary: rgba(51, 65, 85, 0.72);
+  --hy-text-tertiary: rgba(100, 116, 139, 0.62);
+  --hy-text-on-glass: rgba(15, 23, 42, 0.90);
+
+  /* ═══ GLASS FILL OPACITY (numeric) — AFTER this round ═══
+     BEFORE: top 0.22 / mid 0.06 / bot 0.08 / strong-top 0.28 / strong-bot 0.10
+            tab/float top 0.28 · sheet top 0.32 · light top 0.14
+     AFTER:  top 0.06 / mid 0.01 / bot 0.025 / strong-top 0.09 / strong-bot 0.03
+            tab/float top 0.08 · sheet top 0.09 · light top 0.04
+            + cool refractive tint (slate/teal/violet ≤0.035) — not pure white paint
+  */
+  --glass-fill-top-a: 0.06;
+  --glass-fill-mid-a: 0.01;
+  --glass-fill-bot-a: 0.025;
+  --glass-fill-strong-top-a: 0.09;
+  --glass-fill-strong-bot-a: 0.03;
+  --glass-fill-light-top-a: 0.04;
+  --glass-fill-light-bot-a: 0.01;
+  --glass-fill-chrome-top-a: 0.08;   /* tab / sheet / FAB */
+  --glass-fill-chrome-bot-a: 0.02;
+  --glass-fill-sheet-top-a: 0.09;
+  --glass-fill-sheet-bot-a: 0.025;
+
+  --glass-chrome: linear-gradient(
+    165deg,
+    rgba(255, 255, 255, var(--glass-fill-top-a)) 0%,
+    rgba(148, 163, 184, 0.03) 35%,
+    rgba(255, 255, 255, var(--glass-fill-mid-a)) 50%,
+    rgba(13, 148, 136, 0.025) 78%,
+    rgba(124, 58, 237, 0.02) 100%
+  );
+  --glass-chrome-strong: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, var(--glass-fill-strong-top-a)) 0%,
+    rgba(148, 163, 184, 0.035) 40%,
+    rgba(13, 148, 136, 0.03) 100%
+  );
+  --glass-chrome-float: linear-gradient(
+    175deg,
+    rgba(255, 255, 255, var(--glass-fill-chrome-top-a)) 0%,
+    rgba(148, 163, 184, 0.03) 45%,
+    rgba(13, 148, 136, 0.025) 100%
+  );
+  --glass-chrome-sheet: linear-gradient(
+    168deg,
+    rgba(255, 255, 255, var(--glass-fill-sheet-top-a)) 0%,
+    rgba(148, 163, 184, 0.035) 38%,
+    rgba(13, 148, 136, 0.03) 70%,
+    rgba(124, 58, 237, 0.025) 100%
+  );
+
+  /* ═══ BLUR / SATURATE — polish sprint (perf > decorative row blur) ═══
+     List rows no longer use backdrop-filter (see .lg-row).
+     Hero / tab / sheet keep real glass at moderate radii.
+     BEFORE: blur 96 / 108 / light 72 / chrome 100 / sheet 110 · sat 210% / 230%
+     AFTER:  blur 28 / 40 / light 12 / chrome 36 / sheet 44 · sat 160% / 175%
+  */
+  --glass-blur: 28px;
+  --glass-blur-strong: 40px;
+  --glass-blur-light: 12px;
+  --glass-blur-chrome: 36px;
+  --glass-blur-sheet: 44px;
+  --glass-saturate: 160%;
+  --glass-saturate-strong: 175%;
+  --glass-saturate-chrome: 170%;
+
+  /* ═══ SPECULAR — AFTER ═══
+     BEFORE: top-strip peak 0.78 → 0.22 @ 6% · rim inset white 0.92
+     AFTER:  top-strip peak 0.95 → 0.35 @ 4% · rim inset white 1.0 · corner glow 0.55
+  */
+  --glass-specular-peak: 0.95;
+  --glass-specular-mid: 0.35;
+  --glass-specular-fade: 0.0;
+  --glass-specular-stop: 4%;
+  --glass-specular-end: 18%;
+  --glass-rim-top: 1.0;
+  --glass-rim-side: 0.55;
+  --glass-rim-bot: 0.08;
+  --glass-corner-glow: 0.55;
+  --glass-border-a: 0.78;
+  --glass-border: 0.5px solid rgba(255, 255, 255, var(--glass-border-a));
+  --glass-border-soft: 0.5px solid rgba(255, 255, 255, 0.42);
+
+  /* Soft diffuse depth — NOT paper card */
+  --shadow-glass:
+    0 1px 2px rgba(15, 23, 42, 0.02),
+    0 8px 28px rgba(15, 23, 42, 0.055),
+    inset 0 1px 0 rgba(255, 255, 255, var(--glass-rim-top)),
+    inset 0 -0.5px 0 rgba(15, 23, 42, 0.04);
+  --shadow-glass-float:
+    0 2px 4px rgba(15, 23, 42, 0.025),
+    0 14px 36px rgba(15, 23, 42, 0.07),
+    inset 0 1.5px 0 rgba(255, 255, 255, 1),
+    inset 0 -0.5px 0 rgba(15, 23, 42, 0.045);
+  --shadow-btn:
+    0 2px 10px rgba(15, 23, 42, 0.06),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.05);
+
+  /* Geometry / motion (unchanged) */
+  --radius-sheet: 28px;
+  --radius-control: 18px;
+  --radius-pill: 999px;
+  --radius-device: 44px;
+  --phone-w: 390px;
+  --phone-h: 844px;
+  --tab-bottom-gap: 24px;
+  --safe-top: 54px;
+  --motion-tab-compress: 280ms cubic-bezier(0.32, 0.72, 0, 1);
+  --motion-morph: 420ms cubic-bezier(0.34, 1.2, 0.64, 1);
+  --motion-sheet: 520ms cubic-bezier(0.22, 1.15, 0.36, 1);
+  --motion-specular: 2.8s ease-in-out infinite;
+}
