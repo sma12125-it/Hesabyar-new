@@ -2,9 +2,9 @@
 
 Personal accounting for the browser. **Rial only**, RTL Persian, Liquid Glass, IndexedDB.
 
-**Live:** https://sma12125-it.github.io/hesabyar/
+**Live:** https://sma12125-it.github.io/hesabyar-new/
 
-**Repo:** https://github.com/sma12125-it/hesabyar
+**Repo:** https://github.com/sma12125-it/hesabyar-new
 
 If that URL 404s, enable Pages once (repo admin): [Settings → Pages](https://github.com/sma12125-it/hesabyar/settings/pages) → **Deploy from a branch** → `gh-pages` / `/` (root) → Save. The production build is already on `gh-pages`.
 
