@@ -13,8 +13,8 @@ export interface CloudSnapshot<T> {
 
 const SESSION_KEY = 'hy-cloud-session'
 
-const CLOUD_URL = 'https://yiluruldxtgfuxqwosri.supabase.co'
-const CLOUD_KEY = 'sb_publishable_tHV7NoCAC-3czs4yMG1Z7Q_bg05S1MI'
+const CLOUD_URL = import.meta.env.VITE_SUPABASE_URL || 'https://yiluruldxtgfuxqwosri.supabase.co'
+const CLOUD_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_tHV7NoCAC-3czs4yMG1Z7Q_bg05S1MI'
 
 export function supabaseConfig(): { url: string; key: string } {
   return { url: CLOUD_URL, key: CLOUD_KEY }

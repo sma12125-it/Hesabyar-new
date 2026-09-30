@@ -13,7 +13,7 @@ function getBase(): string {
     }
   }
   if (process.env.GITHUB_ACTIONS === 'true') {
-    return '/hesabyar/'
+    return '/hesabyar-new/'
   }
   return '/'
 }

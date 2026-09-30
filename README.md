@@ -6,7 +6,7 @@ Personal accounting for the browser. **Rial only**, RTL Persian, Liquid Glass, I
 
 **Repo:** https://github.com/sma12125-it/hesabyar-new
 
-If that URL 404s, enable Pages once (repo admin): [Settings → Pages](https://github.com/sma12125-it/hesabyar/settings/pages) → **Deploy from a branch** → `gh-pages` / `/` (root) → Save. The production build is already on `gh-pages`.
+If that URL 404s, enable Pages once (repo admin): [Settings → Pages](https://github.com/sma12125-it/hesabyar-new/settings/pages) → **Deploy from a branch** → `gh-pages` / `/` (root) → Save. The production build is already on `gh-pages`.
 
 ## Polish sprint (post Sprint 2)
 
