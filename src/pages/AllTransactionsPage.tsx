@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react'
 import { useStore } from '../store/Store'
 import { TxRow, visibleLedger } from '../components/TxRow'
 import { toFaDigits, toWesternDigits } from '../lib/money'
+import { getCategory } from '../lib/categories'
 
 export function AllTransactionsPage({ onBack }: { onBack: () => void }) {
-  const { transactions, accounts } = useStore()
+  const { transactions, accounts, customCategories } = useStore()
   const [search, setSearch] = useState('')
   const [kindFilter, setKindFilter] = useState<'all' | 'expense' | 'income' | 'transfer'>('all')
   const [accountFilter, setAccountFilter] = useState<string>('all')
@@ -24,19 +25,23 @@ export function AllTransactionsPage({ onBack }: { onBack: () => void }) {
         if (tx.accountId !== accountFilter && tx.counterpartyAccountId !== accountFilter) return false
       }
 
-      // Search query
+      // Search query: description (note), category name, account name, amount
       if (q) {
-        const noteMatch = tx.note.toLowerCase().includes(q)
+        const noteMatch = (tx.note || '').toLowerCase().includes(q)
         const amountMatch = String(tx.amount).includes(q)
         const account = accounts.find((a) => a.id === tx.accountId)
-        const accountMatch = account?.name.toLowerCase().includes(q)
-        const categoryMatch = tx.categoryId.toLowerCase().includes(q)
-        if (!noteMatch && !amountMatch && !accountMatch && !categoryMatch) return false
+        const accountMatch = account?.name.toLowerCase().includes(q) ?? false
+        const counterparty = tx.counterpartyAccountId ? accounts.find((a) => a.id === tx.counterpartyAccountId) : undefined
+        const counterpartyMatch = counterparty?.name.toLowerCase().includes(q) ?? false
+        const cat = getCategory(tx.categoryId, customCategories)
+        const categoryMatch = cat ? cat.name.toLowerCase().includes(q) : false
+        const categoryIdMatch = tx.categoryId.toLowerCase().includes(q)
+        if (!noteMatch && !amountMatch && !accountMatch && !counterpartyMatch && !categoryMatch && !categoryIdMatch) return false
       }
 
       return true
     })
-  }, [baseRows, search, kindFilter, accountFilter, accounts])
+  }, [baseRows, search, kindFilter, accountFilter, accounts, customCategories])
 
   return (
     <>
@@ -50,14 +55,53 @@ export function AllTransactionsPage({ onBack }: { onBack: () => void }) {
           </button>
         </div>
 
-        {/* Search input */}
-        <div style={{ margin: '8px 0 10px' }}>
+        {/* Search input with clear button and icon */}
+        <div style={{ position: 'relative', margin: '8px 0 10px' }}>
+          <span
+            style={{
+              position: 'absolute',
+              right: 12,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              fontSize: 15,
+              opacity: 0.6,
+              pointerEvents: 'none',
+            }}
+          >
+            🔍
+          </span>
           <input
             className="field-input"
-            placeholder="🔍 جستجو در یادداشت، مبلغ یا حساب…"
+            style={{ paddingRight: 36, paddingLeft: search ? 36 : 14, width: '100%' }}
+            placeholder="جستجو در شرح تراکنش، دسته‌بندی، حساب، مبلغ…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          {search ? (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              style={{
+                position: 'absolute',
+                left: 10,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'rgba(15, 23, 42, 0.12)',
+                border: 'none',
+                borderRadius: '50%',
+                width: 22,
+                height: 22,
+                display: 'grid',
+                placeItems: 'center',
+                fontSize: 11,
+                color: 'var(--hy-text-secondary)',
+                cursor: 'pointer',
+              }}
+              aria-label="پاک کردن جستجو"
+            >
+              ✕
+            </button>
+          ) : null}
         </div>
 
         {/* Filters */}
