@@ -88,6 +88,10 @@ export function paidCount(items: InstallmentItem[], today: string): number {
   return items.filter((item) => itemEffectiveStatus(item, today) === 'paid').length
 }
 
+export function overdueCount(items: InstallmentItem[], today: string): number {
+  return items.filter((item) => itemEffectiveStatus(item, today) === 'overdue').length
+}
+
 export function remainingAmount(items: InstallmentItem[], today: string): number {
   return items
     .filter((item) => itemEffectiveStatus(item, today) !== 'paid')

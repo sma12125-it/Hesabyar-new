@@ -33,6 +33,8 @@ export function TransferSheet({
       '',
   )
   const [amount, setAmount] = useState(existingOut?.amount ?? 0)
+  const [fee, setFee] = useState<number>(0)
+  const [hasFee, setHasFee] = useState(false)
   const [note, setNote] = useState(existingOut?.note ?? '')
   const [date, setDate] = useState(() => existingOut?.date ?? todayIso())
   const [picker, setPicker] = useState<'from' | 'to' | 'note' | null>(null)
@@ -44,7 +46,8 @@ export function TransferSheet({
   const available = from
     ? from.balance + (existingOut && existingOut.accountId === from.id ? existingOut.amount : 0)
     : 0
-  const over = Boolean(from && amount > available)
+  const totalDeduction = amount + (hasFee ? fee : 0)
+  const over = Boolean(from && totalDeduction > available)
   const empty = !from || !to || amount <= 0
   const same = Boolean(from && to && from.id === to.id)
   const disabled = saving || empty || over || same
@@ -62,11 +65,12 @@ export function TransferSheet({
           date,
         })
       } else {
+        const transferNote = hasFee && fee > 0 ? `${note ? note + ' · ' : ''}کارمزد: ${formatRial(fee)} ریال` : note
         await addTransfer({
           amount,
           fromAccountId: fromId,
           toAccountId: toId,
-          note,
+          note: transferNote,
           date,
         })
       }
@@ -203,6 +207,48 @@ export function TransferSheet({
               )}
             </div>
           </button>
+
+          {/* Transfer Fee Toggle */}
+          <div style={{ marginTop: 8 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 14px',
+                borderRadius: 16,
+                background: 'rgba(255, 255, 255, 0.08)',
+                border: '0.5px solid rgba(255, 255, 255, 0.5)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>💳</span>
+                <span style={{ fontSize: 13, fontWeight: 600 }}>کارمزد انتقال بانکی</span>
+              </div>
+              <button
+                type="button"
+                className={`cat-mini${hasFee ? ' active' : ''}`}
+                onClick={() => {
+                  setHasFee((v) => !v)
+                  if (!hasFee && fee === 0) setFee(12000)
+                }}
+              >
+                {hasFee ? 'فعال' : 'ندارد'}
+              </button>
+            </div>
+            {hasFee ? (
+              <div style={{ marginTop: 6, padding: '0 4px' }}>
+                <input
+                  className="field-input"
+                  type="number"
+                  placeholder="مبلغ کارمزد به ریال (مثلاً ۱۲,۰۰۰)"
+                  value={fee || ''}
+                  onChange={(e) => setFee(Number(e.target.value) || 0)}
+                  style={{ width: '100%', fontSize: 13 }}
+                />
+              </div>
+            ) : null}
+          </div>
 
           <div style={{ marginTop: 8 }}>
             <DateField label="تاریخ" value={date} onChange={setDate} />

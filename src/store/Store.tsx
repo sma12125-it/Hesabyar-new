@@ -275,6 +275,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       createdAt: now,
       ...actorStamp(now),
       ...(input.source ? { source: input.source } : {}),
+      ...(input.receiptPhoto ? { receiptPhoto: input.receiptPhoto } : {}),
+      ...(input.tags && input.tags.length > 0 ? { tags: input.tags } : {}),
     }
     await persistSnapshot(prev, { ...prev, transactions: [tx, ...prev.transactions] })
   }, [persistSnapshot])
@@ -403,6 +405,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       date,
       updatedAt: Date.now(),
       actorEmail: tx.actorEmail ?? actorStamp().actorEmail,
+      receiptPhoto: patch.receiptPhoto !== undefined ? patch.receiptPhoto : tx.receiptPhoto,
+      tags: patch.tags !== undefined ? patch.tags : tx.tags,
     }
     const nextItems = tx.installmentItemId
       ? prev.items.map((item) => (item.id === tx.installmentItemId ? { ...item, amount } : item))

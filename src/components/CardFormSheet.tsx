@@ -5,6 +5,7 @@ import { validateCard } from '../lib/vault'
 import { digitsOnly } from '../lib/money'
 import { notifyUser } from '../lib/sync'
 import { useExtras } from '../store/Extras'
+import { detectBankFromPan } from '../lib/bankDetector'
 import type { BankCard } from '../types'
 
 const COLORS = [
@@ -71,6 +72,21 @@ export function CardFormSheet({ card, onClose }: { card?: BankCard; onClose: () 
   const [error, setError] = useState<string | null>(null)
   const bankName = bankChoice === 'سایر' ? customBank : bankChoice
 
+  function onPanChange(rawVal: string) {
+    const formatted = groupPan(rawVal)
+    setPan(formatted)
+    const detected = detectBankFromPan(formatted)
+    if (detected) {
+      if (IRAN_BANKS.includes(detected.name)) {
+        setBankChoice(detected.name)
+      } else {
+        setBankChoice('سایر')
+        setCustomBank(detected.name)
+      }
+      setColor(detected.color)
+    }
+  }
+
   async function save() {
     const expiry = `${month}/${year}`
     const sheba = shebaDigits ? `IR${shebaDigits}` : ''
@@ -119,7 +135,7 @@ export function CardFormSheet({ card, onClose }: { card?: BankCard; onClose: () 
               placeholder="۱۲۳۴ ۵۶۷۸ ۹۰۱۲ ۳۴۵۶"
               dir="ltr"
               value={pan}
-              onChange={(e) => setPan(groupPan(e.target.value))}
+              onChange={(e) => onPanChange(e.target.value)}
             />
             <div className="expiry-row">
               <label>

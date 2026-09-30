@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { dueReminderLines, notifyReminders } from '../lib/reminders'
 import { useExtras } from '../store/Extras'
 import { formatPersianDate } from '../lib/dates'
-import { paidCount, planBadge } from '../lib/installments'
+import { overdueCount, paidCount, planBadge } from '../lib/installments'
 import { todayIso } from '../lib/iso'
 import { toFaDigits } from '../lib/money'
 import { useStore } from '../store/Store'
@@ -317,6 +317,7 @@ export function PlanCard({
   const actions = useUiActions()
   const { formatMoney } = useExtras()
   const paid = paidCount(items, today)
+  const overdue = overdueCount(items, today)
   const badge = plan.status === 'completed' ? 'ok' : planBadge(items, today)
   const next = items
     .filter((i) => i.status !== 'paid' && !i.transactionId)
@@ -331,7 +332,25 @@ export function PlanCard({
       <button className="plan-card lg-row" type="button" onClick={onClick}>
         <div className="plan-top">
           <div>
-            <div className="plan-name">{plan.name}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span className="plan-name">{plan.name}</span>
+              {overdue > 0 && plan.status === 'active' ? (
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '2px 7px',
+                    borderRadius: 8,
+                    background: 'rgba(220, 38, 38, 0.16)',
+                    color: 'var(--hy-expense)',
+                    border: '0.5px solid rgba(220, 38, 38, 0.35)',
+                  }}
+                  title="تعداد اقساط معوق"
+                >
+                  ⚠️ {toFaDigits(overdue)} معوق
+                </span>
+              ) : null}
+            </div>
             <div className="plan-meta">
               {plan.status === 'archived'
                 ? 'آرشیو شده'
@@ -358,7 +377,14 @@ export function PlanCard({
           <span>
             {toFaDigits(paid)} از {toFaDigits(plan.totalCount)} قسط
           </span>
-          <span>مانده: {toFaDigits(Math.max(plan.totalCount - paid, 0))}</span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {overdue > 0 && plan.status === 'active' ? (
+              <span style={{ color: 'var(--hy-expense)', fontWeight: 700 }}>
+                {toFaDigits(overdue)} قسط معوق
+              </span>
+            ) : null}
+            <span>مانده: {toFaDigits(Math.max(plan.totalCount - paid, 0))}</span>
+          </div>
         </div>
       </button>
     </SwipeRow>

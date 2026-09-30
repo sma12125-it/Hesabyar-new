@@ -45,6 +45,10 @@ export interface Transaction {
   actorEmail?: string
   /** Set when a reviewed bank SMS is confirmed. Older rows omit this and stay manual. */
   source?: TxSource
+  /** Optional base64 compressed receipt or invoice image */
+  receiptPhoto?: string
+  /** Optional hashtags or labels e.g. ['سفر', 'تعمیرات'] */
+  tags?: string[]
 }
 
 export interface Category {
@@ -99,6 +103,8 @@ export interface QuickEntryInput {
   note: string
   date?: string
   source?: TxSource
+  receiptPhoto?: string
+  tags?: string[]
 }
 
 export interface TransferInput {
@@ -141,6 +147,8 @@ export interface UpdateTransactionInput {
   kind?: 'expense' | 'income'
   fromAccountId?: string
   toAccountId?: string
+  receiptPhoto?: string
+  tags?: string[]
 }
 
 export interface UpdateInstallmentItemInput {

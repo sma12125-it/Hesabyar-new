@@ -5,6 +5,8 @@ import { BalanceHero } from '../components/BalanceHero'
 import { TxRow } from '../components/TxRow'
 import { SettingsButton } from '../components/SettingsButton'
 import { useUiActions } from '../components/UiActions'
+import { useExtras } from '../store/Extras'
+import { notifyUser } from '../lib/sync'
 
 export function AccountDetailPage({
   onScroll,
@@ -22,10 +24,19 @@ export function AccountDetailPage({
   const { id } = useParams()
   const navigate = useNavigate()
   const { accounts, transactions, archiveAccount, restoreAccount } = useStore()
+  const { cards } = useExtras()
   const actions = useUiActions()
   const [menu, setMenu] = useState(false)
   const account = accounts.find((a) => a.id === id)
   const txs = transactions.filter((t) => t.accountId === id)
+  const linkedCard = account?.cardId ? cards.find((c) => c.id === account.cardId) : undefined
+
+  const copyText = (txt: string, label: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      void navigator.clipboard.writeText(txt)
+      notifyUser(`${label} کپی شد`)
+    }
+  }
 
   if (!account) {
     return (
@@ -149,6 +160,45 @@ export function AccountDetailPage({
           </button>
         )}
       </div>
+
+      {linkedCard ? (
+        <div
+          className="home-card lg"
+          style={{
+            margin: '12px 0',
+            background: linkedCard.color || 'linear-gradient(135deg, #0f766e 0%, #1e1b4b 100%)',
+            color: '#fff',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+            <span style={{ fontWeight: 700, fontSize: 14 }}>{linkedCard.bankName}</span>
+            <span style={{ fontSize: 12, opacity: 0.85 }}>{linkedCard.holder}</span>
+          </div>
+          <div style={{ fontSize: 17, letterSpacing: 2, direction: 'ltr', textAlign: 'center', marginBottom: 14, fontFamily: 'monospace' }}>
+            {linkedCard.pan ? linkedCard.pan.replace(/(\d{4})/g, '$1 ').trim() : ''}
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+            <button
+              type="button"
+              className="cat-mini"
+              style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }}
+              onClick={() => copyText(linkedCard.pan, 'شماره کارت')}
+            >
+              📋 کپی شماره کارت
+            </button>
+            {linkedCard.sheba ? (
+              <button
+                type="button"
+                className="cat-mini"
+                style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }}
+                onClick={() => copyText(linkedCard.sheba, 'شماره شبا')}
+              >
+                📋 کپی شبا
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       <div className="section-head">
         <h2>{account.archived ? 'آخرین تراکنش‌ها' : 'تراکنش‌ها'}</h2>

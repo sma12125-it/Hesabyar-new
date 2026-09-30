@@ -1,9 +1,10 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { JALALI_MONTHS, isoToJalali } from '../lib/jalaali'
 import { expenseByCategory, monthKey, monthTotals, monthlySeries, spentInCategory } from '../lib/reports'
 import { formatPersianDate, formatRelativeFromIso } from '../lib/dates'
 import { homeInstallmentHints } from '../lib/installments'
-import { todayIso } from '../lib/iso'
+import { todayIso, compareIso } from '../lib/iso'
 import { toFaDigits } from '../lib/money'
 import { txTitle, visibleLedger } from './TxRow'
 import { useUiActions } from './UiActions'
@@ -24,7 +25,8 @@ function percent(part: number, whole: number) {
 
 export function HomeDashboard({ onAll }: { onAll: () => void }) {
   const { transactions, accounts, plans, items, customCategories, totalBalance, activeAccounts } = useStore()
-  const { budgets, goals, formatMoney, formatCompactMoney } = useExtras()
+  const { budgets, goals, formatMoney, formatCompactMoney, cheques, currencyUnit, setCurrencyUnit } = useExtras()
+  const [hideAmounts, setHideAmounts] = useState(false)
   const actions = useUiActions()
   const navigate = useNavigate()
   const today = todayIso()
@@ -52,17 +54,120 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
   const ringLimit = usingBudget ? budgetLimit : totals.income
   const ringRatio = Math.min(100, percent(ringSpent, ringLimit))
   const ringLeft = Math.max(ringLimit - ringSpent, 0)
-  const hints = homeInstallmentHints(plans, items, today).slice(0, 4)
+  const hints = homeInstallmentHints(plans, items, today)
+  const overdueHints = hints.filter((h) => h.kind === 'overdue')
+  const upcomingCheques = cheques.filter((c) => c.status === 'pending' && compareIso(c.dueDate, today) <= 3)
   const { pending } = useSmsDrafts()
   const recent = visibleLedger(transactions).slice(0, 4)
   const chartMax = Math.max(1, ...series.flatMap((point) => [point.income, point.expense]))
 
+  const displayMoney = (amt: number) => (hideAmounts ? '••••••' : formatCompactMoney(amt))
+
   return (
     <div className="home-board">
+      {/* Quick Utility Strip: Privacy Eye + Currency Switcher */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '4px 6px 10px',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setHideAmounts((v) => !v)}
+          style={{
+            background: 'rgba(255, 255, 255, 0.12)',
+            border: '0.5px solid rgba(255, 255, 255, 0.5)',
+            borderRadius: 14,
+            padding: '4px 10px',
+            fontSize: 12,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            color: 'var(--hy-text-secondary)',
+            cursor: 'pointer',
+          }}
+          title="حفظ حریم خصوصی"
+        >
+          <span>{hideAmounts ? '🙈' : '👁️'}</span>
+          <span>{hideAmounts ? 'نمایش ارقام' : 'مخفی‌سازی موجودی'}</span>
+        </button>
+
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button
+            type="button"
+            onClick={() => void setCurrencyUnit('IRT')}
+            style={{
+              padding: '3px 8px',
+              borderRadius: 10,
+              fontSize: 11,
+              fontWeight: 700,
+              border: currencyUnit === 'IRT' ? '1px solid #0f766e' : '0.5px solid rgba(255,255,255,0.4)',
+              background: currencyUnit === 'IRT' ? 'rgba(15, 118, 110, 0.2)' : 'transparent',
+              color: currencyUnit === 'IRT' ? 'var(--hy-text)' : 'var(--hy-text-secondary)',
+              cursor: 'pointer',
+            }}
+          >
+            تومان
+          </button>
+          <button
+            type="button"
+            onClick={() => void setCurrencyUnit('IRR')}
+            style={{
+              padding: '3px 8px',
+              borderRadius: 10,
+              fontSize: 11,
+              fontWeight: 700,
+              border: currencyUnit === 'IRR' ? '1px solid #0f766e' : '0.5px solid rgba(255,255,255,0.4)',
+              background: currencyUnit === 'IRR' ? 'rgba(15, 118, 110, 0.2)' : 'transparent',
+              color: currencyUnit === 'IRR' ? 'var(--hy-text)' : 'var(--hy-text-secondary)',
+              cursor: 'pointer',
+            }}
+          >
+            ریال
+          </button>
+        </div>
+      </div>
+
+      {/* Urgent Obligation Warning if Overdue installments or impending cheques */}
+      {overdueHints.length > 0 || upcomingCheques.length > 0 ? (
+        <div
+          className="home-card lg"
+          style={{
+            background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.16) 0%, rgba(185, 28, 28, 0.08) 100%)',
+            borderColor: 'rgba(220, 38, 38, 0.4)',
+            marginBottom: 14,
+            cursor: 'pointer',
+          }}
+          onClick={() => navigate('/installments')}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 24 }}>🚨</span>
+              <div>
+                <strong style={{ color: 'var(--hy-expense)', fontSize: 14 }}>
+                  تعهدات مالی فوری ({toFaDigits(overdueHints.length + upcomingCheques.length)} مورد)
+                </strong>
+                <p style={{ margin: 0, fontSize: 12, color: 'var(--hy-text-secondary)' }}>
+                  {overdueHints.length > 0
+                    ? `${toFaDigits(overdueHints.length)} قسط معوق دارید که سررسید گذشته است.`
+                    : 'چک با سررسید نزدیک در جریان وصول است.'}
+                </p>
+              </div>
+            </div>
+            <span className="home-chip" style={{ background: 'rgba(220, 38, 38, 0.25)', color: '#fff' }}>
+              مشاهده و تسویه
+            </span>
+          </div>
+        </div>
+      ) : null}
+
       <div className="home-kpis">
         <article className="home-kpi lg">
           <span>موجودی کل</span>
-          <strong>{formatCompactMoney(totalBalance)}</strong>
+          <strong>{displayMoney(totalBalance)}</strong>
           <small className={balanceDelta != null && balanceDelta >= 0 ? 'up' : 'down'}>
             {balanceDelta == null
               ? `${toFaDigits(activeAccounts.length)} حساب فعال`
@@ -71,17 +176,17 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
         </article>
         <article className="home-kpi lg">
           <span>درآمد این ماه</span>
-          <strong className="up">{formatCompactMoney(totals.income)}</strong>
+          <strong className="up">{displayMoney(totals.income)}</strong>
           <small>{incomeCount === 0 ? 'دریافتی ثبت نشده' : `${toFaDigits(incomeCount)} دریافت`}</small>
         </article>
         <article className="home-kpi lg">
           <span>هزینه این ماه</span>
-          <strong className="down">{formatCompactMoney(totals.expense)}</strong>
+          <strong className="down">{displayMoney(totals.expense)}</strong>
           <small>{totals.income > 0 ? `${toFaDigits(expenseShare)}٪ از درآمد` : 'هنوز درآمدی ثبت نشده'}</small>
         </article>
         <article className="home-kpi lg">
           <span>پس‌انداز</span>
-          <strong>{formatCompactMoney(savingsAmount)}</strong>
+          <strong>{displayMoney(savingsAmount)}</strong>
           <small>نرخ {toFaDigits(savingsRate)}٪</small>
         </article>
       </div>

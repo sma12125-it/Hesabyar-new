@@ -35,6 +35,9 @@ export function QuickEntrySheet({
   )
   const [note, setNote] = useState(transaction?.note ?? '')
   const [date, setDate] = useState(transaction?.date ?? todayIso())
+  const [receiptPhoto, setReceiptPhoto] = useState<string | undefined>(transaction?.receiptPhoto)
+  const [tagInput, setTagInput] = useState('')
+  const [tags, setTags] = useState<string[]>(transaction?.tags ?? [])
   const [picker, setPicker] = useState<'category' | 'account' | 'note' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -51,6 +54,30 @@ export function QuickEntrySheet({
       : Infinity
   const over = kind === 'expense' && amount > 0 && amount > available
   const disabled = saving || amount <= 0 || over || !account
+
+  function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string
+      setReceiptPhoto(base64)
+      notifyUser('رسید پیوست شد')
+    }
+    reader.readAsDataURL(file)
+  }
+
+  function addTag() {
+    const clean = tagInput.trim().replace(/^#/, '')
+    if (clean && !tags.includes(clean)) {
+      setTags([...tags, clean])
+      setTagInput('')
+    }
+  }
+
+  function removeTag(tagToRemove: string) {
+    setTags(tags.filter((t) => t !== tagToRemove))
+  }
 
   function switchKind(next: 'expense' | 'income') {
     if (linked) return
@@ -77,6 +104,8 @@ export function QuickEntrySheet({
           categoryId: category?.id ?? cats[0].id,
           note,
           date,
+          receiptPhoto,
+          tags,
         })
       } else {
         await addQuickEntry({
@@ -86,6 +115,8 @@ export function QuickEntrySheet({
           categoryId: category?.id ?? cats[0].id,
           note,
           date,
+          receiptPhoto,
+          tags,
         })
       }
       onClose()
@@ -241,6 +272,111 @@ export function QuickEntrySheet({
             </div>
             <span className="fchev">‹</span>
           </button>
+
+          {/* Tags / Hashtags */}
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: 16,
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '0.5px solid rgba(255, 255, 255, 0.5)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                🏷️ برچسب‌ها (تگ)
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: tags.length ? 6 : 0 }}>
+              {tags.map((t) => (
+                <span
+                  key={t}
+                  style={{
+                    background: 'rgba(15, 118, 110, 0.15)',
+                    border: '0.5px solid #0f766e',
+                    borderRadius: 12,
+                    padding: '2px 8px',
+                    fontSize: 11,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  #{t}
+                  <button
+                    type="button"
+                    onClick={() => removeTag(t)}
+                    style={{ background: 'none', border: 'none', color: 'var(--hy-text-tertiary)', cursor: 'pointer', padding: 0 }}
+                  >
+                    ✕
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                className="field-input"
+                style={{ flex: 1, fontSize: 12, padding: '6px 10px' }}
+                placeholder="افزودن برچسب جدید (مثل سفر، تعمیرات)..."
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    addTag()
+                  }
+                }}
+              />
+              <button type="button" className="cat-mini" onClick={addTag}>
+                + افزودن
+              </button>
+            </div>
+          </div>
+
+          {/* Receipt Photo Attachment */}
+          <div
+            style={{
+              padding: '10px 14px',
+              borderRadius: 16,
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '0.5px solid rgba(255, 255, 255, 0.5)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                📸 پیوست رسید یا فاکتور
+              </span>
+              <label
+                className="cat-mini"
+                style={{ cursor: 'pointer', margin: 0 }}
+              >
+                {receiptPhoto ? 'تغییر تصویر' : 'انتخاب تصویر'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handlePhotoUpload}
+                  style={{ display: 'none' }}
+                />
+              </label>
+            </div>
+            {receiptPhoto ? (
+              <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <img
+                  src={receiptPhoto}
+                  alt="رسید"
+                  style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: '1px solid rgba(255,255,255,0.4)' }}
+                />
+                <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)', flex: 1 }}>تصویر رسید ذخیره شد</span>
+                <button
+                  type="button"
+                  className="cat-mini danger"
+                  onClick={() => setReceiptPhoto(undefined)}
+                >
+                  حذف تصویر
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
         </div>
 
