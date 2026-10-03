@@ -629,6 +629,34 @@ button.inst-row:disabled {
   touch-action: pan-y;
 }
 
+/* Keyboard open adaptation: when keyboard shows on mobile, compact the sheet smoothly */
+.hy-keyboard-open .glass-sheet {
+  top: max(8px, env(safe-area-inset-top, 0px)) !important;
+  bottom: calc(var(--hy-keyboard-h, 0px) + 8px) !important;
+  padding: 10px 14px 12px !important;
+  transition: bottom 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), top 0.2s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
+
+.hy-keyboard-open .sheet-handle {
+  display: none;
+}
+
+.hy-keyboard-open .sheet-header {
+  margin-bottom: 8px !important;
+}
+
+.hy-keyboard-open .amount-block {
+  margin: 4px 0 12px !important;
+}
+
+.hy-keyboard-open .seg {
+  margin-bottom: 12px !important;
+}
+
+.hy-keyboard-open .sheet-footer {
+  padding: 6px 0 0 !important;
+}
+
 .sheet-sticky-cta .cta-confirm {
   margin-top: 0;
   width: 100%;
@@ -1014,10 +1042,13 @@ html,
 body,
 #root {
   background: var(--wall-base);
-  height: var(--hy-vh, 100dvh);
-  min-height: 0;
-  max-height: var(--hy-vh, 100dvh);
+  height: 100%;
+  min-height: 100%;
+  max-height: 100%;
   overflow: hidden;
+  position: fixed;
+  inset: 0;
+  width: 100%;
 }
 
 .page-stage {
@@ -1025,18 +1056,20 @@ body,
   margin: 0;
   width: 100%;
   min-height: 0;
-  height: var(--hy-vh, 100dvh);
-  max-height: var(--hy-vh, 100dvh);
+  height: 100%;
+  max-height: 100%;
   overflow: hidden;
+  position: relative;
 }
 
 .device {
   width: 100% !important;
-  height: var(--hy-vh, 100dvh) !important;
+  height: 100% !important;
   margin: 0 !important;
   border-radius: 0 !important;
   box-shadow: none !important;
   overflow: hidden;
+  position: relative;
 }
 
 .status-bar {

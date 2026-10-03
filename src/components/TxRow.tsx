@@ -69,8 +69,33 @@ export const TxRow = memo(function TxRow({
       <div className="tx-row lg-row">
         <div className="tx-ico">{txIcon(tx, customCategories)}</div>
         <div className="tx-meta">
-          <div className="tx-title">{txTitle(tx, accounts, customCategories)}</div>
+          <div className="tx-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>{txTitle(tx, accounts, customCategories)}</span>
+            {tx.receiptPhoto ? (
+              <span style={{ fontSize: 11 }} title="دارای تصویر رسید">
+                🧾
+              </span>
+            ) : null}
+          </div>
           <div className="tx-sub">{subBits.join(' · ')}</div>
+          {tx.tags && tx.tags.length > 0 ? (
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 2 }}>
+              {tx.tags.map((t) => (
+                <span
+                  key={t}
+                  style={{
+                    fontSize: 10,
+                    color: 'var(--hy-accent)',
+                    background: 'rgba(15, 118, 110, 0.1)',
+                    borderRadius: 6,
+                    padding: '1px 5px',
+                  }}
+                >
+                  #{t}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
         <div className={`tx-amt ${amtClass}`.trim()}>
           {formatMoney(tx.amount, false)}

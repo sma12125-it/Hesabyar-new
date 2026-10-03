@@ -64,6 +64,35 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
               <span className="amt">{formatRial(bar.amount)}</span>
             </div>
           ))}
+
+          {/* Tag-based spending insights */}
+          {(() => {
+            const tagMap = new Map<string, number>()
+            for (const tx of transactions) {
+              if (tx.kind === 'expense' && tx.tags) {
+                for (const t of tx.tags) {
+                  tagMap.set(t, (tagMap.get(t) ?? 0) + tx.amount)
+                }
+              }
+            }
+            const tagList = Array.from(tagMap.entries()).sort((a, b) => b[1] - a[1])
+            if (tagList.length === 0) return null
+            const maxTag = Math.max(1, ...tagList.map(([, v]) => v))
+            return (
+              <div style={{ marginTop: 20 }}>
+                <h3 style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>🏷️ هزینه‌ها بر اساس برچسب‌ها</h3>
+                {tagList.slice(0, 5).map(([tagName, tagAmt]) => (
+                  <div key={tagName} className="cat-bar-row">
+                    <span className="name">#{tagName}</span>
+                    <span className="track">
+                      <span style={{ width: `${(tagAmt / maxTag) * 100}%`, background: 'var(--hy-accent)' }} />
+                    </span>
+                    <span className="amt">{formatRial(tagAmt)}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
         </section>
         <div>
           <section className="lg report-card">

@@ -25,10 +25,16 @@ export function AllTransactionsPage({ onBack }: { onBack: () => void }) {
         if (tx.accountId !== accountFilter && tx.counterpartyAccountId !== accountFilter) return false
       }
 
-      // Search query: description (note), category name, account name, amount
+      // Search query: description (note), category name, account name, amount (Rial/Toman), tags
       if (q) {
+        const cleanQ = q.replace(/[,،\s]/g, '')
         const noteMatch = (tx.note || '').toLowerCase().includes(q)
-        const amountMatch = String(tx.amount).includes(q)
+        const amountRialStr = String(tx.amount)
+        const amountTomanStr = String(Math.floor(tx.amount / 10))
+        const amountMatch =
+          cleanQ.length > 0 &&
+          !isNaN(Number(cleanQ)) &&
+          (amountRialStr.includes(cleanQ) || amountTomanStr.includes(cleanQ))
         const account = accounts.find((a) => a.id === tx.accountId)
         const accountMatch = account?.name.toLowerCase().includes(q) ?? false
         const counterparty = tx.counterpartyAccountId ? accounts.find((a) => a.id === tx.counterpartyAccountId) : undefined
@@ -36,7 +42,18 @@ export function AllTransactionsPage({ onBack }: { onBack: () => void }) {
         const cat = getCategory(tx.categoryId, customCategories)
         const categoryMatch = cat ? cat.name.toLowerCase().includes(q) : false
         const categoryIdMatch = tx.categoryId.toLowerCase().includes(q)
-        if (!noteMatch && !amountMatch && !accountMatch && !counterpartyMatch && !categoryMatch && !categoryIdMatch) return false
+        const tagsMatch = tx.tags ? tx.tags.some((t) => t.toLowerCase().includes(q)) : false
+
+        if (
+          !noteMatch &&
+          !amountMatch &&
+          !accountMatch &&
+          !counterpartyMatch &&
+          !categoryMatch &&
+          !categoryIdMatch &&
+          !tagsMatch
+        )
+          return false
       }
 
       return true

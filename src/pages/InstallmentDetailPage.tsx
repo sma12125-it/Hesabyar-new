@@ -13,6 +13,7 @@ import { useStore } from '../store/Store'
 import { SettingsButton } from '../components/SettingsButton'
 import { SwipeRow } from '../components/SwipeRow'
 import { useUiActions } from '../components/UiActions'
+import { useExtras } from '../store/Extras'
 import type { InstallmentItem } from '../types'
 
 export function InstallmentDetailPage({
@@ -27,8 +28,10 @@ export function InstallmentDetailPage({
   const { id } = useParams()
   const navigate = useNavigate()
   const { plans, items, archiveInstallmentPlan, restoreInstallmentPlan } = useStore()
+  const { formatMoney } = useExtras()
   const actions = useUiActions()
   const [menu, setMenu] = useState(false)
+  const [showPaidArchive, setShowPaidArchive] = useState(false)
   const plan = plans.find((p) => p.id === id)
   const planItems = items.filter((i) => i.planId === id).sort((a, b) => a.index - b.index)
   const today = todayIso()
@@ -52,6 +55,11 @@ export function InstallmentDetailPage({
   const overdueItem = planItems.find((i) => itemEffectiveStatus(i, today) === 'overdue')
   const canPay = plan.status === 'active' && Boolean(next)
   const nextDueLabel = next ? formatPersianDate(next.dueDate) : '—'
+
+  // Separate paid (archived) and pending/overdue (active payable) items
+  const paidItems = planItems.filter((i) => itemEffectiveStatus(i, today) === 'paid')
+  const unpaidItems = planItems.filter((i) => itemEffectiveStatus(i, today) !== 'paid')
+  const totalPaidAmount = paidItems.reduce((sum, item) => sum + item.amount, 0)
 
   return (
     <div className="app-scroll" onScroll={(e) => onScroll(e.currentTarget.scrollTop > 28)}>
@@ -200,11 +208,138 @@ export function InstallmentDetailPage({
 
       <div className="section-head">
         <h2>جدول اقساط</h2>
+        <span className="link">
+          {toFaDigits(unpaidItems.length)} قسط در انتظار · {toFaDigits(paidItems.length)} پرداخت‌شده
+        </span>
       </div>
+
       <div className="inst-list">
-        {planItems.map((item) => (
-          <ItemRow key={item.id} item={item} today={today} onPay={canPay ? onPay : undefined} />
-        ))}
+        {/* Archive box for paid installments - sits in place of the paid installments at the top */}
+        {paidItems.length > 0 ? (
+          <div
+            style={{
+              borderRadius: 20,
+              background: 'linear-gradient(155deg, rgba(13, 148, 136, 0.12) 0%, rgba(15, 23, 42, 0.04) 100%)',
+              border: '0.5px solid rgba(13, 148, 136, 0.35)',
+              overflow: 'hidden',
+              marginBottom: 4,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setShowPaidArchive((prev) => !prev)}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '12px 14px',
+                background: 'transparent',
+                border: 'none',
+                color: 'inherit',
+                cursor: 'pointer',
+                textAlign: 'right',
+                fontFamily: 'inherit',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div
+                  style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 12,
+                    background: 'rgba(13, 148, 136, 0.2)',
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: 16,
+                  }}
+                >
+                  📦
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--hy-text)' }}>
+                    بایگانی اقساط پرداخت‌شده
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--hy-text-tertiary)', marginTop: 2 }}>
+                    {toFaDigits(paidItems.length)} قسط تسویه شده · مجموع: {formatMoney(totalPaidAmount)}
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: 'var(--hy-teal-deep)',
+                    background: 'rgba(13, 148, 136, 0.15)',
+                    padding: '2px 8px',
+                    borderRadius: 8,
+                  }}
+                >
+                  {showPaidArchive ? 'بستن' : 'مشاهده'}
+                </span>
+                <span
+                  style={{
+                    fontSize: 14,
+                    color: 'var(--hy-text-tertiary)',
+                    transform: showPaidArchive ? 'rotate(90deg)' : 'rotate(0deg)',
+                    transition: 'transform 0.2s',
+                    display: 'inline-block',
+                  }}
+                >
+                  ‹
+                </span>
+              </div>
+            </button>
+
+            {/* Expanded List of Archived Paid Installments */}
+            {showPaidArchive ? (
+              <div
+                style={{
+                  padding: '4px 10px 10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 6,
+                  borderTop: '0.5px solid rgba(13, 148, 136, 0.18)',
+                  background: 'rgba(0, 0, 0, 0.08)',
+                }}
+              >
+                <div style={{ fontSize: 11, color: 'var(--hy-text-tertiary)', padding: '6px 4px 2px' }}>
+                  اقساط پرداخت‌شده به‌صورت بایگانی در اینجا نگهداری می‌شوند و برای اصلاح یا بازگشت به مانده قابل دسترسی هستند:
+                </div>
+                {paidItems.map((item) => (
+                  <ItemRow key={item.id} item={item} today={today} onPay={undefined} />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {/* Unpaid / Active installments - always ordered at the top */}
+        {unpaidItems.length > 0 ? (
+          unpaidItems.map((item) => (
+            <ItemRow key={item.id} item={item} today={today} onPay={canPay ? onPay : undefined} />
+          ))
+        ) : paidItems.length > 0 ? (
+          <div
+            className="empty-state lg"
+            style={{
+              margin: '14px 0',
+              padding: '20px 14px',
+              background: 'rgba(13, 148, 136, 0.08)',
+              border: '0.5px solid rgba(13, 148, 136, 0.25)',
+            }}
+          >
+            <div style={{ fontSize: 28, marginBottom: 8 }}>🎉</div>
+            <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 6px' }}>تمام اقساط پرداخت شده‌اند!</h3>
+            <p style={{ margin: 0, fontSize: 12, color: 'var(--hy-text-secondary)' }}>
+              تمامی {toFaDigits(plan.totalCount)} قسط این طرح با موفقیت پرداخت و به بایگانی بالا منتقل شده‌اند.
+            </p>
+          </div>
+        ) : (
+          <p className="sheet-sub">هیچ قسطی در این برنامه تعریف نشده است.</p>
+        )}
       </div>
     </div>
   )
