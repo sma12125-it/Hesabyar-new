@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { formatPersianDate } from '../lib/dates'
+import { formatPersianDate, formatPersianDateFull } from '../lib/dates'
 import {
   itemEffectiveStatus,
   nextPayableItem,
@@ -27,7 +27,7 @@ export function InstallmentDetailPage({
 }) {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { plans, items, archiveInstallmentPlan, restoreInstallmentPlan } = useStore()
+  const { accounts, plans, items, transactions, archiveInstallmentPlan, restoreInstallmentPlan } = useStore()
   const { formatMoney } = useExtras()
   const actions = useUiActions()
   const [menu, setMenu] = useState(false)
@@ -54,12 +54,16 @@ export function InstallmentDetailPage({
   const next = nextPayableItem(planItems, today)
   const overdueItem = planItems.find((i) => itemEffectiveStatus(i, today) === 'overdue')
   const canPay = plan.status === 'active' && Boolean(next)
-  const nextDueLabel = next ? formatPersianDate(next.dueDate) : '—'
+  const nextDueLabel = next ? formatPersianDateFull(next.dueDate) : '—'
 
   // Separate paid (archived) and pending/overdue (active payable) items
   const paidItems = planItems.filter((i) => itemEffectiveStatus(i, today) === 'paid')
   const unpaidItems = planItems.filter((i) => itemEffectiveStatus(i, today) !== 'paid')
   const totalPaidAmount = paidItems.reduce((sum, item) => sum + item.amount, 0)
+  const lastPaidItem = paidItems.length > 0 ? paidItems[paidItems.length - 1] : undefined
+  const lastPaidTx = lastPaidItem
+    ? transactions.find((t) => t.id === lastPaidItem.transactionId || t.installmentItemId === lastPaidItem.id)
+    : undefined
 
   return (
     <div className="app-scroll" onScroll={(e) => onScroll(e.currentTarget.scrollTop > 28)}>
@@ -188,6 +192,28 @@ export function InstallmentDetailPage({
             </div>
           </div>
         ) : null}
+
+        {lastPaidItem ? (
+          <div
+            style={{
+              marginTop: 10,
+              padding: '8px 12px',
+              borderRadius: 12,
+              background: 'rgba(16, 185, 129, 0.1)',
+              border: '0.5px solid rgba(16, 185, 129, 0.25)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              fontSize: 12,
+            }}
+          >
+            <span style={{ color: 'var(--hy-text-secondary)' }}>آخرین قسط پرداخت‌شده:</span>
+            <strong style={{ color: 'var(--hy-income)' }}>
+              قسط {toFaDigits(lastPaidItem.index)} · تاریخ پرداخت:{' '}
+              {formatPersianDateFull(lastPaidTx?.date || lastPaidItem.paidAt || lastPaidItem.dueDate)}
+            </strong>
+          </div>
+        ) : null}
       </div>
 
       <div className="action-row">
@@ -308,9 +334,20 @@ export function InstallmentDetailPage({
                 <div style={{ fontSize: 11, color: 'var(--hy-text-tertiary)', padding: '6px 4px 2px' }}>
                   اقساط پرداخت‌شده به‌صورت بایگانی در اینجا نگهداری می‌شوند و برای اصلاح یا بازگشت به مانده قابل دسترسی هستند:
                 </div>
-                {paidItems.map((item) => (
-                  <ItemRow key={item.id} item={item} today={today} onPay={undefined} />
-                ))}
+                {paidItems.map((item) => {
+                  const tx = transactions.find((t) => t.id === item.transactionId || t.installmentItemId === item.id)
+                  const acc = tx ? accounts.find((a) => a.id === tx.accountId) : undefined
+                  return (
+                    <ItemRow
+                      key={item.id}
+                      item={item}
+                      today={today}
+                      paidDate={tx?.date || item.paidAt}
+                      accountName={acc?.name}
+                      onPay={undefined}
+                    />
+                  )
+                })}
               </div>
             ) : null}
           </div>
@@ -348,10 +385,14 @@ export function InstallmentDetailPage({
 function ItemRow({
   item,
   today,
+  paidDate,
+  accountName,
   onPay,
 }: {
   item: InstallmentItem
   today: string
+  paidDate?: string
+  accountName?: string
   onPay?: (itemId: string) => void
 }) {
   const status = itemEffectiveStatus(item, today)
@@ -359,6 +400,7 @@ function ItemRow({
   const clickable = status !== 'paid' && onPay
   const actions = useUiActions()
   const rowClass = `inst-row lg-row${status === 'overdue' ? ' highlight-overdue' : ''}`
+  const effectivePaidDate = paidDate || item.paidAt || item.dueDate
 
   const body = (
     <>
@@ -366,15 +408,27 @@ function ItemRow({
         {toFaDigits(item.index)}
       </div>
       <div className="inst-info">
-        <div className="title">سررسید {formatPersianDate(item.dueDate)}</div>
-        <div className={`sub${status === 'overdue' ? ' danger' : ''}`}>
-          {status === 'paid'
-            ? 'پرداخت‌شده'
-            : status === 'overdue'
-              ? `${toFaDigits(lateDays)} روز گذشته · معوق`
-              : daysUntil(item.dueDate, today) <= 7
-                ? 'مانده · به‌زودی'
-                : 'مانده'}
+        <div className="title" style={{ fontSize: 13, fontWeight: 700 }}>
+          سررسید: {formatPersianDateFull(item.dueDate)}
+        </div>
+        <div className={`sub${status === 'overdue' ? ' danger' : ''}`} style={{ marginTop: 2 }}>
+          {status === 'paid' ? (
+            <span style={{ color: 'var(--hy-income)', fontWeight: 600, display: 'inline-flex', flexWrap: 'wrap', gap: 4 }}>
+              <span>✓ تاریخ پرداخت:</span>
+              <strong>{formatPersianDateFull(effectivePaidDate)}</strong>
+              {accountName ? <span style={{ color: 'var(--hy-text-tertiary)', fontWeight: 400 }}>· حساب: {accountName}</span> : null}
+            </span>
+          ) : status === 'overdue' ? (
+            <span style={{ color: 'var(--hy-expense)', fontWeight: 600 }}>
+              ⚠️ {toFaDigits(lateDays)} روز گذشته از موعد · معوق
+            </span>
+          ) : daysUntil(item.dueDate, today) <= 7 ? (
+            <span style={{ color: '#d97706', fontWeight: 600 }}>
+              ⏳ موعد سررسید نزدیک است ({daysUntil(item.dueDate, today) === 0 ? 'امروز' : `${toFaDigits(daysUntil(item.dueDate, today))} روز دیگر`})
+            </span>
+          ) : (
+            <span style={{ color: 'var(--hy-text-tertiary)' }}>در انتظار موعد سررسید</span>
+          )}
         </div>
       </div>
       <div className="inst-side">

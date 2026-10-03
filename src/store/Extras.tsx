@@ -5,7 +5,7 @@ import { loadSession, signIn } from '../lib/sync'
 import { openCards, sealCards, unwrapText, validateCard, wrapText } from '../lib/vault'
 import { createId } from '../lib/ids'
 import { digitsOnly, toFaDigits } from '../lib/money'
-import type { BankCard, Budget, Cheque, ChequeStatus, CurrencyUnit, ReminderSettings, SavingsGoal } from '../types'
+import type { BankCard, Budget, Cheque, ChequeStatus, CurrencyUnit, DebtLoan, DebtLoanStatus, ReminderSettings, SavingsGoal } from '../types'
 
 interface VaultBlob {
   salt: string
@@ -20,6 +20,7 @@ interface ExtrasValue {
   budgets: Budget[]
   goals: SavingsGoal[]
   cheques: Cheque[]
+  debts: DebtLoan[]
   reminders: ReminderSettings
   currencyUnit: CurrencyUnit
   unitLabel: string
@@ -44,6 +45,9 @@ interface ExtrasValue {
   saveCheque: (cheque: Omit<Cheque, 'id' | 'createdAt'> & { id?: string }) => Promise<Cheque>
   deleteCheque: (id: string) => Promise<void>
   updateChequeStatus: (id: string, status: ChequeStatus, clearedDate?: string) => Promise<void>
+  saveDebt: (debt: Omit<DebtLoan, 'id' | 'createdAt'> & { id?: string }) => Promise<DebtLoan>
+  deleteDebt: (id: string) => Promise<void>
+  settleDebt: (id: string, accountId?: string) => Promise<void>
   setReminders: (next: ReminderSettings) => Promise<void>
   exportLocal: () => Promise<Record<string, unknown>>
   importLocal: (data: Record<string, unknown>) => Promise<void>
@@ -60,37 +64,61 @@ function compactDigits(value: number): string {
 
 export function ExtrasProvider({ children }: { children: ReactNode }) {
   const [blob, setBlob] = useState<VaultBlob | null>(null)
+  const blobRef = useRef<VaultBlob | null>(null)
+  blobRef.current = blob
   const [passphrase, setPassphrase] = useState<string | null>(null)
   const passphraseRef = useRef<string | null>(null)
   passphraseRef.current = passphrase
   const cardsRef = useRef<BankCard[]>([])
   const [cards, setCards] = useState<BankCard[]>([])
   cardsRef.current = cards
+  const budgetsRef = useRef<Budget[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
+  budgetsRef.current = budgets
+  const goalsRef = useRef<SavingsGoal[]>([])
   const [goals, setGoals] = useState<SavingsGoal[]>([])
+  goalsRef.current = goals
+  const chequesRef = useRef<Cheque[]>([])
   const [cheques, setCheques] = useState<Cheque[]>([])
+  chequesRef.current = cheques
+  const debtsRef = useRef<DebtLoan[]>([])
+  const [debts, setDebts] = useState<DebtLoan[]>([])
+  debtsRef.current = debts
+  const remindersRef = useRef<ReminderSettings>(emptyReminder)
   const [reminders, setReminderState] = useState<ReminderSettings>(emptyReminder)
+  remindersRef.current = reminders
+  const currencyUnitRef = useRef<CurrencyUnit>('IRT')
   const [currencyUnit, setCurrencyUnitState] = useState<CurrencyUnit>('IRT')
+  currencyUnitRef.current = currencyUnit
 
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const [vault, nextBudgets, nextGoals, nextReminders, nextCheques, savedUnit] = await Promise.all([
+      const [vault, nextBudgets, nextGoals, nextReminders, nextCheques, nextDebts, savedUnit] = await Promise.all([
         db.getKv<VaultBlob>('cardVault'),
         db.getKv<Budget[]>('budgets'),
         db.getKv<SavingsGoal[]>('goals'),
         db.getKv<ReminderSettings>('reminders'),
         db.getKv<Cheque[]>('cheques'),
+        db.getKv<DebtLoan[]>('debts'),
         db.getKv<CurrencyUnit>('currencyUnit'),
       ])
       if (cancelled) return
       setBlob(vault ?? null)
+      blobRef.current = vault ?? null
       setBudgets(nextBudgets ?? [])
+      budgetsRef.current = nextBudgets ?? []
       setGoals(nextGoals ?? [])
+      goalsRef.current = nextGoals ?? []
       setReminderState(nextReminders ?? emptyReminder)
+      remindersRef.current = nextReminders ?? emptyReminder
       setCheques(nextCheques ?? [])
+      chequesRef.current = nextCheques ?? []
+      setDebts(nextDebts ?? [])
+      debtsRef.current = nextDebts ?? []
       if (savedUnit === 'IRT' || savedUnit === 'IRR') {
         setCurrencyUnitState(savedUnit)
+        currencyUnitRef.current = savedUnit
       }
     })()
     return () => {
@@ -198,35 +226,80 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
   )
 
   const saveCheque = useCallback(async (input: Omit<Cheque, 'id' | 'createdAt'> & { id?: string }): Promise<Cheque> => {
-    const existing = input.id ? cheques.find((c) => c.id === input.id) : undefined
+    const current = chequesRef.current
+    const existing = input.id ? current.find((c) => c.id === input.id) : undefined
     const cheque: Cheque = {
       ...input,
       id: existing?.id ?? createId('chq'),
       createdAt: existing?.createdAt ?? Date.now(),
     }
-    const next = existing ? cheques.map((c) => (c.id === cheque.id ? cheque : c)) : [cheque, ...cheques]
+    const next = existing ? current.map((c) => (c.id === cheque.id ? cheque : c)) : [cheque, ...current]
+    chequesRef.current = next
     setCheques(next)
     await db.setKv('cheques', next)
     const { notifyLocalChange } = await import('../lib/sync')
     notifyLocalChange()
     return cheque
-  }, [cheques])
+  }, [])
 
   const deleteCheque = useCallback(async (id: string) => {
-    const next = cheques.filter((c) => c.id !== id)
+    const current = chequesRef.current
+    const next = current.filter((c) => c.id !== id)
+    chequesRef.current = next
     setCheques(next)
     await db.setKv('cheques', next)
     const { notifyLocalChange } = await import('../lib/sync')
     notifyLocalChange()
-  }, [cheques])
+  }, [])
 
   const updateChequeStatus = useCallback(async (id: string, status: ChequeStatus, clearedDate?: string) => {
-    const next = cheques.map((c) => (c.id === id ? { ...c, status, clearedAt: status === 'cleared' ? clearedDate ?? new Date().toISOString().slice(0, 10) : undefined } : c))
+    const current = chequesRef.current
+    const next = current.map((c) => (c.id === id ? { ...c, status, clearedAt: status === 'cleared' ? clearedDate ?? new Date().toISOString().slice(0, 10) : undefined } : c))
+    chequesRef.current = next
     setCheques(next)
     await db.setKv('cheques', next)
     const { notifyLocalChange } = await import('../lib/sync')
     notifyLocalChange()
-  }, [cheques])
+  }, [])
+
+  const saveDebt = useCallback(async (input: Omit<DebtLoan, 'id' | 'createdAt'> & { id?: string }): Promise<DebtLoan> => {
+    const current = debtsRef.current
+    const existing = input.id ? current.find((d) => d.id === input.id) : undefined
+    const debt: DebtLoan = {
+      ...input,
+      id: existing?.id ?? createId('debt'),
+      createdAt: existing?.createdAt ?? Date.now(),
+      status: input.status ?? existing?.status ?? 'active',
+    }
+    const next = existing ? current.map((d) => (d.id === debt.id ? debt : d)) : [debt, ...current]
+    debtsRef.current = next
+    setDebts(next)
+    await db.setKv('debts', next)
+    const { notifyLocalChange } = await import('../lib/sync')
+    notifyLocalChange()
+    return debt
+  }, [])
+
+  const deleteDebt = useCallback(async (id: string) => {
+    const current = debtsRef.current
+    const next = current.filter((d) => d.id !== id)
+    debtsRef.current = next
+    setDebts(next)
+    await db.setKv('debts', next)
+    const { notifyLocalChange } = await import('../lib/sync')
+    notifyLocalChange()
+  }, [])
+
+  const settleDebt = useCallback(async (id: string, accountId?: string) => {
+    const current = debtsRef.current
+    const today = new Date().toISOString().slice(0, 10)
+    const next = current.map((d) => (d.id === id ? { ...d, status: 'settled' as const, settledAt: today, accountId: accountId || d.accountId } : d))
+    debtsRef.current = next
+    setDebts(next)
+    await db.setKv('debts', next)
+    const { notifyLocalChange } = await import('../lib/sync')
+    notifyLocalChange()
+  }, [])
 
   const value = useMemo<ExtrasValue>(
     () => ({
@@ -236,6 +309,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       budgets,
       goals,
       cheques,
+      debts,
       reminders,
       currencyUnit,
       unitLabel,
@@ -311,10 +385,12 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         setBudgets([])
         setGoals([])
         setCheques([])
+        setDebts([])
         setReminderState(emptyReminder)
         await db.setKv('budgets', [])
         await db.setKv('goals', [])
         await db.setKv('cheques', [])
+        await db.setKv('debts', [])
         await db.setKv('reminders', emptyReminder)
         await db.setKv('cardVault', null)
       },
@@ -383,38 +459,63 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       saveCheque,
       deleteCheque,
       updateChequeStatus,
+      saveDebt,
+      deleteDebt,
+      settleDebt,
       setReminders: async (next) => {
         setReminderState(next)
         await db.setKv('reminders', next)
         const { notifyLocalChange } = await import('../lib/sync')
         notifyLocalChange()
       },
-      exportLocal: async () => ({
-        budgets,
-        goals,
-        cheques,
-        reminders,
-        currencyUnit,
-        cardVault: blob,
-      }),
+      exportLocal: async () => {
+        const [storedCheques, storedDebts, storedBudgets, storedGoals, storedReminders, storedUnit, storedVault] = await Promise.all([
+          db.getKv<Cheque[]>('cheques'),
+          db.getKv<DebtLoan[]>('debts'),
+          db.getKv<Budget[]>('budgets'),
+          db.getKv<SavingsGoal[]>('goals'),
+          db.getKv<ReminderSettings>('reminders'),
+          db.getKv<CurrencyUnit>('currencyUnit'),
+          db.getKv<VaultBlob>('cardVault'),
+        ])
+        return {
+          budgets: storedBudgets ?? budgetsRef.current,
+          goals: storedGoals ?? goalsRef.current,
+          cheques: storedCheques ?? chequesRef.current,
+          debts: storedDebts ?? debtsRef.current,
+          reminders: storedReminders ?? remindersRef.current,
+          currencyUnit: storedUnit ?? currencyUnitRef.current,
+          cardVault: storedVault ?? blobRef.current,
+        }
+      },
       importLocal: async (data) => {
         if (Array.isArray(data.budgets)) {
+          budgetsRef.current = data.budgets as Budget[]
           setBudgets(data.budgets as Budget[])
           await db.setKv('budgets', data.budgets)
         }
         if (Array.isArray(data.goals)) {
+          goalsRef.current = data.goals as SavingsGoal[]
           setGoals(data.goals as SavingsGoal[])
           await db.setKv('goals', data.goals)
         }
         if (Array.isArray(data.cheques)) {
+          chequesRef.current = data.cheques as Cheque[]
           setCheques(data.cheques as Cheque[])
           await db.setKv('cheques', data.cheques)
         }
+        if (Array.isArray(data.debts)) {
+          debtsRef.current = data.debts as DebtLoan[]
+          setDebts(data.debts as DebtLoan[])
+          await db.setKv('debts', data.debts)
+        }
         if (data.currencyUnit === 'IRT' || data.currencyUnit === 'IRR') {
+          currencyUnitRef.current = data.currencyUnit
           setCurrencyUnitState(data.currencyUnit)
           await db.setKv('currencyUnit', data.currencyUnit)
         }
         if (data.reminders && typeof data.reminders === 'object') {
+          remindersRef.current = data.reminders as ReminderSettings
           setReminderState(data.reminders as ReminderSettings)
           await db.setKv('reminders', data.reminders)
         }
@@ -445,8 +546,10 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       budgets,
       cards,
       cheques,
+      debts,
       currencyUnit,
       deleteCheque,
+      deleteDebt,
       formatCompactMoney,
       formatMoney,
       goals,
@@ -454,7 +557,9 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       persistCards,
       reminders,
       saveCheque,
+      saveDebt,
       setCurrencyUnit,
+      settleDebt,
       unitLabel,
       unlockVault,
       updateChequeStatus,

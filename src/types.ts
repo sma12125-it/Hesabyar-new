@@ -213,3 +213,21 @@ export interface Cheque {
   transactionId?: string
 }
 
+export type DebtLoanDirection = 'borrowed' | 'lent'
+export type DebtLoanStatus = 'active' | 'settled'
+
+export interface DebtLoan {
+  id: string
+  direction: DebtLoanDirection
+  party: string
+  amount: number
+  dueDate?: string
+  accountId?: string
+  note: string
+  status: DebtLoanStatus
+  createdAt: number
+  settledAt?: string
+  transactionId?: string
+}
+
+

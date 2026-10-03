@@ -23,8 +23,8 @@ export function WindowPopup({
   onClose,
   children,
   footer,
-  defaultWidth = 680,
-  defaultHeight = 620,
+  defaultWidth = 640,
+  defaultHeight = 600,
   allowTableViewToggle = false,
   isTableView = false,
   onToggleTableView,
@@ -32,7 +32,7 @@ export function WindowPopup({
   const [isMaximized, setIsMaximized] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null)
-  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 768)
+  const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 768)
 
   const isDragging = useRef(false)
   const dragStartPos = useRef({ x: 0, y: 0 })
@@ -47,39 +47,32 @@ export function WindowPopup({
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
-  // Center window on initial open in desktop
-  useEffect(() => {
-    if (isOpen && isDesktop && !position) {
-      const initialX = Math.max(20, Math.round((window.innerWidth - defaultWidth) / 2))
-      const initialY = Math.max(20, Math.round((window.innerHeight - defaultHeight) / 2))
-      setPosition({ x: initialX, y: initialY })
-    }
-  }, [isOpen, isDesktop, defaultWidth, defaultHeight, position])
-
-  // Dragging logic
+  // Dragging logic for desktop
   const handlePointerDown = (e: React.PointerEvent) => {
     if (!isDesktop || isMaximized || isMinimized) return
-    // Only drag on left click
     if (e.button !== 0) return
 
-    // Don't drag if clicking buttons
+    // Don't drag if clicking buttons, inputs, etc.
     const target = e.target as HTMLElement
-    if (target.closest('button') || target.closest('input') || target.closest('.no-drag')) return
+    if (target.closest('button') || target.closest('input') || target.closest('select') || target.closest('.no-drag')) return
 
     isDragging.current = true
     dragStartPos.current = { x: e.clientX, y: e.clientY }
-    windowStartPos.current = position || {
-      x: Math.max(20, Math.round((window.innerWidth - defaultWidth) / 2)),
-      y: Math.max(20, Math.round((window.innerHeight - defaultHeight) / 2)),
-    }
+
+    const rect = windowRef.current?.getBoundingClientRect()
+    windowStartPos.current = rect ? { x: rect.left, y: rect.top } : { x: 0, y: 0 }
 
     const onPointerMove = (moveEvent: PointerEvent) => {
       if (!isDragging.current) return
       const dx = moveEvent.clientX - dragStartPos.current.x
       const dy = moveEvent.clientY - dragStartPos.current.y
 
-      const newX = Math.max(10, Math.min(window.innerWidth - 100, windowStartPos.current.x + dx))
-      const newY = Math.max(10, Math.min(window.innerHeight - 60, windowStartPos.current.y + dy))
+      const currentW = rect?.width ?? defaultWidth
+      const currentH = rect?.height ?? defaultHeight
+
+      // Constrain within screen boundaries
+      const newX = Math.max(10, Math.min(window.innerWidth - currentW - 10, windowStartPos.current.x + dx))
+      const newY = Math.max(10, Math.min(window.innerHeight - currentH - 10, windowStartPos.current.y + dy))
 
       setPosition({ x: newX, y: newY })
     }
@@ -96,7 +89,7 @@ export function WindowPopup({
 
   if (!isOpen) return null
 
-  // If minimized in desktop, show docked taskbar pill at bottom right
+  // If minimized on desktop, show docked taskbar pill at bottom right
   if (isDesktop && isMinimized) {
     return (
       <div
@@ -109,14 +102,14 @@ export function WindowPopup({
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          background: 'rgba(15, 23, 42, 0.85)',
+          background: 'rgba(15, 23, 42, 0.92)',
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
           color: '#fff',
           padding: '8px 14px',
           borderRadius: 14,
-          border: '1px solid rgba(255, 255, 255, 0.2)',
-          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.35)',
+          border: '1px solid rgba(255, 255, 255, 0.25)',
+          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.4)',
           cursor: 'pointer',
           animation: 'popIn 0.2s ease',
         }}
@@ -129,48 +122,93 @@ export function WindowPopup({
     )
   }
 
-  const desktopStyle: React.CSSProperties = isDesktop
-    ? isMaximized
-      ? {
-          position: 'fixed',
-          inset: 0,
-          width: '100vw',
-          height: '100vh',
-          borderRadius: 0,
-          zIndex: 1000,
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: 'none',
-        }
-      : {
-          position: 'fixed',
-          left: position ? position.x : '50%',
-          top: position ? position.y : '50%',
-          transform: position ? 'none' : 'translate(-50%, -50%)',
-          width: `min(${defaultWidth}px, 94vw)`,
-          height: `min(${defaultHeight}px, 90vh)`,
-          borderRadius: 24,
-          zIndex: 1000,
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '0 24px 70px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.25)',
-        }
-    : {}
+  // Desktop positioning logic:
+  // When maximized, cover the exact viewport safely (top: 0, right: 0, bottom: 0, left: 0, width: 100vw, height: 100vh)
+  // When normal, center nicely or use user dragged position without transform conflicts
+  let desktopStyle: React.CSSProperties = {}
+  if (isDesktop) {
+    if (isMaximized) {
+      desktopStyle = {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        maxWidth: '100vw',
+        maxHeight: '100vh',
+        margin: 0,
+        transform: 'none',
+        borderRadius: 0,
+        zIndex: 1000,
+        display: 'flex',
+        flexDirection: 'column',
+        boxShadow: 'none',
+      }
+    } else if (position) {
+      desktopStyle = {
+        position: 'fixed',
+        left: position.x,
+        top: position.y,
+        right: 'auto',
+        bottom: 'auto',
+        transform: 'none',
+        width: `min(${defaultWidth}px, 94vw)`,
+        height: `min(${defaultHeight}px, 90vh)`,
+        borderRadius: 24,
+        zIndex: 1000,
+        display: 'flex',
+        flexDirection: 'column',
+        boxShadow: '0 24px 70px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.25)',
+      }
+    } else {
+      desktopStyle = {
+        position: 'fixed',
+        left: '50%',
+        top: '50%',
+        right: 'auto',
+        bottom: 'auto',
+        transform: 'translate(-50%, -50%)',
+        width: `min(${defaultWidth}px, 94vw)`,
+        height: `min(${defaultHeight}px, 90vh)`,
+        borderRadius: 24,
+        zIndex: 1000,
+        display: 'flex',
+        flexDirection: 'column',
+        boxShadow: '0 24px 70px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.25)',
+      }
+    }
+  }
 
   return (
     <>
-      <div className="sheet-scrim" onClick={onClose} style={{ zIndex: 999 }} />
+      <div
+        className="sheet-scrim"
+        onClick={(e) => {
+          e.stopPropagation()
+          onClose()
+        }}
+        style={{ zIndex: 999 }}
+      />
       <div
         ref={windowRef}
         className={`glass-sheet window-popup ${isMaximized ? 'is-maximized' : ''}`}
         role="dialog"
         aria-label={title}
+        onClick={(e) => {
+          // CRITICAL: Stop propagation so clicks inside the window or on rows/buttons don't bubble to scrim!
+          e.stopPropagation()
+        }}
         style={{
           ...desktopStyle,
           overflow: 'hidden',
           transition: isDragging.current ? 'none' : 'border-radius 0.2s ease, width 0.2s ease, height 0.2s ease',
         }}
       >
+        {/* Mobile handle */}
+        {!isDesktop ? <div className="sheet-handle" /> : null}
+
         {/* Window TitleBar (Movable in Windows/Desktop) */}
         <div
           onPointerDown={handlePointerDown}
@@ -190,25 +228,27 @@ export function WindowPopup({
           }}
         >
           {/* Title and info */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 20 }}>{icon}</span>
-            <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+            <span style={{ fontSize: 20, flexShrink: 0 }}>{icon}</span>
+            <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--hy-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>{title}</span>
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{title}</span>
                 {isDesktop && !isMaximized ? (
-                  <span style={{ fontSize: 10, color: 'var(--hy-muted)', background: 'rgba(255,255,255,0.08)', padding: '2px 6px', borderRadius: 6 }}>
-                    قابلیت جابجایی ✥
+                  <span style={{ fontSize: 10, color: 'var(--hy-muted)', background: 'rgba(255,255,255,0.08)', padding: '2px 6px', borderRadius: 6, flexShrink: 0 }}>
+                    جابجایی ✥
                   </span>
                 ) : null}
               </div>
               {subtitle ? (
-                <div style={{ fontSize: 11, color: 'var(--hy-subtext)', marginTop: 2 }}>{subtitle}</div>
+                <div style={{ fontSize: 11, color: 'var(--hy-subtext)', marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {subtitle}
+                </div>
               ) : null}
             </div>
           </div>
 
           {/* Window Control Buttons */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
             {allowTableViewToggle ? (
               <button
                 type="button"

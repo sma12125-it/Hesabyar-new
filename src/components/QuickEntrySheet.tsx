@@ -8,6 +8,7 @@ import { useStore } from '../store/Store'
 import { AmountField } from './AmountField'
 import { DateField } from './DateField'
 import { PickerSheet } from './PickerSheet'
+import { WindowPopup } from './WindowPopup'
 import type { Account, Category, Transaction } from '../types'
 
 export function QuickEntrySheet({
@@ -175,26 +176,23 @@ export function QuickEntrySheet({
   }
 
   return (
-    <>
-      <div className="peek-home">
-        <div className="ph-title">خانه</div>
-        <div className="ph-amt">{formatRial(totalBalance)} ریال</div>
-      </div>
-      <div className="sheet-scrim" onClick={onClose} />
-      <div
-        className="glass-sheet sheet-sticky-cta"
-        role="dialog"
-        aria-label="ثبت سریع"
-      >
-        <div className="sheet-handle" />
-        <div className="sheet-header">
-          <h1>{isEdit ? 'ویرایش تراکنش' : 'ثبت سریع'}</h1>
-          <button className="sheet-close" type="button" onClick={onClose} aria-label="بستن">
-            ✕
+    <WindowPopup
+      title={isEdit ? 'ویرایش تراکنش' : 'ثبت سریع تراکنش'}
+      subtitle={kind === 'expense' ? 'ثبت هزینه جدید' : 'ثبت درآمد جدید'}
+      icon={kind === 'expense' ? '💸' : '💰'}
+      isOpen={true}
+      onClose={onClose}
+      defaultWidth={540}
+      defaultHeight={640}
+      footer={
+        <div className="sheet-footer" style={{ padding: 0 }}>
+          <button className={`cta-confirm${disabled ? ' disabled' : ''}`} type="button" onClick={() => void submit()} disabled={disabled}>
+            {saving ? 'در حال ثبت…' : isEdit ? 'ذخیره تغییرات' : 'تأیید و ثبت'}
           </button>
         </div>
-
-        <div className="sheet-body-scroll">
+      }
+    >
+      <div className="sheet-body-scroll">
         <div className="seg" role="tablist" aria-label="نوع تراکنش">
           <div className={`seg-thumb${kind === 'income' ? ' income' : ''}`} aria-hidden="true" />
           <button
@@ -378,15 +376,8 @@ export function QuickEntrySheet({
             ) : null}
           </div>
         </div>
-        </div>
-
-        <div className="sheet-footer">
-          <button className={`cta-confirm${disabled ? ' disabled' : ''}`} type="button" onClick={() => void submit()} disabled={disabled}>
-            {saving ? 'در حال ثبت…' : isEdit ? 'ذخیره تغییرات' : 'تأیید و ثبت'}
-          </button>
-        </div>
       </div>
-    </>
+    </WindowPopup>
   )
 }
 

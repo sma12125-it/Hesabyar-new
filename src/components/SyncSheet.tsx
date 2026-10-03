@@ -13,8 +13,11 @@ interface Payload {
   customCategories: unknown
   budgets: unknown
   goals: unknown
+  cheques: unknown
+  debts: unknown
   reminders: unknown
   cardVault: unknown
+  currencyUnit?: string
 }
 
 export function SyncSheet({ onClose }: { onClose: () => void }) {
@@ -36,8 +39,11 @@ export function SyncSheet({ onClose }: { onClose: () => void }) {
       customCategories: store.customCategories,
       budgets: local.budgets,
       goals: local.goals,
+      cheques: local.cheques,
+      debts: local.debts,
       reminders: local.reminders,
       cardVault: local.cardVault,
+      currencyUnit: local.currencyUnit,
     }
   }
 

@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { INSTALLMENT_CATEGORY_ID, getCategory } from '../lib/categories'
+import { INSTALLMENT_CATEGORY_ID, categoriesFor, getCategory } from '../lib/categories'
 import { formatPersianDateFull } from '../lib/dates'
 import { DateField } from './DateField'
+import { WindowPopup } from './WindowPopup'
 import { todayIso } from '../lib/iso'
 import { tryLoanSchedule } from '../lib/loan'
 import { formatRial, parseDecimalInput, parseRialInput, toFaDigits } from '../lib/money'
@@ -20,7 +21,7 @@ export function InstallmentPlanSheet({
   plan?: InstallmentPlan
   onClose: () => void
 }) {
-  const { activeAccounts, items, plans, createInstallmentPlan, updateInstallmentPlan } = useStore()
+  const { activeAccounts, items, plans, customCategories, createInstallmentPlan, updateInstallmentPlan } = useStore()
   const planItems = items.filter((i) => i.planId === plan?.id)
   const locked = Boolean(plan && planHasPayment(planItems))
   const [kind, setKind] = useState<InstallmentPlanKind>(plan?.kind ?? 'fixed')
@@ -31,7 +32,8 @@ export function InstallmentPlanSheet({
   const [countRaw, setCountRaw] = useState(plan ? String(plan.totalCount) : '')
   const [startDate, setStartDate] = useState(plan?.startDate ?? todayIso())
   const [accountId, setAccountId] = useState(plan?.defaultAccountId ?? activeAccounts[0]?.id ?? '')
-  const [picker, setPicker] = useState<'account' | null>(null)
+  const [categoryId, setCategoryId] = useState<string>(plan?.categoryId ?? INSTALLMENT_CATEGORY_ID)
+  const [picker, setPicker] = useState<'account' | 'category' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   useScrollFocusedIntoView()
@@ -39,7 +41,7 @@ export function InstallmentPlanSheet({
   const account = activeAccounts.find((a) => a.id === accountId)
   const rate = parseDecimalInput(rateRaw)
   const count = parseRialInput(countRaw)
-  const category = getCategory(INSTALLMENT_CATEGORY_ID)
+  const currentCategory = getCategory(categoryId, customCategories) || getCategory(INSTALLMENT_CATEGORY_ID)
   const activeCount = plans.filter((p) => p.status === 'active').length
 
   const schedule = useMemo(
@@ -89,6 +91,7 @@ export function InstallmentPlanSheet({
           defaultAccountId: accountId,
         })
       }
+      notifyUser(plan ? 'برنامه اقساط به‌روزرسانی شد' : 'برنامه جدید اقساط ساخته شد')
       onClose()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'ذخیره نشد'
@@ -123,6 +126,50 @@ export function InstallmentPlanSheet({
     )
   }
 
+  if (picker === 'category') {
+    const expenseCats = categoriesFor('expense', customCategories)
+    return (
+      <PickerSheet title="انتخاب دسته‌بندی" onClose={() => setPicker(null)}>
+        <button
+          type="button"
+          className="option-item lg-row"
+          style={{ background: 'rgba(59, 130, 246, 0.12)', border: '1px solid rgba(59, 130, 246, 0.3)' }}
+          onClick={() => {
+            setPicker(null)
+            onClose()
+            window.dispatchEvent(new CustomEvent('hy-open-debt-sheet', { detail: { amount, party: name } }))
+          }}
+        >
+          <span className="oico">🤝</span>
+          <div>
+            <div className="otitle" style={{ color: '#2563eb', fontWeight: 700 }}>
+              ثبت در بخش بدهی و قرض (غیر اقساطی)
+            </div>
+            <div className="osub">انتقال این مبلغ به بخش مجزای بدهی و مطالبات</div>
+          </div>
+        </button>
+
+        {expenseCats.map((cat) => (
+          <button
+            key={cat.id}
+            type="button"
+            className={`option-item lg-row${cat.id === categoryId ? ' active' : ''}`}
+            onClick={() => {
+              setCategoryId(cat.id)
+              setPicker(null)
+            }}
+          >
+            <span className="oico">{cat.icon}</span>
+            <div>
+              <div className="otitle">{cat.name}</div>
+              {cat.id === 'installments' ? <div className="osub">پیش‌فرض اقساط و وام</div> : null}
+            </div>
+          </button>
+        ))}
+      </PickerSheet>
+    )
+  }
+
   const lastDiffers = Boolean(schedule && schedule.amounts[0] !== schedule.amounts[schedule.amounts.length - 1])
   const invalid = locked
     ? validatePlanUpdate({ name, defaultAccountId: accountId }, planItems, activeAccounts)
@@ -142,210 +189,239 @@ export function InstallmentPlanSheet({
   const ctaDisabled = saving || Boolean(invalid)
 
   return (
-    <>
-      <div className="peek-home">
-        <div className="ph-title">اقساط</div>
-        <div className="ph-amt">{activeCount} برنامه فعال</div>
-      </div>
-      <div className="sheet-scrim" onClick={onClose} />
-      <div
-        className="glass-sheet sheet-sticky-cta"
-        role="dialog"
-        aria-label={plan ? 'ویرایش برنامه' : 'برنامه جدید'}
-      >
-        <div className="sheet-handle" />
-        <div className="sheet-header">
-          <h1>{plan ? 'ویرایش برنامه' : 'برنامه جدید'}</h1>
-          <button className="sheet-close" type="button" onClick={onClose} aria-label="بستن">
-            ✕
-          </button>
-        </div>
-        <div className="sheet-body-scroll">
-          {error ? (
-            <div className="banner error">
-              <span className="bico">⚠</span>
-              <span>{error}</span>
-            </div>
-          ) : null}
-          {locked ? (
-            <p className="sheet-sub">پس از اولین پرداخت فقط نام و حساب پرداخت قابل تغییر است.</p>
-          ) : null}
-          <div className="field-stack">
-            <div className="field-chip">
-              <span className="ficon">✏️</span>
-              <div style={{ flex: 1 }}>
-                <div className="flabel">نام برنامه</div>
-                <input
-                  className="field-input"
-                  placeholder="مثلاً قسط لپ‌تاپ"
-                  value={name}
-                  autoFocus
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </div>
-            </div>
+    <WindowPopup
+      title={plan ? 'ویرایش برنامه اقساط' : 'برنامه جدید اقساط و وام'}
+      subtitle={plan ? plan.name : `${activeCount} برنامه فعال در حال حاضر`}
+      icon="📅"
+      isOpen={true}
+      onClose={onClose}
+      defaultWidth={520}
+      defaultHeight={680}
+    >
+      <div className="sheet-body-scroll" style={{ padding: '4px 0 16px' }}>
+        {error ? (
+          <div className="banner error" style={{ marginBottom: 12 }}>
+            <span className="bico">⚠</span>
+            <span>{error}</span>
+          </div>
+        ) : null}
 
-            {!locked ? (
-              <div className="seg type-seg" role="tablist" aria-label="نوع برنامه">
-                <div className={`seg-thumb${kind === 'loan' ? ' type-bank' : ''}`} aria-hidden="true" />
-                <button
-                  className={`seg-btn cash${kind === 'fixed' ? ' active' : ''}`}
-                  type="button"
-                  onClick={() => setKind('fixed')}
-                >
-                  قسط ثابت
-                </button>
-                <button
-                  className={`seg-btn bank${kind === 'loan' ? ' active' : ''}`}
-                  type="button"
-                  onClick={() => setKind('loan')}
-                >
-                  وام بانکی
-                </button>
+        {/* Lump sum debt quick toggle banner */}
+        {!plan ? (
+          <div
+            style={{
+              marginBottom: 14,
+              padding: '10px 12px',
+              borderRadius: 14,
+              background: 'rgba(59, 130, 246, 0.08)',
+              border: '1px solid rgba(59, 130, 246, 0.2)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <div style={{ fontSize: 12, color: 'var(--hy-text)' }}>
+                <strong>قرض یا بدهی یکجاست (اقساطی نیست)؟</strong>
               </div>
-            ) : null}
-
-            {kind === 'loan' && !locked ? (
-              <>
-                <div className="field-chip">
-                  <span className="ficon">🏦</span>
-                  <div style={{ flex: 1 }}>
-                    <div className="flabel">مبلغ اصل وام</div>
-                    <AmountField
-                      value={principal}
-                      onChange={setPrincipal}
-                      ariaLabel="مبلغ اصل وام به ریال"
-                    />
-                  </div>
-                  <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--hy-text-tertiary)' }}>ریال</span>
-                </div>
-                <div className="field-chip">
-                  <span className="ficon">٪</span>
-                  <div style={{ flex: 1 }}>
-                    <div className="flabel">نرخ سود سالانه</div>
-                    <input
-                      className="field-input"
-                      inputMode="decimal"
-                      placeholder="۱۸"
-                      value={rateRaw}
-                      onChange={(e) => setRateRaw(e.target.value)}
-                      aria-label="نرخ سود سالانه"
-                    />
-                  </div>
-                  <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--hy-text-tertiary)' }}>٪</span>
-                </div>
-              </>
-            ) : (
-              <div className={`field-chip${locked ? ' chip-readonly' : ''}`}>
-                <span className="ficon">💰</span>
-                <div style={{ flex: 1 }}>
-                  <div className="flabel">{kind === 'loan' ? 'قسط ماهانه' : 'مبلغ هر قسط'}</div>
-                  {locked ? (
-                    <div className="fvalue">
-                      {formatRial(plan?.installmentAmount ?? amount)}
-                      <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--hy-text-tertiary)', marginRight: 4 }}>
-                        ریال
-                      </span>
-                    </div>
-                  ) : (
-                    <AmountField
-                      value={amount}
-                      onChange={setAmount}
-                      ariaLabel="مبلغ هر قسط به ریال"
-                    />
-                  )}
-                </div>
-                {!locked ? (
-                  <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--hy-text-tertiary)' }}>ریال</span>
-                ) : (
-                  <span className="readonly-tag">قفل</span>
-                )}
-              </div>
-            )}
-
-            <div className={`field-chip${locked ? ' chip-readonly' : ''}`}>
-              <span className="ficon">＃</span>
-              <div style={{ flex: 1 }}>
-                <div className="flabel">{kind === 'loan' ? 'مدت (ماه)' : 'تعداد اقساط'}</div>
-                {locked ? (
-                  <div className="fvalue">{count} قسط</div>
-                ) : (
-                  <input
-                    className="field-input"
-                    inputMode="numeric"
-                    placeholder="۱۲"
-                    value={countRaw}
-                    onChange={(e) => setCountRaw(e.target.value)}
-                    aria-label="تعداد اقساط"
-                  />
-                )}
-              </div>
-              {locked ? <span className="readonly-tag">قفل</span> : null}
+              <button
+                type="button"
+                className="cat-mini"
+                style={{ background: 'rgba(59, 130, 246, 0.18)', color: '#2563eb', fontWeight: 700, whiteSpace: 'nowrap' }}
+                onClick={() => {
+                  onClose()
+                  window.dispatchEvent(new CustomEvent('hy-open-debt-sheet', { detail: { amount, party: name } }))
+                }}
+              >
+                ثبت در بدهی‌ها و مطالبات 🤝
+              </button>
             </div>
-            {locked ? (
-              <div className="field-chip chip-readonly">
-                <span className="ficon">📆</span>
-                <div>
-                  <div className="flabel">تاریخ شروع</div>
-                  <div className="fvalue">{formatPersianDateFull(startDate)}</div>
-                </div>
-                <span className="readonly-tag">قفل</span>
-              </div>
-            ) : (
-              <DateField label="تاریخ شروع" value={startDate} onChange={setStartDate} />
-            )}
-            <button className="field-chip" type="button" onClick={() => setPicker('account')}>
-              <span className="ficon">💳</span>
-              <div>
-                <div className="flabel">حساب پرداخت</div>
-                <div className={account ? 'fvalue' : 'fvalue placeholder-val'}>
-                  {account?.name ?? 'انتخاب حساب…'}
-                </div>
-              </div>
-              <span className="fchev">‹</span>
-            </button>
-            <div className="field-chip chip-readonly">
-              <span className="ficon">{category?.icon ?? '📂'}</span>
-              <div>
-                <div className="flabel">دسته‌بندی</div>
-                <div className="fvalue">{category?.name ?? 'اقساط'}</div>
-              </div>
-              <span className="readonly-tag">ثابت</span>
+          </div>
+        ) : null}
+
+        {locked ? (
+          <p className="sheet-sub">پس از اولین پرداخت فقط نام و حساب پرداخت قابل تغییر است.</p>
+        ) : null}
+
+        <div className="field-stack">
+          <div className="field-chip">
+            <span className="ficon">✏️</span>
+            <div style={{ flex: 1 }}>
+              <div className="flabel">نام برنامه</div>
+              <input
+                className="field-input"
+                placeholder="مثلاً قسط لپ‌تاپ، وام مسکن، قرض..."
+                value={name}
+                autoFocus
+                onChange={(e) => setName(e.target.value)}
+              />
             </div>
           </div>
 
-          {schedule ? (
-            <div className="plan-stats loan-preview">
-              <div>
-                <strong>{formatRial(schedule.monthlyPayment)}</strong>
-                قسط ماهانه
-              </div>
-              <div>
-                <strong>{formatRial(schedule.totalInterest)}</strong>
-                مجموع سود
-              </div>
-              <div>
-                <strong>{formatRial(schedule.totalRepayment)}</strong>
-                بازپرداخت
-              </div>
+          {!locked ? (
+            <div className="seg type-seg" role="tablist" aria-label="نوع برنامه">
+              <div className={`seg-thumb${kind === 'loan' ? ' type-bank' : ''}`} aria-hidden="true" />
+              <button
+                className={`seg-btn cash${kind === 'fixed' ? ' active' : ''}`}
+                type="button"
+                onClick={() => setKind('fixed')}
+              >
+                قسط ثابت
+              </button>
+              <button
+                className={`seg-btn bank${kind === 'loan' ? ' active' : ''}`}
+                type="button"
+                onClick={() => setKind('loan')}
+              >
+                وام بانکی
+              </button>
             </div>
           ) : null}
-          {lastDiffers ? (
-            <p className="sheet-sub">قسط آخر برای گرد کردن ریال ممکن است کمی متفاوت باشد · {toFaDigits(schedule!.months)} قسط</p>
-          ) : null}
 
+          {kind === 'loan' && !locked ? (
+            <>
+              <div className="field-chip">
+                <span className="ficon">🏦</span>
+                <div style={{ flex: 1 }}>
+                  <div className="flabel">مبلغ اصل وام</div>
+                  <AmountField
+                    value={principal}
+                    onChange={setPrincipal}
+                    ariaLabel="مبلغ اصل وام به ریال"
+                  />
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--hy-text-tertiary)' }}>ریال</span>
+              </div>
+              <div className="field-chip">
+                <span className="ficon">٪</span>
+                <div style={{ flex: 1 }}>
+                  <div className="flabel">نرخ سود سالانه</div>
+                  <input
+                    className="field-input"
+                    inputMode="decimal"
+                    placeholder="۱۸"
+                    value={rateRaw}
+                    onChange={(e) => setRateRaw(e.target.value)}
+                    aria-label="نرخ سود سالانه"
+                  />
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--hy-text-tertiary)' }}>٪</span>
+              </div>
+            </>
+          ) : (
+            <div className={`field-chip${locked ? ' chip-readonly' : ''}`}>
+              <span className="ficon">💰</span>
+              <div style={{ flex: 1 }}>
+                <div className="flabel">{kind === 'loan' ? 'قسط ماهانه' : 'مبلغ هر قسط'}</div>
+                {locked ? (
+                  <div className="fvalue">
+                    {formatRial(plan?.installmentAmount ?? amount)}
+                    <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--hy-text-tertiary)', marginRight: 4 }}>
+                      ریال
+                    </span>
+                  </div>
+                ) : (
+                  <AmountField
+                    value={amount}
+                    onChange={setAmount}
+                    ariaLabel="مبلغ هر قسط به ریال"
+                  />
+                )}
+              </div>
+              {!locked ? (
+                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--hy-text-tertiary)' }}>ریال</span>
+              ) : (
+                <span className="readonly-tag">قفل</span>
+              )}
+            </div>
+          )}
+
+          <div className={`field-chip${locked ? ' chip-readonly' : ''}`}>
+            <span className="ficon">＃</span>
+            <div style={{ flex: 1 }}>
+              <div className="flabel">{kind === 'loan' ? 'مدت (ماه)' : 'تعداد اقساط'}</div>
+              {locked ? (
+                <div className="fvalue">{count} قسط</div>
+              ) : (
+                <input
+                  className="field-input"
+                  inputMode="numeric"
+                  placeholder="۱۲"
+                  value={countRaw}
+                  onChange={(e) => setCountRaw(e.target.value)}
+                  aria-label="تعداد اقساط"
+                />
+              )}
+            </div>
+            {locked ? <span className="readonly-tag">قفل</span> : null}
+          </div>
+
+          {locked ? (
+            <div className="field-chip chip-readonly">
+              <span className="ficon">📆</span>
+              <div>
+                <div className="flabel">تاریخ شروع</div>
+                <div className="fvalue">{formatPersianDateFull(startDate)}</div>
+              </div>
+              <span className="readonly-tag">قفل</span>
+            </div>
+          ) : (
+            <DateField label="تاریخ شروع" value={startDate} onChange={setStartDate} />
+          )}
+
+          <button className="field-chip" type="button" onClick={() => setPicker('account')}>
+            <span className="ficon">💳</span>
+            <div style={{ flex: 1 }}>
+              <div className="flabel">حساب پرداخت</div>
+              <div className={account ? 'fvalue' : 'fvalue placeholder-val'}>
+                {account?.name ?? 'انتخاب حساب…'}
+              </div>
+            </div>
+            <span className="fchev">‹</span>
+          </button>
+
+          {/* Changeable Category */}
+          <button className="field-chip" type="button" onClick={() => setPicker('category')}>
+            <span className="ficon">{currentCategory?.icon ?? '📂'}</span>
+            <div style={{ flex: 1 }}>
+              <div className="flabel">دسته‌بندی (قابل تغییر)</div>
+              <div className="fvalue">{currentCategory?.name ?? 'اقساط'}</div>
+            </div>
+            <span className="fchev">‹</span>
+          </button>
         </div>
-        <div className="sheet-footer">
+
+        {schedule ? (
+          <div className="plan-stats loan-preview" style={{ marginTop: 12 }}>
+            <div>
+              <strong>{formatRial(schedule.monthlyPayment)}</strong>
+              قسط ماهانه
+            </div>
+            <div>
+              <strong>{formatRial(schedule.totalInterest)}</strong>
+              مجموع سود
+            </div>
+            <div>
+              <strong>{formatRial(schedule.totalRepayment)}</strong>
+              بازپرداخت
+            </div>
+          </div>
+        ) : null}
+
+        {lastDiffers ? (
+          <p className="sheet-sub">
+            قسط آخر برای گرد کردن ریال ممکن است کمی متفاوت باشد · {toFaDigits(schedule!.months)} قسط
+          </p>
+        ) : null}
+
+        <div style={{ marginTop: 16 }}>
           <button
             className="cta-confirm"
             type="button"
             disabled={ctaDisabled}
             onClick={() => void save()}
           >
-            {saving ? 'در حال ذخیره…' : plan ? 'ذخیره تغییرات' : 'ذخیره برنامه'}
+            {saving ? 'در حال ذخیره…' : plan ? 'ذخیره تغییرات' : 'ذخیره برنامه اقساط'}
           </button>
         </div>
       </div>
-    </>
+    </WindowPopup>
   )
 }

@@ -438,7 +438,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
       </section>
 
       <p className="settings-credit" style={{ marginTop: 24, marginBottom: 12 }}>
-        حساب‌یار · نگارش پیشرفته شخصی · نسخه {toFaDigits('0.1.0').replaceAll('.', '\u066b')}
+        حساب‌یار · سازنده محمد احمدی · نسخه {toFaDigits('0.1.0').replaceAll('.', '\u066b')}
       </p>
 
       {/* Sheets / Popups */}

@@ -251,7 +251,7 @@ export function recoverWithCode(email: string, code: string, password: string) {
 
 export async function pushSnapshot<T>(session: CloudSession, snapshot: CloudSnapshot<T>): Promise<void> {
   const cfg = supabaseConfig()
-  const res = await fetch(`${cfg.url}/rest/v1/snapshots`, {
+  let res = await fetch(`${cfg.url}/rest/v1/snapshots?on_conflict=user_id`, {
     method: 'POST',
     headers: {
       apikey: cfg.key,
@@ -261,6 +261,21 @@ export async function pushSnapshot<T>(session: CloudSession, snapshot: CloudSnap
     },
     body: JSON.stringify({ user_id: session.userId, updated_at: new Date(snapshot.updatedAt).toISOString(), payload: snapshot.data }),
   })
+  if (!res.ok && res.status !== 401) {
+    // Attempt fallback upsert / patch in case on_conflict or schema differs
+    const patchRes = await fetch(`${cfg.url}/rest/v1/snapshots?user_id=eq.${session.userId}`, {
+      method: 'PATCH',
+      headers: {
+        apikey: cfg.key,
+        Authorization: `Bearer ${session.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ updated_at: new Date(snapshot.updatedAt).toISOString(), payload: snapshot.data }),
+    })
+    if (patchRes.ok) {
+      res = patchRes
+    }
+  }
   if (!res.ok) {
     const text = await res.text()
     if (res.status === 401) {

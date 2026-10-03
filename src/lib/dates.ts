@@ -1,5 +1,6 @@
 import { parseIsoDate } from './iso'
 import { toFaDigits } from './money'
+import { isoToJalali, JALALI_MONTHS } from './jalaali'
 
 const RELATIVE_DAY_MS = 24 * 60 * 60 * 1000
 
@@ -40,14 +41,24 @@ function isoToLocalDate(iso: string): Date | null {
 
 /** e.g. ۱۲ شهریور */
 export function formatPersianDate(iso: string): string {
+  if (!iso) return ''
+  const jalali = isoToJalali(iso)
+  if (jalali) {
+    return `${toFaDigits(jalali.jd)} ${JALALI_MONTHS[jalali.jm - 1]}`
+  }
   const date = isoToLocalDate(iso)
   if (!date) return iso
-  return new Intl.DateTimeFormat('fa-IR', { day: 'numeric', month: 'long' }).format(date)
+  return new Intl.DateTimeFormat('fa-IR-u-ca-persian', { day: 'numeric', month: 'long' }).format(date)
 }
 
-/** e.g. ۱ مهر ۱۴۰۵ */
+/** e.g. ۹ مهر ۱۴۰۵ */
 export function formatPersianDateFull(iso: string): string {
+  if (!iso) return ''
+  const jalali = isoToJalali(iso)
+  if (jalali) {
+    return `${toFaDigits(jalali.jd)} ${JALALI_MONTHS[jalali.jm - 1]} ${toFaDigits(jalali.jy)}`
+  }
   const date = isoToLocalDate(iso)
   if (!date) return iso
-  return new Intl.DateTimeFormat('fa-IR', { day: 'numeric', month: 'long', year: 'numeric' }).format(date)
+  return new Intl.DateTimeFormat('fa-IR-u-ca-persian', { day: 'numeric', month: 'long', year: 'numeric' }).format(date)
 }

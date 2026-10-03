@@ -21,9 +21,48 @@ interface Payload {
   customCategories: unknown
   budgets: unknown
   goals: unknown
+  cheques: unknown
+  debts: unknown
   reminders: unknown
   cardVault: unknown
+  currencyUnit?: string
   origin?: string
+}
+
+function mergeCheques(local: unknown, remote: unknown): unknown[] {
+  const localList = Array.isArray(local) ? (local as any[]) : []
+  const remoteList = Array.isArray(remote) ? (remote as any[]) : []
+  const map = new Map<string, any>()
+  for (const c of localList) if (c && c.id) map.set(c.id, c)
+  for (const c of remoteList) {
+    if (!c || !c.id) continue
+    const existing = map.get(c.id)
+    if (!existing) {
+      map.set(c.id, c)
+    } else {
+      const pickRemote = (c.clearedAt && !existing.clearedAt) || (c.createdAt > existing.createdAt)
+      map.set(c.id, pickRemote ? c : existing)
+    }
+  }
+  return Array.from(map.values())
+}
+
+function mergeDebts(local: unknown, remote: unknown): unknown[] {
+  const localList = Array.isArray(local) ? (local as any[]) : []
+  const remoteList = Array.isArray(remote) ? (remote as any[]) : []
+  const map = new Map<string, any>()
+  for (const d of localList) if (d && d.id) map.set(d.id, d)
+  for (const d of remoteList) {
+    if (!d || !d.id) continue
+    const existing = map.get(d.id)
+    if (!existing) {
+      map.set(d.id, d)
+    } else {
+      const pickRemote = (d.status === 'settled' && existing.status !== 'settled') || (d.createdAt > existing.createdAt)
+      map.set(d.id, pickRemote ? d : existing)
+    }
+  }
+  return Array.from(map.values())
 }
 
 export function LiveSync() {
@@ -56,8 +95,11 @@ export function LiveSync() {
           customCategories: current.customCategories,
           budgets: local.budgets,
           goals: local.goals,
+          cheques: local.cheques,
+          debts: local.debts,
           reminders: local.reminders,
           cardVault: local.cardVault,
+          currencyUnit: local.currencyUnit,
           origin: deviceId,
         },
       }
@@ -88,30 +130,45 @@ export function LiveSync() {
     }
 
     async function applyRemote() {
-      if (cloudDirty()) {
-        await pushNow()
-        return
-      }
       const session = await ensureSession()
       if (!session || closed) return
       const remote = await pullSnapshot<Payload>(session)
-      if (!remote || remote.updatedAt <= lastSent) return
-      lastSent = remote.updatedAt
-      localStorage.setItem('hy-cloud-seen', String(lastSent))
+      if (!remote) return
+
+      const remoteTime = remote.updatedAt
       const data = remote.data
-      if (data?.origin === deviceId) return
-      await withoutSync(async () => {
-        await storeRef.current.importCloud({
-          accounts: data.accounts ?? [],
-          transactions: data.transactions ?? [],
-          plans: data.plans ?? [],
-          items: data.items ?? [],
-          customCategories: (data.customCategories as never) ?? [],
+      if (!data) return
+
+      // If remote is newer than what we've processed from cloud, apply it
+      if (remoteTime > lastSent && data.origin !== deviceId) {
+        const local = await extrasRef.current.exportLocal()
+        const mergedCheques = mergeCheques(local.cheques, data.cheques)
+        const mergedDebts = mergeDebts(local.debts, data.debts)
+
+        await withoutSync(async () => {
+          await storeRef.current.importCloud({
+            accounts: data.accounts ?? [],
+            transactions: data.transactions ?? [],
+            plans: data.plans ?? [],
+            items: data.items ?? [],
+            customCategories: (data.customCategories as never) ?? [],
+          })
+          await extrasRef.current.importLocal({
+            ...(data as unknown as Record<string, unknown>),
+            cheques: mergedCheques,
+            debts: mergedDebts,
+          })
         })
-        await extrasRef.current.importLocal(data as unknown as Record<string, unknown>)
-      })
-      clearCloudDirty()
-      notifyUser('از دستگاه دیگر به‌روز شد')
+        lastSent = remoteTime
+        localStorage.setItem('hy-cloud-seen', String(lastSent))
+        clearCloudDirty()
+        notifyUser('از دستگاه دیگر به‌روز شد')
+        return
+      }
+
+      if (cloudDirty()) {
+        await pushNow()
+      }
     }
 
     let lastFail = ''

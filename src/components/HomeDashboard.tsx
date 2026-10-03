@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { JALALI_MONTHS, isoToJalali } from '../lib/jalaali'
 import { expenseByCategory, monthKey, monthTotals, monthlySeries, spentInCategory } from '../lib/reports'
-import { formatPersianDate, formatRelativeFromIso } from '../lib/dates'
+import { formatPersianDate, formatPersianDateFull, formatRelativeFromIso } from '../lib/dates'
 import { homeInstallmentHints } from '../lib/installments'
 import { todayIso, compareIso } from '../lib/iso'
 import { toFaDigits } from '../lib/money'
@@ -282,7 +282,7 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
                     <strong>{plan.name}</strong>
                     <small>{kind === 'overdue' ? 'معوق' : 'به‌زودی'}</small>
                   </span>
-                  <em>{formatPersianDate(item.dueDate)}</em>
+                  <em>{formatPersianDateFull(item.dueDate)}</em>
                   <b>{formatCompactMoney(item.amount)}</b>
                 </button>
               ))}

@@ -6,6 +6,7 @@ import { useStore } from '../store/Store'
 import { AmountField } from './AmountField'
 import { DateField } from './DateField'
 import { PickerSheet } from './PickerSheet'
+import { WindowPopup } from './WindowPopup'
 
 export function TransferSheet({
   presetFromId,
@@ -117,154 +118,146 @@ export function TransferSheet({
   }
 
   return (
-    <>
-      <div className="peek-home">
-        <div className="ph-title">خانه</div>
-        <div className="ph-amt">{formatRial(totalBalance)} ریال</div>
-      </div>
-      <div className="sheet-scrim" onClick={onClose} />
-      <div className="glass-sheet" role="dialog" aria-label="انتقال">
-        <div className="sheet-handle" />
-        <div className="nav-sheet-head">
-          <button className="back-btn" type="button" onClick={onClose} aria-label="بازگشت">
-            ›
-          </button>
-          <h1>{existingOut ? 'ویرایش انتقال' : 'انتقال'}</h1>
-          <button className="sheet-close" type="button" onClick={onClose} aria-label="بستن">
-            ✕
-          </button>
-        </div>
-        <div className="sheet-body-scroll">
-          {(error || over) && (
-            <div className="banner error">
-              <span className="bico">⛔</span>
-              <span>{error || 'مبلغ از موجودی قابل انتقال بیشتر است'}</span>
-            </div>
-          )}
-          <div className="field-stack">
-            <button
-              className="field-chip"
-              type="button"
-              style={{ alignItems: 'flex-start' }}
-              onClick={() => setPicker('from')}
-            >
-              <span className="ficon">↑</span>
-              <div style={{ flex: 1 }}>
-                <div className="flabel">مبدأ</div>
-                <div className={from ? 'fvalue' : 'fvalue placeholder-val'}>
-                  {from?.name ?? 'انتخاب حساب مبدأ…'}
-                </div>
-                {from ? (
-                  <div className="avail-hint">
-                    موجودی قابل انتقال: <strong>{formatRial(available)} ریال</strong>
-                  </div>
-                ) : null}
-              </div>
-              <span className="fchev">‹</span>
-            </button>
-            <button className="field-chip" type="button" onClick={() => setPicker('to')}>
-              <span className="ficon">↓</span>
-              <div>
-                <div className="flabel">مقصد</div>
-                <div className={to ? 'fvalue' : 'fvalue placeholder-val'}>
-                  {to?.name ?? 'انتخاب حساب مقصد…'}
-                </div>
-              </div>
-              <span className="fchev">‹</span>
-            </button>
+    <WindowPopup
+      title={existingOut ? 'ویرایش انتقال' : 'انتقال بین حساب‌ها'}
+      subtitle="انتقال وجه بین حساب‌های فعال شما"
+      icon="⇄"
+      isOpen={true}
+      onClose={onClose}
+      defaultWidth={520}
+      defaultHeight={620}
+      footer={
+        <button
+          className={`cta-confirm${disabled ? ' disabled' : ''}`}
+          type="button"
+          disabled={disabled}
+          onClick={() => void submit()}
+          style={{ width: '100%' }}
+        >
+          {saving ? 'در حال انتقال…' : existingOut ? 'ذخیره انتقال' : 'انتقال'}
+        </button>
+      }
+    >
+      <div className="sheet-body-scroll">
+        {(error || over) && (
+          <div className="banner error">
+            <span className="bico">⛔</span>
+            <span>{error || 'مبلغ از موجودی قابل انتقال بیشتر است'}</span>
           </div>
-
-          <AmountField
-            variant="hero"
-            value={amount}
-            onChange={setAmount}
-            autoFocus
-            over={over}
-            ariaLabel="مبلغ انتقال به ریال"
-            style={{ marginTop: over ? 16 : 20 }}
-          />
-
+        )}
+        <div className="field-stack">
           <button
             className="field-chip"
             type="button"
-            style={{ marginTop: 8 }}
-            onClick={() => setPicker(picker === 'note' ? null : 'note')}
+            style={{ alignItems: 'flex-start' }}
+            onClick={() => setPicker('from')}
           >
-            <span className="ficon">📝</span>
+            <span className="ficon">↑</span>
             <div style={{ flex: 1 }}>
-              <div className="flabel">توضیح</div>
-              {picker === 'note' ? (
-                <input
-                  className="field-input"
-                  placeholder="اختیاری…"
-                  value={note}
-                  autoFocus
-                  onChange={(e) => setNote(e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              ) : (
-                <div className={note ? 'fvalue' : 'fvalue placeholder-val'}>{note || 'اختیاری…'}</div>
-              )}
+              <div className="flabel">مبدأ</div>
+              <div className={from ? 'fvalue' : 'fvalue placeholder-val'}>
+                {from?.name ?? 'انتخاب حساب مبدأ…'}
+              </div>
+              {from ? (
+                <div className="avail-hint">
+                  موجودی قابل انتقال: <strong>{formatRial(available)} ریال</strong>
+                </div>
+              ) : null}
             </div>
+            <span className="fchev">‹</span>
           </button>
-
-          {/* Transfer Fee Toggle */}
-          <div style={{ marginTop: 8 }}>
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '10px 14px',
-                borderRadius: 16,
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '0.5px solid rgba(255, 255, 255, 0.5)',
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>💳</span>
-                <span style={{ fontSize: 13, fontWeight: 600 }}>کارمزد انتقال بانکی</span>
+          <button className="field-chip" type="button" onClick={() => setPicker('to')}>
+            <span className="ficon">↓</span>
+            <div>
+              <div className="flabel">مقصد</div>
+              <div className={to ? 'fvalue' : 'fvalue placeholder-val'}>
+                {to?.name ?? 'انتخاب حساب مقصد…'}
               </div>
-              <button
-                type="button"
-                className={`cat-mini${hasFee ? ' active' : ''}`}
-                onClick={() => {
-                  setHasFee((v) => !v)
-                  if (!hasFee && fee === 0) setFee(12000)
-                }}
-              >
-                {hasFee ? 'فعال' : 'ندارد'}
-              </button>
             </div>
-            {hasFee ? (
-              <div style={{ marginTop: 6, padding: '0 4px' }}>
-                <input
-                  className="field-input"
-                  type="number"
-                  placeholder="مبلغ کارمزد به ریال (مثلاً ۱۲,۰۰۰)"
-                  value={fee || ''}
-                  onChange={(e) => setFee(Number(e.target.value) || 0)}
-                  style={{ width: '100%', fontSize: 13 }}
-                />
-              </div>
-            ) : null}
-          </div>
-
-          <div style={{ marginTop: 8 }}>
-            <DateField label="تاریخ" value={date} onChange={setDate} />
-          </div>
-
-          <button
-            className={`cta-confirm${disabled ? ' disabled' : ''}`}
-            type="button"
-            disabled={disabled}
-            onClick={() => void submit()}
-            style={{ marginTop: 'auto' }}
-          >
-            {saving ? 'در حال انتقال…' : existingOut ? 'ذخیره انتقال' : 'انتقال'}
+            <span className="fchev">‹</span>
           </button>
         </div>
+
+        <AmountField
+          variant="hero"
+          value={amount}
+          onChange={setAmount}
+          autoFocus
+          over={over}
+          ariaLabel="مبلغ انتقال به ریال"
+          style={{ marginTop: over ? 16 : 20 }}
+        />
+
+        <button
+          className="field-chip"
+          type="button"
+          style={{ marginTop: 8 }}
+          onClick={() => setPicker(picker === 'note' ? null : 'note')}
+        >
+          <span className="ficon">📝</span>
+          <div style={{ flex: 1 }}>
+            <div className="flabel">توضیح</div>
+            {picker === 'note' ? (
+              <input
+                className="field-input"
+                placeholder="اختیاری…"
+                value={note}
+                autoFocus
+                onChange={(e) => setNote(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <div className={note ? 'fvalue' : 'fvalue placeholder-val'}>{note || 'اختیاری…'}</div>
+            )}
+          </div>
+        </button>
+
+        {/* Transfer Fee Toggle */}
+        <div style={{ marginTop: 8 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 14px',
+              borderRadius: 16,
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '0.5px solid rgba(255, 255, 255, 0.5)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span>💳</span>
+              <span style={{ fontSize: 13, fontWeight: 600 }}>کارمزد انتقال بانکی</span>
+            </div>
+            <button
+              type="button"
+              className={`cat-mini${hasFee ? ' active' : ''}`}
+              onClick={() => {
+                setHasFee((v) => !v)
+                if (!hasFee && fee === 0) setFee(12000)
+              }}
+            >
+              {hasFee ? 'فعال' : 'ندارد'}
+            </button>
+          </div>
+          {hasFee ? (
+            <div style={{ marginTop: 6, padding: '0 4px' }}>
+              <input
+                className="field-input"
+                type="number"
+                placeholder="مبلغ کارمزد به ریال (مثلاً ۱۲,۰۰۰)"
+                value={fee || ''}
+                onChange={(e) => setFee(Number(e.target.value) || 0)}
+                style={{ width: '100%', fontSize: 13 }}
+              />
+            </div>
+          ) : null}
+        </div>
+
+        <div style={{ marginTop: 8 }}>
+          <DateField label="تاریخ" value={date} onChange={setDate} />
+        </div>
       </div>
-    </>
+    </WindowPopup>
   )
 }
