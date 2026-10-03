@@ -89,37 +89,71 @@ export function ShareSheet({ account, onClose }: { account: Account; onClose: ()
         </div>
         <div className="sheet-body-scroll">
           <p className="sheet-sub">
-            درآمد و هزینهٔ این کارت برای هر دو کاربر یکی می‌ماند و کنار هر تراکنش نام ثبت‌کننده دیده می‌شود.
+            درآمد و هزینهٔ این کارت برای اعضای مجاز همگام می‌شود و نام ثبت‌کننده کنار هر تراکنش دیده خواهد شد.
           </p>
           {error ? <div className="banner error"><span>{error}</span></div> : null}
           {code ? (
             <>
-              <p className="recovery-code" aria-label="کد اشتراک">{code}</p>
-              <p className="sheet-sub">کاربر دیگر این کد را در تنظیمات، بخش «پیوستن به کارت مشترک» وارد می‌کند.</p>
+              <div style={{ textAlign: 'center', margin: '8px 0' }}>
+                <span style={{ fontSize: '11px', color: 'var(--hy-muted)', display: 'block', marginBottom: 4 }}>
+                  کد یکتای اشتراک (تنها برای اعضای مجاز شده)
+                </span>
+                <p className="recovery-code" aria-label="کد اشتراک">{code}</p>
+              </div>
+
+              <div style={{ background: 'rgba(15, 118, 110, 0.08)', borderRadius: 12, padding: '10px 12px', margin: '10px 0', border: '1px solid rgba(15, 118, 110, 0.2)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, fontWeight: 600, fontSize: '13px', color: 'var(--hy-teal)' }}>
+                  <span>🔒</span>
+                  <span>امنیت اختصاصی ایمیل</span>
+                </div>
+                <p style={{ fontSize: '11px', margin: 0, color: 'var(--hy-subtext)', lineHeight: 1.6 }}>
+                  تنها کاربرانی که ایمیل آن‌ها را در زیر اضافه کنید می‌توانند با این کد به حساب متصل شوند. دسترسی سایر ایمیل‌ها به طور خودکار مسدود می‌شود.
+                </p>
+              </div>
+
+              <p className="sheet-sub" style={{ marginTop: 12, fontWeight: 500 }}>
+                دعوت ایمیل کاربر هدف:
+              </p>
               <div className="field-stack">
                 <input
                   className="field-input"
                   type="email"
                   inputMode="email"
-                  placeholder="ایمیل کاربر دیگر"
+                  placeholder="مثال: colleague@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   aria-label="ایمیل کاربر دیگر"
                 />
               </div>
               {members.length > 0 ? (
-                <ul className="share-members">
-                  {members.map((member) => (
-                    <li key={member.email}>
-                      {actorLabel(member.email) ?? member.email}
-                      <span>{member.role === 'owner' ? 'صاحب کارت' : 'عضو'}</span>
-                    </li>
-                  ))}
-                </ul>
+                <div style={{ marginTop: 14 }}>
+                  <div style={{ fontSize: '12px', fontWeight: 600, marginBottom: 6, color: 'var(--hy-subtext)' }}>
+                    اعضای دارای دسترسی مجاز ({members.length}):
+                  </div>
+                  <ul className="share-members">
+                    {members.map((member) => (
+                      <li key={member.email}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <span>👤</span>
+                          <span>{actorLabel(member.email) ?? member.email}</span>
+                        </div>
+                        <span style={{
+                          padding: '2px 8px',
+                          borderRadius: '8px',
+                          fontSize: '11px',
+                          background: member.role === 'owner' ? 'rgba(15, 118, 110, 0.15)' : 'rgba(124, 58, 237, 0.15)',
+                          color: member.role === 'owner' ? 'var(--hy-teal)' : 'var(--hy-accent)'
+                        }}>
+                          {member.role === 'owner' ? 'صاحب حساب' : 'عضو مجاز'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ) : null}
             </>
           ) : (
-            <p className="sheet-sub">با ساخت اشتراک، یک کد ساخته می‌شود. هر دو نفر باید وارد حساب ابری شده باشند.</p>
+            <p className="sheet-sub">با ایجاد اشتراک، یک کد امن ساخته شده و دسترسی فقط برای ایمیل‌هایی که مشخص می‌کنید فعال خواهد شد.</p>
           )}
         </div>
         <div className="sheet-footer">

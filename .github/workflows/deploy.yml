@@ -2,8 +2,13 @@ name: Deploy GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
 
 concurrency:
   group: pages
@@ -12,10 +17,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,11 +26,11 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build -- --base=/${{ github.event.repository.name || 'hesabyar-new' }}/
+      - name: Ensure .nojekyll
+        run: touch dist/.nojekyll
       - name: Setup Pages
-        continue-on-error: true
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
+        continue-on-error: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
@@ -37,10 +38,6 @@ jobs:
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -49,9 +46,8 @@ jobs:
         uses: actions/deploy-pages@v4
 
   publish-branch:
+    needs: build
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -59,9 +55,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm test
       - run: npm run build -- --base=/${{ github.event.repository.name || 'hesabyar-new' }}/
-      - name: Publish dist to gh-pages
+      - run: touch dist/.nojekyll
+      - name: Publish dist to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

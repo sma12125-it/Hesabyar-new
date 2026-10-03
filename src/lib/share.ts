@@ -198,7 +198,48 @@ export async function inviteSharedEmail(ledgerId: string, email: string) {
 
 export async function joinSharedCode(code: string) {
   const session = await authed()
-  return rpc<string>('join_shared_code', { p_code: code.trim() }, session)
+  const cleanCode = code.trim().toUpperCase()
+
+  // First verify whether this ledger has invited members.
+  // If the owner specified invited emails, only those invited emails (or the owner) can join!
+  try {
+    const cfg = supabaseConfig()
+    // Query shared_ledgers by code
+    const res = await fetch(`${cfg.url}/rest/v1/shared_ledgers?code=eq.${cleanCode}&select=id,title,owner_id`, {
+      headers: { apikey: cfg.key, Authorization: `Bearer ${session.accessToken}` },
+    })
+
+    if (res.ok) {
+      const ledgers = (await res.json()) as Array<{ id: string; title: string; owner_id: string }>
+      if (ledgers.length > 0) {
+        const targetLedger = ledgers[0]
+        // Check invited members
+        const membersRes = await fetch(
+          `${cfg.url}/rest/v1/shared_members?ledger_id=eq.${targetLedger.id}&select=email,role`,
+          { headers: { apikey: cfg.key, Authorization: `Bearer ${session.accessToken}` } },
+        )
+
+        if (membersRes.ok) {
+          const members = (await membersRes.json()) as Array<{ email: string; role: string }>
+          // If invitations exist for specific emails, enforce that current user's email matches
+          if (members.length > 0) {
+            const userEmail = session.email.toLowerCase().trim()
+            const isInvited = members.some((m) => m.email.toLowerCase().trim() === userEmail)
+            if (!isInvited) {
+              throw new Error(`این کارت فقط برای ایمیل‌های دعوت‌شده توسط مالک مجاز است. ایمیل فعال شما (${session.email}) در لیست مجاز این کارت ثبت نشده است.`)
+            }
+          }
+        }
+      }
+    }
+  } catch (verifyErr) {
+    if (verifyErr instanceof Error && verifyErr.message.includes('ایمیل فعال شما')) {
+      throw verifyErr
+    }
+    // Continue to server RPC for database-level check
+  }
+
+  return rpc<string>('join_shared_code', { p_code: cleanCode }, session)
 }
 
 export async function claimSharedInvites() {

@@ -1,18 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 import { PatternLock } from '../components/PatternLock'
 import { SyncSheet } from '../components/SyncSheet'
+import { SupabaseConfigSheet } from '../components/SupabaseConfigSheet'
 import { loadLock, registerBiometric, setPattern, type AppLockRecord } from '../lib/applock'
 import { rememberedAccountPassword } from '../lib/account'
 import { joinSharedCode } from '../lib/share'
 import { toFaDigits } from '../lib/money'
-import { notifyUser } from '../lib/sync'
+import { notifyUser, loadSession, type CloudSession } from '../lib/sync'
+import { getSupabaseSettings } from '../lib/supabaseClient'
 import { useExtras } from '../store/Extras'
 import { useStore } from '../store/Store'
 import { SmsSettingsSection } from '../components/SmsSettingsSection'
 import { VaultRecover } from '../components/VaultRecover'
 import type { Account, Category, Transaction } from '../types'
 
-type Popup = 'cloud' | 'security' | 'vault' | null
+type Popup = 'cloud' | 'security' | 'vault' | 'supabase' | null
 
 function downloadFile(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType })
@@ -65,15 +67,28 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
   const [shareError, setShareError] = useState<string | null>(null)
   const [joining, setJoining] = useState(false)
   const [restoring, setRestoring] = useState(false)
+  const [session, setSession] = useState<CloudSession | null>(() => loadSession())
+  const [supabaseSettings, setSupabaseSettings] = useState(() => getSupabaseSettings())
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const { currencyUnit, setCurrencyUnit, exportLocal, importLocal } = useExtras()
+  const { currencyUnit, setCurrencyUnit, exportLocal, importLocal, vaultConfigured } = useExtras()
   const { accounts, transactions, plans, items, customCategories, importCloud } = useStore()
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     localStorage.setItem('hy-theme', theme)
   }, [theme])
+
+  useEffect(() => {
+    const onSessionChange = () => setSession(loadSession())
+    const onCfgChange = () => setSupabaseSettings(getSupabaseSettings())
+    window.addEventListener('hy-cloud-session', onSessionChange)
+    window.addEventListener('hy-supabase-config-changed', onCfgChange)
+    return () => {
+      window.removeEventListener('hy-cloud-session', onSessionChange)
+      window.removeEventListener('hy-supabase-config-changed', onCfgChange)
+    }
+  }, [])
 
   async function handleExportBackup() {
     try {
@@ -143,69 +158,270 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
 
   return (
     <div className="app-scroll settings-page" onScroll={(e) => onScroll(e.currentTarget.scrollTop > 28)}>
-      <div className="top-row">
-        <h1>تنظیمات</h1>
+      {/* Premium Header */}
+      <div className="top-row" style={{ marginBottom: 14 }}>
+        <div>
+          <h1 style={{ fontSize: '20px', fontWeight: 800 }}>تنظیمات حساب‌یار</h1>
+          <p style={{ fontSize: '11px', color: 'var(--hy-subtext)', marginTop: 2 }}>
+            شخصی‌سازی، مدیریت ابری و امنیت اطلاعات
+          </p>
+        </div>
         <span style={{ width: 40 }} />
       </div>
 
-      {/* Theme */}
+      {/* Cloud & Supabase Hub */}
+      <div
+        className="lg"
+        style={{
+          borderRadius: 20,
+          padding: '16px',
+          marginBottom: 16,
+          background: 'linear-gradient(135deg, rgba(15, 118, 110, 0.12) 0%, rgba(124, 58, 237, 0.08) 100%)',
+          border: '1px solid rgba(15, 118, 110, 0.25)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: '12px',
+                background: 'rgba(15, 118, 110, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '20px',
+              }}
+            >
+              ☁️
+            </div>
+            <div>
+              <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--hy-text)' }}>
+                مرکز اتصال ابری و Supabase
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--hy-subtext)', marginTop: 2 }}>
+                {session ? `متصل به کاربر: ${session.email}` : 'همگام‌سازی لحظه‌ای بین چند دستگاه'}
+              </div>
+            </div>
+          </div>
+          <span
+            style={{
+              padding: '3px 8px',
+              borderRadius: '20px',
+              fontSize: '10px',
+              fontWeight: 600,
+              background: session ? 'rgba(16, 185, 129, 0.18)' : 'rgba(239, 68, 68, 0.12)',
+              color: session ? '#059669' : '#dc2626',
+            }}
+          >
+            {session ? '● فعال' : '○ غیرفعال'}
+          </span>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
+          <button
+            className="home-pill ghost"
+            type="button"
+            onClick={() => setPopup('cloud')}
+            style={{ justifyContent: 'center', height: 40, fontSize: '12px', fontWeight: 600 }}
+          >
+            👤 {session ? 'مدیریت حساب' : 'ورود / ثبت‌نام'}
+          </button>
+          <button
+            className="home-pill ghost"
+            type="button"
+            onClick={() => setPopup('supabase')}
+            style={{
+              justifyContent: 'center',
+              height: 40,
+              fontSize: '12px',
+              fontWeight: 600,
+              borderColor: supabaseSettings.isCustom ? 'rgba(16, 185, 129, 0.4)' : undefined,
+            }}
+          >
+            ⚡ {supabaseSettings.isCustom ? 'دیتابیس شخصی' : 'تنظیم Supabase'}
+          </button>
+        </div>
+      </div>
+
+      {/* App Preferences */}
       <section className="lg settings-block">
-        <h2>ظاهر</h2>
-        <p className="sheet-sub">روشن یا تاریک، با همان زبان شیشه‌ای.</p>
-        <div className="seg" role="tablist">
-          <button className={`seg-btn${theme === 'light' ? ' active' : ''}`} type="button" onClick={() => setTheme('light')}>روشن</button>
-          <button className={`seg-btn${theme === 'dark' ? ' active' : ''}`} type="button" onClick={() => setTheme('dark')}>تاریک</button>
+        <h2 style={{ fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>🎨</span>
+          <span>شخصی‌سازی و نمایش</span>
+        </h2>
+
+        <div style={{ marginTop: 12 }}>
+          <span style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: 6, color: 'var(--hy-text)' }}>
+            تم تاریک / روشن
+          </span>
+          <div className="seg" role="tablist">
+            <button
+              className={`seg-btn${theme === 'light' ? ' active' : ''}`}
+              type="button"
+              onClick={() => setTheme('light')}
+            >
+              ☀️ حالت روشن
+            </button>
+            <button
+              className={`seg-btn${theme === 'dark' ? ' active' : ''}`}
+              type="button"
+              onClick={() => setTheme('dark')}
+            >
+              🌙 حالت تاریک
+            </button>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 14 }}>
+          <span style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: 6, color: 'var(--hy-text)' }}>
+            واحد پول پیش‌فرض
+          </span>
+          <div className="seg" role="tablist">
+            <button
+              className={`seg-btn${currencyUnit === 'IRT' ? ' active' : ''}`}
+              type="button"
+              onClick={() => void setCurrencyUnit('IRT')}
+            >
+              تومان (رایج)
+            </button>
+            <button
+              className={`seg-btn${currencyUnit === 'IRR' ? ' active' : ''}`}
+              type="button"
+              onClick={() => void setCurrencyUnit('IRR')}
+            >
+              ریال (بانکی)
+            </button>
+          </div>
         </div>
       </section>
 
-      {/* Currency Preference */}
+      {/* Security & Vault */}
       <section className="lg settings-block">
-        <h2>واحد پول برنامه</h2>
-        <p className="sheet-sub">نمایش مبالغ در سراسر برنامه به تومان یا ریال.</p>
-        <div className="seg" role="tablist">
+        <h2 style={{ fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>🛡️</span>
+          <span>امنیت و رمزنگاری</span>
+        </h2>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
           <button
-            className={`seg-btn${currencyUnit === 'IRT' ? ' active' : ''}`}
+            className="settings-row"
             type="button"
-            onClick={() => void setCurrencyUnit('IRT')}
+            onClick={() => setPopup('security')}
+            style={{ borderRadius: 14, padding: '12px 14px' }}
           >
-            تومان (پیش‌فرض)
+            <span>
+              <strong style={{ fontSize: '13px' }}>قفل برنامه و بیومتریک</strong>
+              <small style={{ fontSize: '11px', color: 'var(--hy-subtext)' }}>
+                الگوی ترسیمی، اثر انگشت و تشخیص چهره گوشی
+              </small>
+            </span>
+            <span className="fchev">‹</span>
           </button>
+
           <button
-            className={`seg-btn${currencyUnit === 'IRR' ? ' active' : ''}`}
+            className="settings-row"
             type="button"
-            onClick={() => void setCurrencyUnit('IRR')}
+            onClick={() => setPopup('vault')}
+            style={{ borderRadius: 14, padding: '12px 14px' }}
           >
-            ریال
+            <span>
+              <strong style={{ fontSize: '13px' }}>گاوصندوق کارت‌های محرمانه</strong>
+              <small style={{ fontSize: '11px', color: 'var(--hy-subtext)' }}>
+                {vaultConfigured ? 'رمز تنظیم شده و فعال است' : 'تعیین رمز اختصاصی و قفل کارت‌ها'}
+              </small>
+            </span>
+            <span className="fchev">‹</span>
+          </button>
+        </div>
+      </section>
+
+      {/* SMS Bank Integration */}
+      <SmsSettingsSection />
+
+      {/* Secure Shared Account */}
+      <section className="lg settings-block">
+        <h2 style={{ fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>🤝</span>
+          <span>پیوستن به کارت مشترک (محافظت‌شده با ایمیل)</span>
+        </h2>
+        <p className="sheet-sub" style={{ marginTop: 4 }}>
+          کد اشتراکی که مالک کارت برای شما ارسال کرده است را وارد کنید. اتصال تنها در صورتی مجاز خواهد بود که ایمیل شما توسط مالک در لیست مجاز ثبت شده باشد.
+        </p>
+
+        {shareError ? (
+          <div className="banner error" style={{ margin: '8px 0', fontSize: '11px' }}>
+            <span>{shareError}</span>
+          </div>
+        ) : null}
+
+        <div className="field-stack" style={{ marginTop: 10 }}>
+          <input
+            className="field-input"
+            dir="ltr"
+            placeholder="مثال: AB12-CD34"
+            value={shareCode}
+            onChange={(e) => setShareCode(e.target.value.toUpperCase())}
+            aria-label="کد اشتراک"
+            style={{ textAlign: 'center', letterSpacing: 2, fontFamily: 'monospace', fontWeight: 700 }}
+          />
+          <button
+            className="cta-confirm"
+            type="button"
+            disabled={joining || shareCode.trim().length < 4}
+            onClick={() => {
+              setJoining(true)
+              setShareError(null)
+              void joinSharedCode(shareCode)
+                .then(() => {
+                  setShareCode('')
+                  notifyUser('با موفقیت به حساب مشترک متصل شدید!')
+                  window.dispatchEvent(new Event('hy-share-refresh'))
+                })
+                .catch((err: unknown) => {
+                  setShareError(err instanceof Error ? err.message : 'پیوستن انجام نشد')
+                })
+                .finally(() => setJoining(false))
+            }}
+          >
+            {joining ? 'در حال بررسی مجوز دسترسی…' : 'پیوستن امن به کارت'}
           </button>
         </div>
       </section>
 
       {/* Backup and Data Export */}
       <section className="lg settings-block">
-        <h2>پشتیبان‌گیری و خروجی داده‌ها</h2>
-        <p className="sheet-sub">ذخیره داده‌ها روی دستگاه بدون وابستگی به اینترنت یا سرور.</p>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+        <h2 style={{ fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>💾</span>
+          <span>پشتیبان‌گیری و خروجی اکسل</span>
+        </h2>
+        <p className="sheet-sub" style={{ marginTop: 4 }}>
+          داده‌های شما ۱۰۰٪ در اختیارتان است. می‌توانید همیشه پشتیبان آفلاین دانلود کنید.
+        </p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
           <button
             className="home-pill ghost"
             type="button"
             onClick={() => void handleExportBackup()}
-            style={{ width: '100%', justifyContent: 'center' }}
+            style={{ width: '100%', justifyContent: 'center', height: 42 }}
           >
-            💾 دریافت نسخه پشتیبان کامل (JSON)
+            📥 دانلود فایل پشتیبان کامل (JSON)
           </button>
           <button
             className="home-pill ghost"
             type="button"
             onClick={handleExportCsv}
-            style={{ width: '100%', justifyContent: 'center' }}
+            style={{ width: '100%', justifyContent: 'center', height: 42 }}
           >
-            📊 خروجی تراکنش‌ها (اکسل / CSV)
+            📊 خروجی استاندارد اکسل (CSV)
           </button>
           <label
             className="home-pill ghost"
-            style={{ width: '100%', justifyContent: 'center', cursor: 'pointer', textAlign: 'center' }}
+            style={{ width: '100%', justifyContent: 'center', cursor: 'pointer', textAlign: 'center', height: 42 }}
           >
-            <span>{restoring ? 'در حال بازیابی…' : '📥 بازیابی از فایل پشتیبان (JSON)'}</span>
+            <span>{restoring ? 'در حال بارگذاری فایل…' : '📤 بازیابی داده‌ها از فایل JSON'}</span>
             <input
               ref={fileInputRef}
               type="file"
@@ -221,70 +437,13 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
         </div>
       </section>
 
-      <SmsSettingsSection />
+      <p className="settings-credit" style={{ marginTop: 24, marginBottom: 12 }}>
+        حساب‌یار · نگارش پیشرفته شخصی · نسخه {toFaDigits('0.1.0').replaceAll('.', '\u066b')}
+      </p>
 
-      {/* Shared card */}
-      <section className="lg settings-block">
-        <h2>پیوستن به کارت مشترک</h2>
-        <p className="sheet-sub">کدی که صاحب کارت به شما داده را وارد کنید. درآمد و هزینهٔ همان کارت برای هر دو نفر به‌روز می‌شود.</p>
-        {shareError ? <div className="banner error"><span>{shareError}</span></div> : null}
-        <div className="field-stack">
-          <input
-            className="field-input"
-            placeholder="کد اشتراک"
-            value={shareCode}
-            onChange={(e) => setShareCode(e.target.value.toUpperCase())}
-            aria-label="کد اشتراک"
-          />
-          <button
-            className="cta-confirm"
-            type="button"
-            disabled={joining || shareCode.trim().length < 4}
-            onClick={() => {
-              setJoining(true)
-              setShareError(null)
-              void joinSharedCode(shareCode)
-                .then(() => {
-                  setShareCode('')
-                  notifyUser('به کارت مشترک پیوستید')
-                  window.dispatchEvent(new Event('hy-share-refresh'))
-                })
-                .catch((err: unknown) => {
-                  setShareError(err instanceof Error ? err.message : 'پیوستن انجام نشد')
-                })
-                .finally(() => setJoining(false))
-            }}
-          >
-            {joining ? 'در حال پیوستن…' : 'پیوستن'}
-          </button>
-        </div>
-      </section>
-
-      <button className="settings-row lg" type="button" onClick={() => setPopup('cloud')}>
-        <span>
-          <strong>اتصال ابری</strong>
-          <small>حساب متصل، همگام‌سازی خودکار، و خروج کامل.</small>
-        </span>
-        <span className="fchev">‹</span>
-      </button>
-      <button className="settings-row lg" type="button" onClick={() => setPopup('vault')}>
-        <span>
-          <strong>گاوصندوق کارت</strong>
-          <small>رمز گاوصندوق اینجا تعیین می‌شود و قفل کارت‌ها با همان رمز باز می‌شود.</small>
-        </span>
-        <span className="fchev">‹</span>
-      </button>
-      <button className="settings-row lg" type="button" onClick={() => setPopup('security')}>
-        <span>
-          <strong>امنیت ورود</strong>
-          <small>الگوی کشیدنی، یا روشن کردن ورود با اثر انگشت و چهرهٔ خود گوشی.</small>
-        </span>
-        <span className="fchev">‹</span>
-      </button>
-
-      <p className="settings-credit">حساب‌یار · حسابداری شخصی · نسخه {toFaDigits('0.1.0').replaceAll('.', '\u066b')}</p>
-
+      {/* Sheets / Popups */}
       {popup === 'cloud' ? <SyncSheet onClose={() => setPopup(null)} /> : null}
+      {popup === 'supabase' ? <SupabaseConfigSheet onClose={() => setPopup(null)} /> : null}
       {popup === 'security' ? <SecurityPopup onClose={() => setPopup(null)} /> : null}
       {popup === 'vault' ? <VaultPopup onClose={() => setPopup(null)} /> : null}
     </div>
@@ -309,13 +468,34 @@ function SecurityPopup({ onClose }: { onClose: () => void }) {
           <p className="sheet-sub">رمز ورود همان رمز حساب است. اثر انگشت و چهره از قفل خود گوشی خوانده می‌شود و داخل برنامه ذخیره نمی‌شود.</p>
           <p className="sheet-sub">الگو را با کشیدن انگشت روی نقطه‌ها بکشید، نه با کلیک جدا روی هر نقطه.</p>
           <PatternLock value={pattern} onChange={setPatternValue} />
-          <button className="cat-mini" type="button" onClick={() => { if (pattern.length < 4) { setInfo('حداقل ۴ نقطه را به هم وصل کنید'); return }; void setPattern(pattern.join('-')).then(() => { setLock(loadLock()); setPatternValue([]); setInfo('الگو ذخیره شد') }) }}>ثبت الگو</button>
+          <button
+            className="cat-mini"
+            type="button"
+            onClick={() => {
+              if (pattern.length < 4) {
+                setInfo('حداقل ۴ نقطه را به هم وصل کنید')
+                return
+              }
+              void setPattern(pattern.join('-')).then(() => {
+                setLock(loadLock())
+                setPatternValue([])
+                setInfo('الگو ذخیره شد')
+              })
+            }}
+          >
+            ثبت الگو
+          </button>
           <button
             className="cta-confirm"
             type="button"
-            onClick={() => void registerBiometric()
-              .then(() => { setLock(loadLock()); setInfo('ورود با قفل گوشی روشن شد') })
-              .catch((err) => setInfo(err instanceof Error ? err.message : 'قفل گوشی در دسترس نیست'))}
+            onClick={() =>
+              void registerBiometric()
+                .then(() => {
+                  setLock(loadLock())
+                  setInfo('ورود با قفل گوشی روشن شد')
+                })
+                .catch((err) => setInfo(err instanceof Error ? err.message : 'قفل گوشی در دسترس نیست'))
+            }
           >
             فعال کردن ورود با اثر انگشت یا چهره
           </button>
@@ -385,19 +565,63 @@ function VaultPopup({ onClose }: { onClose: () => void }) {
               ? 'رمز فعلی و رمز تازه را بنویسید. کارت‌ها با رمز تازه دوباره قفل می‌شوند.'
               : 'یک رمز برای گاوصندوق بگذارید. کد بازیابی را نگه دارید تا اگر رمز را فراموش کردید کارت‌ها بمانند.'}
           </p>
-          {vaultConfigured ? <input className="field-input" type="password" placeholder="رمز فعلی گاوصندوق" value={current} onChange={(e) => setCurrent(e.target.value)} /> : null}
-          <input className="field-input" type="password" placeholder="رمز گاوصندوق" value={next} onChange={(e) => setNext(e.target.value)} />
-          <input className="field-input" type="password" placeholder="تکرار رمز" value={again} onChange={(e) => setAgain(e.target.value)} />
-          {rememberedAccountPassword() ? null : <input className="field-input" type="password" placeholder="رمز حساب، برای بازیابی بعدی" value={accountPassword} onChange={(e) => setAccountPassword(e.target.value)} />}
-          <button className="cta-confirm" type="button" onClick={() => void save()}>ثبت رمز</button>
+          {vaultConfigured ? (
+            <input
+              className="field-input"
+              type="password"
+              placeholder="رمز فعلی گاوصندوق"
+              value={current}
+              onChange={(e) => setCurrent(e.target.value)}
+            />
+          ) : null}
+          <input
+            className="field-input"
+            type="password"
+            placeholder="رمز گاوصندوق"
+            value={next}
+            onChange={(e) => setNext(e.target.value)}
+          />
+          <input
+            className="field-input"
+            type="password"
+            placeholder="تکرار رمز"
+            value={again}
+            onChange={(e) => setAgain(e.target.value)}
+          />
+          {rememberedAccountPassword() ? null : (
+            <input
+              className="field-input"
+              type="password"
+              placeholder="رمز حساب، برای بازیابی بعدی"
+              value={accountPassword}
+              onChange={(e) => setAccountPassword(e.target.value)}
+            />
+          )}
+          <button className="cta-confirm" type="button" onClick={() => void save()}>
+            ثبت رمز
+          </button>
           {recoveryCode ? (
             <>
-              <p className="sheet-sub">کد بازیابی گاوصندوق را نگه دارید. با این کد یا با رمز حساب می‌توانید رمز گاوصندوق را عوض کنید.</p>
+              <p className="sheet-sub">
+                کد بازیابی گاوصندوق را نگه دارید. با این کد یا با رمز حساب می‌توانید رمز گاوصندوق را عوض کنید.
+              </p>
               <p className="recovery-code">{recoveryCode}</p>
             </>
           ) : null}
-          {vaultConfigured ? <button className="link" type="button" onClick={() => setForgot((value) => !value)}>رمز گاوصندوق را فراموش کرده‌ام</button> : null}
-          {forgot ? <VaultRecover onDone={(code) => { setRecoveryCode(code); setForgot(false); setInfo('رمز گاوصندوق بازیابی شد') }} /> : null}
+          {vaultConfigured ? (
+            <button className="link" type="button" onClick={() => setForgot((value) => !value)}>
+              رمز گاوصندوق را فراموش کرده‌ام
+            </button>
+          ) : null}
+          {forgot ? (
+            <VaultRecover
+              onDone={(code) => {
+                setRecoveryCode(code)
+                setForgot(false)
+                setInfo('رمز گاوصندوق بازیابی شد')
+              }}
+            />
+          ) : null}
           {error ? <div className="banner error"><span>{error}</span></div> : null}
           {info ? <p className="sheet-sub">{info}</p> : null}
         </div>
