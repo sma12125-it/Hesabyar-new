@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useStore } from '../store/Store'
 import { TxRow, visibleLedger } from '../components/TxRow'
+import { TransactionsTable } from '../components/TransactionsTable'
+import { WindowPopup } from '../components/WindowPopup'
 import { toFaDigits, toWesternDigits } from '../lib/money'
 import { getCategory } from '../lib/categories'
 
@@ -17,6 +19,7 @@ export function AllTransactionsPage({
   const [accountFilter, setAccountFilter] = useState<string>('all')
   const [pageSize, setPageSize] = useState<number>(20)
   const [currentPage, setCurrentPage] = useState<number>(1)
+  const [isTableView, setIsTableView] = useState<boolean>(() => window.innerWidth >= 900)
 
   const baseRows = useMemo(() => visibleLedger(transactions), [transactions])
 
@@ -87,225 +90,24 @@ export function AllTransactionsPage({
   }
 
   return (
-    <>
-      <div className="sheet-scrim" onClick={onBack} />
-      <div className="glass-sheet" role="dialog" aria-label="تمام تراکنش‌ها">
-        <div className="sheet-handle" />
-        <div className="sheet-header">
-          <div>
-            <h1 style={{ fontSize: '18px', fontWeight: 800 }}>دفتر تمام تراکنش‌ها</h1>
-            <p className="sheet-sub" style={{ margin: 0 }}>
-              فهرست کامل و قابل صفحه‌بندی تراکنش‌ها با جستجوی هوشمند
-            </p>
-          </div>
-          <button className="sheet-close" type="button" onClick={onBack} aria-label="بستن">
-            ✕
-          </button>
-        </div>
-
-        {/* Search input with clear button and icon */}
-        <div style={{ position: 'relative', margin: '10px 0 8px' }}>
-          <span
-            style={{
-              position: 'absolute',
-              right: 12,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              fontSize: 16,
-              opacity: 0.6,
-              pointerEvents: 'none',
-            }}
-          >
-            🔍
-          </span>
-          <input
-            className="field-input"
-            autoFocus
-            style={{
-              paddingRight: 38,
-              paddingLeft: search ? 36 : 14,
-              width: '100%',
-              fontSize: '13px',
-              height: '42px',
-              borderRadius: '14px',
-            }}
-            placeholder="جستجو در شرح، مبلغ (ریال یا تومان)، حساب، تگ یا دسته‌بندی…"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-              setCurrentPage(1)
-            }}
-          />
-          {search ? (
-            <button
-              type="button"
-              onClick={() => {
-                setSearch('')
-                setCurrentPage(1)
-              }}
-              style={{
-                position: 'absolute',
-                left: 10,
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'rgba(15, 23, 42, 0.12)',
-                border: 'none',
-                borderRadius: '50%',
-                width: 24,
-                height: 24,
-                display: 'grid',
-                placeItems: 'center',
-                fontSize: 12,
-                color: 'var(--hy-text-secondary)',
-                cursor: 'pointer',
-              }}
-              aria-label="پاک کردن جستجو"
-            >
-              ✕
-            </button>
-          ) : null}
-        </div>
-
-        {/* Filter Chips + Account Select */}
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6, marginBottom: 8, alignItems: 'center' }}>
-          <button
-            className={`cat-mini${kindFilter === 'all' ? ' active' : ''}`}
-            type="button"
-            onClick={() => handleFilterChange(() => setKindFilter('all'))}
-          >
-            همه
-          </button>
-          <button
-            className={`cat-mini${kindFilter === 'expense' ? ' active' : ''}`}
-            type="button"
-            onClick={() => handleFilterChange(() => setKindFilter('expense'))}
-          >
-            هزینه‌ها
-          </button>
-          <button
-            className={`cat-mini${kindFilter === 'income' ? ' active' : ''}`}
-            type="button"
-            onClick={() => handleFilterChange(() => setKindFilter('income'))}
-          >
-            درآمدها
-          </button>
-          <button
-            className={`cat-mini${kindFilter === 'transfer' ? ' active' : ''}`}
-            type="button"
-            onClick={() => handleFilterChange(() => setKindFilter('transfer'))}
-          >
-            انتقال‌ها
-          </button>
-
-          {accounts.length > 1 ? (
-            <select
-              className="cat-mini"
-              value={accountFilter}
-              onChange={(e) => handleFilterChange(() => setAccountFilter(e.target.value))}
-              style={{
-                padding: '4px 8px',
-                borderRadius: 12,
-                border: '1px solid rgba(255,255,255,0.4)',
-                background: 'transparent',
-                fontSize: '11px',
-              }}
-            >
-              <option value="all">تمام حساب‌ها</option>
-              {accounts.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
-          ) : null}
-        </div>
-
-        {/* Results summary & Items per page bar */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            fontSize: 11,
-            color: 'var(--hy-subtext)',
-            padding: '4px 2px 8px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span>
-              نمایش {toFaDigits(startRecordNum)} تا {toFaDigits(endRecordNum)} از{' '}
-              <strong style={{ color: 'var(--hy-text)' }}>{toFaDigits(filteredRows.length)}</strong> تراکنش
-            </span>
-            {search || kindFilter !== 'all' || accountFilter !== 'all' ? (
-              <button
-                className="link"
-                type="button"
-                style={{ fontSize: '11px' }}
-                onClick={() => {
-                  setSearch('')
-                  setKindFilter('all')
-                  setAccountFilter('all')
-                  setCurrentPage(1)
-                }}
-              >
-                (حذف فیلترها)
-              </button>
-            ) : null}
-          </div>
-
-          {/* Page size selector: 10, 20, 30, 40, 50 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span>تعداد در صفحه:</span>
-            <div style={{ display: 'flex', gap: 3 }}>
-              {[10, 20, 30, 40, 50].map((sz) => (
-                <button
-                  key={sz}
-                  type="button"
-                  onClick={() => {
-                    setPageSize(sz)
-                    setCurrentPage(1)
-                  }}
-                  style={{
-                    border: 'none',
-                    borderRadius: 6,
-                    padding: '2px 5px',
-                    fontSize: '11px',
-                    cursor: 'pointer',
-                    background: pageSize === sz ? 'var(--hy-teal)' : 'rgba(255, 255, 255, 0.1)',
-                    color: pageSize === sz ? '#fff' : 'var(--hy-subtext)',
-                    fontWeight: pageSize === sz ? 700 : 400,
-                  }}
-                >
-                  {toFaDigits(sz)}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Transactions list */}
-        <div className="tx-list" style={{ overflowY: 'auto', flex: 1, padding: '6px 0' }}>
-          {paginatedRows.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '36px 12px', color: 'var(--hy-muted)' }}>
-              <div style={{ fontSize: '32px', marginBottom: 8 }}>🔍</div>
-              <p style={{ margin: 0, fontSize: '13px' }}>تراکنشی مطابق با جستجو یا فیلتر یافت نشد</p>
-            </div>
-          ) : (
-            paginatedRows.map((tx) => <TxRow key={tx.id} tx={tx} accounts={accounts} />)
-          )}
-        </div>
-
-        {/* Pagination controls at bottom */}
-        {totalPages > 1 ? (
+    <WindowPopup
+      title="دفتر کل تمام تراکنش‌ها"
+      subtitle="امکان فیلتر، صفحه‌بندی، جابجایی پنجره، تمام صفحه و نمای جدولی"
+      icon="📒"
+      isOpen={true}
+      onClose={onBack}
+      defaultWidth={850}
+      defaultHeight={680}
+      allowTableViewToggle={true}
+      isTableView={isTableView}
+      onToggleTableView={() => setIsTableView((prev) => !prev)}
+      footer={
+        totalPages > 1 ? (
           <div
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '10px 4px 6px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-              marginTop: 'auto',
             }}
           >
             {/* Previous page arrow */}
@@ -317,7 +119,7 @@ export function AllTransactionsPage({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 4,
-                padding: '6px 12px',
+                padding: '6px 14px',
                 borderRadius: '10px',
                 border: '1px solid rgba(255, 255, 255, 0.15)',
                 background: safePage <= 1 ? 'transparent' : 'rgba(255, 255, 255, 0.12)',
@@ -347,7 +149,7 @@ export function AllTransactionsPage({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 4,
-                padding: '6px 12px',
+                padding: '6px 14px',
                 borderRadius: '10px',
                 border: '1px solid rgba(255, 255, 255, 0.15)',
                 background: safePage >= totalPages ? 'transparent' : 'rgba(255, 255, 255, 0.12)',
@@ -361,8 +163,219 @@ export function AllTransactionsPage({
               <span>→</span>
             </button>
           </div>
+        ) : null
+      }
+    >
+      {/* Search input with clear button and icon */}
+      <div style={{ position: 'relative', margin: '6px 0 8px', flexShrink: 0 }}>
+        <span
+          style={{
+            position: 'absolute',
+            right: 12,
+            top: '50%',
+            transform: 'translateY(-50%)',
+            fontSize: 16,
+            opacity: 0.6,
+            pointerEvents: 'none',
+          }}
+        >
+          🔍
+        </span>
+        <input
+          className="field-input"
+          autoFocus
+          style={{
+            paddingRight: 38,
+            paddingLeft: search ? 36 : 14,
+            width: '100%',
+            fontSize: '13px',
+            height: '42px',
+            borderRadius: '14px',
+          }}
+          placeholder="جستجو در شرح، مبلغ (ریال یا تومان)، حساب، تگ یا دسته‌بندی…"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value)
+            setCurrentPage(1)
+          }}
+        />
+        {search ? (
+          <button
+            type="button"
+            onClick={() => {
+              setSearch('')
+              setCurrentPage(1)
+            }}
+            style={{
+              position: 'absolute',
+              left: 10,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'rgba(15, 23, 42, 0.12)',
+              border: 'none',
+              borderRadius: '50%',
+              width: 24,
+              height: 24,
+              display: 'grid',
+              placeItems: 'center',
+              fontSize: 12,
+              color: 'var(--hy-text-secondary)',
+              cursor: 'pointer',
+            }}
+            aria-label="پاک کردن جستجو"
+          >
+            ✕
+          </button>
         ) : null}
       </div>
-    </>
+
+      {/* Filter Chips + Account Select */}
+      <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6, marginBottom: 8, alignItems: 'center', flexShrink: 0 }}>
+        <button
+          className={`cat-mini${kindFilter === 'all' ? ' active' : ''}`}
+          type="button"
+          onClick={() => handleFilterChange(() => setKindFilter('all'))}
+        >
+          همه
+        </button>
+        <button
+          className={`cat-mini${kindFilter === 'expense' ? ' active' : ''}`}
+          type="button"
+          onClick={() => handleFilterChange(() => setKindFilter('expense'))}
+        >
+          هزینه‌ها
+        </button>
+        <button
+          className={`cat-mini${kindFilter === 'income' ? ' active' : ''}`}
+          type="button"
+          onClick={() => handleFilterChange(() => setKindFilter('income'))}
+        >
+          درآمدها
+        </button>
+        <button
+          className={`cat-mini${kindFilter === 'transfer' ? ' active' : ''}`}
+          type="button"
+          onClick={() => handleFilterChange(() => setKindFilter('transfer'))}
+        >
+          انتقال‌ها
+        </button>
+
+        {accounts.length > 1 ? (
+          <select
+            className="cat-mini"
+            value={accountFilter}
+            onChange={(e) => handleFilterChange(() => setAccountFilter(e.target.value))}
+            style={{
+              padding: '4px 8px',
+              borderRadius: 12,
+              border: '1px solid rgba(255,255,255,0.4)',
+              background: 'transparent',
+              fontSize: '11px',
+            }}
+          >
+            <option value="all">تمام حساب‌ها</option>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </select>
+        ) : null}
+      </div>
+
+      {/* Results summary & Items per page bar */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontSize: 11,
+          color: 'var(--hy-subtext)',
+          padding: '4px 2px 8px',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>
+            نمایش {toFaDigits(startRecordNum)} تا {toFaDigits(endRecordNum)} از{' '}
+            <strong style={{ color: 'var(--hy-text)' }}>{toFaDigits(filteredRows.length)}</strong> تراکنش
+          </span>
+          {search || kindFilter !== 'all' || accountFilter !== 'all' ? (
+            <button
+              className="link"
+              type="button"
+              style={{ fontSize: '11px' }}
+              onClick={() => {
+                setSearch('')
+                setKindFilter('all')
+                setAccountFilter('all')
+                setCurrentPage(1)
+              }}
+            >
+              (حذف فیلترها)
+            </button>
+          ) : null}
+        </div>
+
+        {/* Page size selector: 10, 20, 30, 40, 50 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span>تعداد در صفحه:</span>
+          <div style={{ display: 'flex', gap: 3 }}>
+            {[10, 20, 30, 40, 50].map((sz) => (
+              <button
+                key={sz}
+                type="button"
+                onClick={() => {
+                  setPageSize(sz)
+                  setCurrentPage(1)
+                }}
+                style={{
+                  border: 'none',
+                  borderRadius: 6,
+                  padding: '2px 5px',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  background: pageSize === sz ? 'var(--hy-teal)' : 'rgba(255, 255, 255, 0.1)',
+                  color: pageSize === sz ? '#fff' : 'var(--hy-subtext)',
+                  fontWeight: pageSize === sz ? 700 : 400,
+                }}
+              >
+                {toFaDigits(sz)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content: Card List or Table View */}
+      <div
+        className="tx-list tx-list-scroll"
+        style={{
+          overflowY: 'auto',
+          flex: '1 1 auto',
+          minHeight: 0,
+          padding: '8px 2px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}
+      >
+        {isTableView ? (
+          <TransactionsTable
+            transactions={paginatedRows}
+            accounts={accounts}
+            customCategories={customCategories}
+          />
+        ) : paginatedRows.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '36px 12px', color: 'var(--hy-muted)' }}>
+            <div style={{ fontSize: '32px', marginBottom: 8 }}>🔍</div>
+            <p style={{ margin: 0, fontSize: '13px' }}>تراکنشی مطابق با جستجو یا فیلتر یافت نشد</p>
+          </div>
+        ) : (
+          paginatedRows.map((tx) => <TxRow key={tx.id} tx={tx} accounts={accounts} />)
+        )}
+      </div>
+    </WindowPopup>
   )
 }
