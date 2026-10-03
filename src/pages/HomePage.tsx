@@ -11,7 +11,7 @@ interface HomePageProps {
   setToast: Dispatch<SetStateAction<string | null>>
   onQuickEntry: (kind: 'expense' | 'income') => void
   onTransfer: () => void
-  onAll: () => void
+  onAll: (initialSearch?: string) => void
   onSettings: () => void
 }
 
@@ -50,6 +50,52 @@ export function HomePage({ onScroll, setToast, onQuickEntry, onTransfer, onAll, 
             🔔
           </button>
         </div>
+
+        {/* Global Search Bar right on the Home Page */}
+        <div
+          onClick={() => onAll('')}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') onAll('')
+          }}
+          style={{
+            gridColumn: '1 / -1',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'var(--glass-chrome)',
+            backdropFilter: 'blur(16px)',
+            WebkitBackdropFilter: 'blur(16px)',
+            border: 'var(--glass-border)',
+            borderRadius: '16px',
+            padding: '10px 14px',
+            cursor: 'pointer',
+            marginTop: '4px',
+            boxShadow: 'var(--shadow-glass)',
+            transition: 'all 0.2s ease',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+            <span style={{ fontSize: '16px', opacity: 0.7 }}>🔍</span>
+            <span style={{ fontSize: '13px', color: 'var(--hy-muted)' }}>
+              جستجوی تراکنش‌ها، مبلغ، دسته‌بندی یا یادداشت…
+            </span>
+          </div>
+          <span
+            style={{
+              fontSize: '11px',
+              padding: '3px 8px',
+              borderRadius: '8px',
+              background: 'rgba(15, 118, 110, 0.12)',
+              color: 'var(--hy-teal)',
+              fontWeight: 600,
+            }}
+          >
+            دفتر کل ‹
+          </span>
+        </div>
+
         <div className="home-head-actions">
           <button className="home-pill income" type="button" onClick={() => onQuickEntry('income')}>
             + درآمد
@@ -62,7 +108,7 @@ export function HomePage({ onScroll, setToast, onQuickEntry, onTransfer, onAll, 
           </button>
         </div>
       </div>
-      <HomeDashboard onAll={onAll} />
+      <HomeDashboard onAll={() => onAll('')} />
     </div>
   )
 }

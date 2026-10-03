@@ -41,7 +41,7 @@ export type Sheet =
   | { type: 'installment-pay'; itemId: string }
   | { type: 'installment-item'; itemId: string }
   | { type: 'tx-edit'; txId: string }
-  | { type: 'all-tx' }
+  | { type: 'all-tx'; search?: string }
   | { type: 'settings' }
   | { type: 'voice' }
   | { type: 'sync' }
@@ -202,7 +202,7 @@ function Shell() {
                 setToast={setToast}
                 onQuickEntry={(kind) => setSheet({ type: 'quick', kind })}
                 onTransfer={() => setSheet({ type: 'transfer' })}
-                onAll={() => setSheet({ type: 'all-tx' })}
+                onAll={(search) => setSheet({ type: 'all-tx', search })}
                 onSettings={() => setSheet({ type: 'settings' })}
               />
             }
@@ -374,7 +374,9 @@ function Shell() {
         />
       ) : null}
 
-      {sheet?.type === 'all-tx' ? <AllTransactionsPage onBack={() => setSheet(null)} /> : null}
+      {sheet?.type === 'all-tx' ? (
+        <AllTransactionsPage initialSearch={sheet.search || ''} onBack={() => setSheet(null)} />
+      ) : null}
 
       {sheet?.type === 'confirm' ? (
         <ConfirmSheet

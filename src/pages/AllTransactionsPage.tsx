@@ -4,11 +4,19 @@ import { TxRow, visibleLedger } from '../components/TxRow'
 import { toFaDigits, toWesternDigits } from '../lib/money'
 import { getCategory } from '../lib/categories'
 
-export function AllTransactionsPage({ onBack }: { onBack: () => void }) {
+export function AllTransactionsPage({
+  onBack,
+  initialSearch = '',
+}: {
+  onBack: () => void
+  initialSearch?: string
+}) {
   const { transactions, accounts, customCategories } = useStore()
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(initialSearch)
   const [kindFilter, setKindFilter] = useState<'all' | 'expense' | 'income' | 'transfer'>('all')
   const [accountFilter, setAccountFilter] = useState<string>('all')
+  const [pageSize, setPageSize] = useState<number>(20)
+  const [currentPage, setCurrentPage] = useState<number>(1)
 
   const baseRows = useMemo(() => visibleLedger(transactions), [transactions])
 
@@ -60,27 +68,50 @@ export function AllTransactionsPage({ onBack }: { onBack: () => void }) {
     })
   }, [baseRows, search, kindFilter, accountFilter, accounts, customCategories])
 
+  // Total pages calculation
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize))
+  const safePage = Math.min(currentPage, totalPages)
+
+  // Paginated subset of rows
+  const paginatedRows = useMemo(() => {
+    const startIndex = (safePage - 1) * pageSize
+    return filteredRows.slice(startIndex, startIndex + pageSize)
+  }, [filteredRows, safePage, pageSize])
+
+  const startRecordNum = filteredRows.length === 0 ? 0 : (safePage - 1) * pageSize + 1
+  const endRecordNum = Math.min(safePage * pageSize, filteredRows.length)
+
+  function handleFilterChange(updater: () => void) {
+    updater()
+    setCurrentPage(1)
+  }
+
   return (
     <>
       <div className="sheet-scrim" onClick={onBack} />
-      <div className="glass-sheet" role="dialog" aria-label="همه تراکنش‌ها">
+      <div className="glass-sheet" role="dialog" aria-label="تمام تراکنش‌ها">
         <div className="sheet-handle" />
         <div className="sheet-header">
-          <h1>همه تراکنش‌ها</h1>
+          <div>
+            <h1 style={{ fontSize: '18px', fontWeight: 800 }}>دفتر تمام تراکنش‌ها</h1>
+            <p className="sheet-sub" style={{ margin: 0 }}>
+              فهرست کامل و قابل صفحه‌بندی تراکنش‌ها با جستجوی هوشمند
+            </p>
+          </div>
           <button className="sheet-close" type="button" onClick={onBack} aria-label="بستن">
             ✕
           </button>
         </div>
 
         {/* Search input with clear button and icon */}
-        <div style={{ position: 'relative', margin: '8px 0 10px' }}>
+        <div style={{ position: 'relative', margin: '10px 0 8px' }}>
           <span
             style={{
               position: 'absolute',
               right: 12,
               top: '50%',
               transform: 'translateY(-50%)',
-              fontSize: 15,
+              fontSize: 16,
               opacity: 0.6,
               pointerEvents: 'none',
             }}
@@ -89,15 +120,29 @@ export function AllTransactionsPage({ onBack }: { onBack: () => void }) {
           </span>
           <input
             className="field-input"
-            style={{ paddingRight: 36, paddingLeft: search ? 36 : 14, width: '100%' }}
-            placeholder="جستجو در شرح تراکنش، دسته‌بندی، حساب، مبلغ…"
+            autoFocus
+            style={{
+              paddingRight: 38,
+              paddingLeft: search ? 36 : 14,
+              width: '100%',
+              fontSize: '13px',
+              height: '42px',
+              borderRadius: '14px',
+            }}
+            placeholder="جستجو در شرح، مبلغ (ریال یا تومان)، حساب، تگ یا دسته‌بندی…"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setCurrentPage(1)
+            }}
           />
           {search ? (
             <button
               type="button"
-              onClick={() => setSearch('')}
+              onClick={() => {
+                setSearch('')
+                setCurrentPage(1)
+              }}
               style={{
                 position: 'absolute',
                 left: 10,
@@ -106,11 +151,11 @@ export function AllTransactionsPage({ onBack }: { onBack: () => void }) {
                 background: 'rgba(15, 23, 42, 0.12)',
                 border: 'none',
                 borderRadius: '50%',
-                width: 22,
-                height: 22,
+                width: 24,
+                height: 24,
                 display: 'grid',
                 placeItems: 'center',
-                fontSize: 11,
+                fontSize: 12,
                 color: 'var(--hy-text-secondary)',
                 cursor: 'pointer',
               }}
@@ -121,33 +166,33 @@ export function AllTransactionsPage({ onBack }: { onBack: () => void }) {
           ) : null}
         </div>
 
-        {/* Filters */}
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6, marginBottom: 8 }}>
+        {/* Filter Chips + Account Select */}
+        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6, marginBottom: 8, alignItems: 'center' }}>
           <button
             className={`cat-mini${kindFilter === 'all' ? ' active' : ''}`}
             type="button"
-            onClick={() => setKindFilter('all')}
+            onClick={() => handleFilterChange(() => setKindFilter('all'))}
           >
             همه
           </button>
           <button
             className={`cat-mini${kindFilter === 'expense' ? ' active' : ''}`}
             type="button"
-            onClick={() => setKindFilter('expense')}
+            onClick={() => handleFilterChange(() => setKindFilter('expense'))}
           >
             هزینه‌ها
           </button>
           <button
             className={`cat-mini${kindFilter === 'income' ? ' active' : ''}`}
             type="button"
-            onClick={() => setKindFilter('income')}
+            onClick={() => handleFilterChange(() => setKindFilter('income'))}
           >
             درآمدها
           </button>
           <button
             className={`cat-mini${kindFilter === 'transfer' ? ' active' : ''}`}
             type="button"
-            onClick={() => setKindFilter('transfer')}
+            onClick={() => handleFilterChange(() => setKindFilter('transfer'))}
           >
             انتقال‌ها
           </button>
@@ -156,8 +201,14 @@ export function AllTransactionsPage({ onBack }: { onBack: () => void }) {
             <select
               className="cat-mini"
               value={accountFilter}
-              onChange={(e) => setAccountFilter(e.target.value)}
-              style={{ padding: '4px 8px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.4)', background: 'transparent' }}
+              onChange={(e) => handleFilterChange(() => setAccountFilter(e.target.value))}
+              style={{
+                padding: '4px 8px',
+                borderRadius: 12,
+                border: '1px solid rgba(255,255,255,0.4)',
+                background: 'transparent',
+                fontSize: '11px',
+              }}
             >
               <option value="all">تمام حساب‌ها</option>
               {accounts.map((a) => (
@@ -169,30 +220,148 @@ export function AllTransactionsPage({ onBack }: { onBack: () => void }) {
           ) : null}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--hy-text-tertiary)', marginBottom: 6 }}>
-          <span>تعداد نتایج: {toFaDigits(filteredRows.length)} تراکنش</span>
-          {search || kindFilter !== 'all' || accountFilter !== 'all' ? (
-            <button
-              className="link"
-              type="button"
-              onClick={() => {
-                setSearch('')
-                setKindFilter('all')
-                setAccountFilter('all')
-              }}
-            >
-              پاک کردن فیلترها
-            </button>
-          ) : null}
+        {/* Results summary & Items per page bar */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            fontSize: 11,
+            color: 'var(--hy-subtext)',
+            padding: '4px 2px 8px',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>
+              نمایش {toFaDigits(startRecordNum)} تا {toFaDigits(endRecordNum)} از{' '}
+              <strong style={{ color: 'var(--hy-text)' }}>{toFaDigits(filteredRows.length)}</strong> تراکنش
+            </span>
+            {search || kindFilter !== 'all' || accountFilter !== 'all' ? (
+              <button
+                className="link"
+                type="button"
+                style={{ fontSize: '11px' }}
+                onClick={() => {
+                  setSearch('')
+                  setKindFilter('all')
+                  setAccountFilter('all')
+                  setCurrentPage(1)
+                }}
+              >
+                (حذف فیلترها)
+              </button>
+            ) : null}
+          </div>
+
+          {/* Page size selector: 10, 20, 30, 40, 50 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>تعداد در صفحه:</span>
+            <div style={{ display: 'flex', gap: 3 }}>
+              {[10, 20, 30, 40, 50].map((sz) => (
+                <button
+                  key={sz}
+                  type="button"
+                  onClick={() => {
+                    setPageSize(sz)
+                    setCurrentPage(1)
+                  }}
+                  style={{
+                    border: 'none',
+                    borderRadius: 6,
+                    padding: '2px 5px',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                    background: pageSize === sz ? 'var(--hy-teal)' : 'rgba(255, 255, 255, 0.1)',
+                    color: pageSize === sz ? '#fff' : 'var(--hy-subtext)',
+                    fontWeight: pageSize === sz ? 700 : 400,
+                  }}
+                >
+                  {toFaDigits(sz)}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <div className="tx-list" style={{ overflowY: 'auto', flex: 1 }}>
-          {filteredRows.length === 0 ? (
-            <p className="sheet-sub">تراکنشی مطابق با فیلتر یافت نشد</p>
+        {/* Transactions list */}
+        <div className="tx-list" style={{ overflowY: 'auto', flex: 1, padding: '6px 0' }}>
+          {paginatedRows.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '36px 12px', color: 'var(--hy-muted)' }}>
+              <div style={{ fontSize: '32px', marginBottom: 8 }}>🔍</div>
+              <p style={{ margin: 0, fontSize: '13px' }}>تراکنشی مطابق با جستجو یا فیلتر یافت نشد</p>
+            </div>
           ) : (
-            filteredRows.map((tx) => <TxRow key={tx.id} tx={tx} accounts={accounts} />)
+            paginatedRows.map((tx) => <TxRow key={tx.id} tx={tx} accounts={accounts} />)
           )}
         </div>
+
+        {/* Pagination controls at bottom */}
+        {totalPages > 1 ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '10px 4px 6px',
+              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+              marginTop: 'auto',
+            }}
+          >
+            {/* Previous page arrow */}
+            <button
+              type="button"
+              disabled={safePage <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '6px 12px',
+                borderRadius: '10px',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                background: safePage <= 1 ? 'transparent' : 'rgba(255, 255, 255, 0.12)',
+                color: safePage <= 1 ? 'var(--hy-muted)' : 'var(--hy-text)',
+                cursor: safePage <= 1 ? 'not-allowed' : 'pointer',
+                fontSize: '12px',
+                fontWeight: 600,
+              }}
+            >
+              <span>←</span>
+              <span>صفحه قبل</span>
+            </button>
+
+            {/* Page indicator & quick jump */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px' }}>
+              <span>
+                صفحه <strong>{toFaDigits(safePage)}</strong> از <strong>{toFaDigits(totalPages)}</strong>
+              </span>
+            </div>
+
+            {/* Next page arrow */}
+            <button
+              type="button"
+              disabled={safePage >= totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '6px 12px',
+                borderRadius: '10px',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                background: safePage >= totalPages ? 'transparent' : 'rgba(255, 255, 255, 0.12)',
+                color: safePage >= totalPages ? 'var(--hy-muted)' : 'var(--hy-text)',
+                cursor: safePage >= totalPages ? 'not-allowed' : 'pointer',
+                fontSize: '12px',
+                fontWeight: 600,
+              }}
+            >
+              <span>صفحه بعد</span>
+              <span>→</span>
+            </button>
+          </div>
+        ) : null}
       </div>
     </>
   )
