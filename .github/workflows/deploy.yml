@@ -22,8 +22,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+      - name: Install Dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci || npm install
+          else
+            npm install
+          fi
       - run: npm test
       - run: npm run build -- --base=/${{ github.event.repository.name || 'hesabyar-new' }}/
       - name: Ensure .nojekyll
@@ -53,8 +58,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
+      - name: Install Dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci || npm install
+          else
+            npm install
+          fi
+      - run: npm test
       - run: npm run build -- --base=/${{ github.event.repository.name || 'hesabyar-new' }}/
       - run: touch dist/.nojekyll
       - name: Publish dist to gh-pages branch
