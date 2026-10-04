@@ -2,7 +2,7 @@
 
 Personal accounting for the browser. **Rial only**, RTL Persian, Liquid Glass, IndexedDB.
 
-**Live:** https://sma12125-it.github.io/hesabyar-new/
+**Live:** https://sma12125-it.github.io/Hesabyar-new/
 
 **Repo:** https://github.com/sma12125-it/hesabyar-new
 
