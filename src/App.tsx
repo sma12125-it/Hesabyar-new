@@ -20,6 +20,7 @@ import { AuthGate } from './components/AuthGate'
 import { VoiceSheet } from './components/VoiceSheet'
 import { SyncSheet } from './components/SyncSheet'
 import { AllTransactionsPage } from './pages/AllTransactionsPage'
+import { WindowPopup } from './components/WindowPopup'
 import { InstallmentsPage } from './pages/InstallmentsPage'
 import { InstallmentsArchivePage } from './pages/InstallmentsArchivePage'
 import { InstallmentDetailPage } from './pages/InstallmentDetailPage'
@@ -34,19 +35,19 @@ import { ExtrasProvider, useExtras } from './store/Extras'
 import { StoreProvider, useStore } from './store/Store'
 
 export type Sheet =
-  | { type: 'quick'; kind: 'expense' | 'income'; accountId?: string }
+  | { type: 'quick'; kind: 'expense' | 'income'; accountId?: string; returnToAll?: string }
   | { type: 'account'; accountId?: string }
-  | { type: 'transfer'; fromId?: string; transferId?: string }
+  | { type: 'transfer'; fromId?: string; transferId?: string; returnToAll?: string }
   | { type: 'installment-plan'; planId?: string }
   | { type: 'installment-pay'; itemId: string }
   | { type: 'installment-item'; itemId: string }
-  | { type: 'tx-edit'; txId: string }
+  | { type: 'tx-edit'; txId: string; returnToAll?: string }
   | { type: 'all-tx'; search?: string }
   | { type: 'settings' }
   | { type: 'voice' }
   | { type: 'sync' }
   | { type: 'share'; accountId: string }
-  | { type: 'confirm'; title: string; message: string; confirmLabel?: string; run: () => Promise<void> }
+  | { type: 'confirm'; title: string; message: string; confirmLabel?: string; run: () => Promise<void>; returnToAll?: string }
 
 function Shell() {
   const location = useLocation()
@@ -56,6 +57,14 @@ function Shell() {
   const [toast, setToast] = useState<string | null>(null)
   const [sheet, setSheet] = useState<Sheet | null>(null)
   const [addOpen, setAddOpen] = useState(false)
+
+  const closeSheet = useCallback((currentSheet?: Sheet | null) => {
+    if (currentSheet && 'returnToAll' in currentSheet && currentSheet.returnToAll !== undefined) {
+      setSheet({ type: 'all-tx', search: currentSheet.returnToAll })
+    } else {
+      setSheet(null)
+    }
+  }, [])
 
   const onScroll = useCallback((next: boolean) => setCompact(next), [])
 
@@ -106,15 +115,17 @@ function Shell() {
       editTransaction: (id) => {
         const tx = transactions.find((row) => row.id === id)
         if (!tx) return
+        const returnToAll = sheet?.type === 'all-tx' ? sheet.search || '' : undefined
         if (tx.kind === 'transferOut' || tx.kind === 'transferIn') {
-          setSheet({ type: 'transfer', transferId: tx.transferId })
+          setSheet({ type: 'transfer', transferId: tx.transferId, returnToAll })
         } else {
-          setSheet({ type: 'tx-edit', txId: id })
+          setSheet({ type: 'tx-edit', txId: id, returnToAll })
         }
       },
       deleteTransaction: (id) => {
         const tx = transactions.find((row) => row.id === id)
         if (!tx) return
+        const returnToAll = sheet?.type === 'all-tx' ? sheet.search || '' : undefined
         const transfer = tx.kind === 'transferOut' || tx.kind === 'transferIn'
         const linked = Boolean(tx.installmentItemId)
         setSheet({
@@ -126,6 +137,7 @@ function Shell() {
               ? 'پرداخت قسط لغو می‌شود؛ خود قسط در برنامه می‌ماند و موجودی برمی‌گردد.'
               : 'این تراکنش حذف می‌شود و موجودی حساب به‌روز می‌گردد.',
           run: () => deleteTransaction(id),
+          returnToAll,
         })
       },
       editAccount: (id) => setSheet({ type: 'account', accountId: id }),
@@ -328,7 +340,8 @@ function Shell() {
           initialKind={sheet.kind}
           presetAccountId={sheet.accountId}
           totalBalance={totalBalance}
-          onClose={() => setSheet(null)}
+          onClose={() => closeSheet(sheet)}
+          onMinimize={minimizeCurrentSheet}
         />
       ) : null}
 
@@ -337,12 +350,18 @@ function Shell() {
           initialKind={editingTx.kind}
           transaction={editingTx}
           totalBalance={totalBalance}
-          onClose={() => setSheet(null)}
+          onClose={() => closeSheet(sheet)}
+          onMinimize={minimizeCurrentSheet}
         />
       ) : null}
 
       {sheet?.type === 'account' ? (
-        <AccountFormSheet account={editingAccount} totalBalance={totalBalance} onClose={() => setSheet(null)} />
+        <AccountFormSheet
+          account={editingAccount}
+          totalBalance={totalBalance}
+          onClose={() => closeSheet(sheet)}
+          onMinimize={minimizeCurrentSheet}
+        />
       ) : null}
 
       {sheet?.type === 'transfer' ? (
@@ -350,16 +369,25 @@ function Shell() {
           presetFromId={sheet.fromId}
           transferId={sheet.transferId}
           totalBalance={totalBalance}
-          onClose={() => setSheet(null)}
+          onClose={() => closeSheet(sheet)}
+          onMinimize={minimizeCurrentSheet}
         />
       ) : null}
 
       {sheet?.type === 'installment-plan' ? (
-        <InstallmentPlanSheet plan={editingPlan} onClose={() => setSheet(null)} />
+        <InstallmentPlanSheet
+          plan={editingPlan}
+          onClose={() => closeSheet(sheet)}
+          onMinimize={minimizeCurrentSheet}
+        />
       ) : null}
 
       {sheet?.type === 'installment-item' && editingItem ? (
-        <InstallmentItemSheet item={editingItem} onClose={() => setSheet(null)} />
+        <InstallmentItemSheet
+          item={editingItem}
+          onClose={() => closeSheet(sheet)}
+          onMinimize={minimizeCurrentSheet}
+        />
       ) : null}
 
       {sheet?.type === 'installment-pay' && payingItem && payingPlan ? (
@@ -370,12 +398,17 @@ function Shell() {
             items.filter((i) => i.planId === payingPlan.id),
             todayIso(),
           )}
-          onClose={() => setSheet(null)}
+          onClose={() => closeSheet(sheet)}
+          onMinimize={minimizeCurrentSheet}
         />
       ) : null}
 
       {sheet?.type === 'all-tx' ? (
-        <AllTransactionsPage initialSearch={sheet.search || ''} onBack={() => setSheet(null)} />
+        <AllTransactionsPage
+          initialSearch={sheet.search || ''}
+          onBack={() => closeSheet(sheet)}
+          onMinimize={minimizeCurrentSheet}
+        />
       ) : null}
 
       {sheet?.type === 'confirm' ? (
@@ -384,27 +417,32 @@ function Shell() {
           message={sheet.message}
           confirmLabel={sheet.confirmLabel}
           onConfirm={sheet.run}
-          onClose={() => setSheet(null)}
+          onClose={() => closeSheet(sheet)}
         />
       ) : null}
 
-      {sheet?.type === 'voice' ? <VoiceSheet onClose={() => setSheet(null)} /> : null}
+      {sheet?.type === 'voice' ? <VoiceSheet onClose={() => closeSheet(sheet)} /> : null}
       {sheet?.type === 'share' && accounts.some((account) => account.id === sheet.accountId) ? (
         <ShareSheet
           account={accounts.find((account) => account.id === sheet.accountId)!}
-          onClose={() => setSheet(null)}
+          onClose={() => closeSheet(sheet)}
         />
       ) : null}
-      {sheet?.type === 'sync' ? <SyncSheet onClose={() => setSheet(null)} /> : null}
+      {sheet?.type === 'sync' ? (
+        <SyncSheet
+          onClose={() => closeSheet(sheet)}
+          onMinimize={minimizeCurrentSheet}
+        />
+      ) : null}
 
       {sheet?.type === 'settings' ? (
         <>
-          <div className="sheet-scrim" onClick={() => setSheet(null)} />
+          <div className="sheet-scrim" onClick={() => closeSheet(sheet)} />
           <div className="glass-sheet" role="dialog" aria-label="داده محلی">
             <div className="sheet-handle" />
             <div className="sheet-header">
               <h1>داده محلی</h1>
-              <button className="sheet-close" type="button" onClick={() => setSheet(null)} aria-label="بستن">
+              <button className="sheet-close" type="button" onClick={() => closeSheet(sheet)} aria-label="بستن">
                 ✕
               </button>
             </div>
@@ -415,7 +453,7 @@ function Shell() {
                 type="button"
                 onClick={() => {
                   void resetDemo()
-                  setSheet(null)
+                  closeSheet(sheet)
                   setToast('داده نمونه بارگذاری شد')
                 }}
               >
@@ -426,7 +464,7 @@ function Shell() {
                 type="button"
                 onClick={() => {
                   void wipeAll()
-                  setSheet(null)
+                  closeSheet(sheet)
                   setToast('همه داده‌ها پاک شد')
                 }}
               >
@@ -435,6 +473,114 @@ function Shell() {
             </div>
           </div>
         </>
+      ) : null}
+
+      {/* Minimized Sheets Taskbar Dock at bottom-right */}
+      {minimizedSheets.length > 0 ? (
+        <div
+          className="desktop-dock"
+          style={{
+            position: 'fixed',
+            bottom: 20,
+            right: 24,
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column-reverse',
+            gap: 8,
+            alignItems: 'flex-end',
+            pointerEvents: 'auto',
+          }}
+        >
+          {minimizedSheets.map((s, idx) => {
+            const meta = getSheetMeta(s)
+            return (
+              <div
+                key={idx}
+                className="minimized-window-pill"
+                onClick={() => restoreMinimizedSheet(idx)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  background: 'rgba(15, 23, 42, 0.94)',
+                  backdropFilter: 'blur(20px)',
+                  WebkitBackdropFilter: 'blur(20px)',
+                  color: '#fff',
+                  padding: '8px 14px',
+                  borderRadius: 14,
+                  border: '1px solid rgba(255, 255, 255, 0.28)',
+                  boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5)',
+                  cursor: 'pointer',
+                  animation: 'popIn 0.2s ease',
+                  userSelect: 'none',
+                }}
+                title="کلیک برای بازگشت پنجره (ری‌استور)"
+              >
+                <span style={{ fontSize: 18, lineHeight: 1 }}>{meta.icon}</span>
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 700,
+                    maxWidth: 190,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                  }}
+                >
+                  {meta.title}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    restoreMinimizedSheet(idx)
+                  }}
+                  style={{
+                    background: 'rgba(56, 189, 248, 0.16)',
+                    border: '1px solid rgba(56, 189, 248, 0.35)',
+                    color: '#38bdf8',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    padding: '4px 8px',
+                    borderRadius: 8,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                  }}
+                >
+                  <span>🗖</span>
+                  <span>باز کردن</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    closeMinimizedSheet(idx)
+                  }}
+                  style={{
+                    background: 'rgba(239, 68, 68, 0.2)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    color: '#f87171',
+                    borderRadius: '50%',
+                    width: 22,
+                    height: 22,
+                    display: 'grid',
+                    placeItems: 'center',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    marginLeft: 2,
+                  }}
+                  title="بستن پنجره"
+                  aria-label="بستن"
+                >
+                  ✕
+                </button>
+              </div>
+            )
+          })}
+        </div>
       ) : null}
 
       {toast ? <Toast message={toast} onDone={() => setToast(null)} /> : null}

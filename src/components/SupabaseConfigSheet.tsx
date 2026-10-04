@@ -6,8 +6,15 @@ import {
   testSupabaseConnection,
 } from '../lib/supabaseClient'
 import { notifyUser } from '../lib/sync'
+import { WindowPopup } from './WindowPopup'
 
-export function SupabaseConfigSheet({ onClose }: { onClose: () => void }) {
+export function SupabaseConfigSheet({
+  onClose,
+  onMinimize,
+}: {
+  onClose: () => void
+  onMinimize?: () => void
+}) {
   const [settings, setSettings] = useState(getSupabaseSettings())
   const [url, setUrl] = useState(settings.url)
   const [anonKey, setAnonKey] = useState(settings.anonKey)
@@ -66,26 +73,17 @@ export function SupabaseConfigSheet({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <>
-      <div className="sheet-scrim" onClick={onClose} />
-      <div className="glass-sheet" role="dialog" aria-label="تنظیمات اتصال Supabase">
-        <div className="sheet-handle" />
-        <div className="sheet-header">
-          <div>
-            <h1 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '17px' }}>
-              <span style={{ fontSize: '20px' }}>⚡</span>
-              <span>اتصال اختصاصی دیتابیس Supabase</span>
-            </h1>
-            <p className="sheet-sub" style={{ marginTop: 2, marginBottom: 0 }}>
-              دیتابیس آنلاین شخصی خود را بدون کدنویسی به حساب‌یار متصل کنید.
-            </p>
-          </div>
-          <button className="sheet-close" type="button" onClick={onClose} aria-label="بستن">
-            ✕
-          </button>
-        </div>
-
-        <div className="sheet-body-scroll" style={{ paddingBottom: 24 }}>
+    <WindowPopup
+      title="اتصال اختصاصی دیتابیس Supabase"
+      subtitle="دیتابیس آنلاین شخصی خود را بدون کدنویسی به حساب‌یار متصل کنید"
+      icon="⚡"
+      isOpen={true}
+      onClose={onClose}
+      onMinimize={onMinimize}
+      defaultWidth={560}
+      defaultHeight={680}
+    >
+      <div className="sheet-body-scroll" style={{ paddingBottom: 24 }}>
           {/* Status Badge */}
           <div
             style={{
@@ -233,7 +231,6 @@ export function SupabaseConfigSheet({ onClose }: { onClose: () => void }) {
             کلیدهای وارد شده صرفاً در حافظه امن محلی مرورگر (Local Storage) شما نگهداری می‌شوند و هرگز در هیچ سرور واسطی ذخیره نخواهند شد.
           </div>
         </div>
-      </div>
-    </>
-  )
-}
+      </WindowPopup>
+    )
+  }

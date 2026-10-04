@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { DateField } from './DateField'
 import { AmountField } from './AmountField'
+import { WindowPopup } from './WindowPopup'
 import { todayIso } from '../lib/iso'
 import { digitsOnly } from '../lib/money'
 import { notifyUser } from '../lib/sync'
@@ -29,9 +30,11 @@ const COMMON_BANKS = [
 export function ChequeSheet({
   cheque,
   onClose,
+  onMinimize,
 }: {
   cheque?: Cheque
   onClose: () => void
+  onMinimize?: () => void
 }) {
   const { saveCheque, deleteCheque } = useExtras()
   const { activeAccounts, addQuickEntry } = useStore()
@@ -120,37 +123,60 @@ export function ChequeSheet({
   }
 
   return (
-    <>
-      <div className="sheet-scrim" onClick={onClose} />
-      <div className="glass-sheet sheet-sticky-cta" role="dialog" aria-label="مدیریت چک صیادی">
-        <div className="sheet-handle" />
-        <div className="sheet-header">
-          <h1>{isEdit ? 'ویرایش چک صیادی' : 'ثبت چک صیادی'}</h1>
-          <button className="sheet-close" type="button" onClick={onClose} aria-label="بستن">
-            ✕
+    <WindowPopup
+      title={isEdit ? 'ویرایش چک صیادی' : 'ثبت چک صیادی'}
+      subtitle={direction === 'payable' ? 'چک پرداختی (صادره)' : 'چک دریافتی'}
+      icon="🧾"
+      isOpen={true}
+      onClose={onClose}
+      onMinimize={onMinimize}
+      defaultWidth={540}
+      defaultHeight={680}
+      footer={
+        <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+          {isEdit ? (
+            <button
+              className="cat-mini danger"
+              type="button"
+              disabled={saving}
+              style={{ minWidth: 70 }}
+              onClick={() => void handleDelete()}
+            >
+              حذف
+            </button>
+          ) : null}
+          <button
+            className="cta-confirm"
+            type="button"
+            disabled={saving || amount <= 0 || !party.trim()}
+            onClick={() => void handleSave()}
+            style={{ flex: 1 }}
+          >
+            {saving ? 'در حال ثبت…' : isEdit ? 'ذخیره تغییرات' : 'ثبت چک'}
           </button>
         </div>
+      }
+    >
+      <div className="sheet-body-scroll" style={{ padding: '4px 0 16px' }}>
+        {error ? <div className="banner error"><span>{error}</span></div> : null}
 
-        <div className="sheet-body-scroll">
-          {error ? <div className="banner error"><span>{error}</span></div> : null}
-
-          {/* Direction toggle */}
-          <div className="seg" role="tablist" style={{ marginBottom: 16 }}>
-            <button
-              className={`seg-btn${direction === 'payable' ? ' active' : ''}`}
-              type="button"
-              onClick={() => setDirection('payable')}
-            >
-              چک پرداختی (صادره)
-            </button>
-            <button
-              className={`seg-btn${direction === 'receivable' ? ' active' : ''}`}
-              type="button"
-              onClick={() => setDirection('receivable')}
-            >
-              چک دریافتی
-            </button>
-          </div>
+        {/* Direction toggle */}
+        <div className="seg" role="tablist" style={{ marginBottom: 16 }}>
+          <button
+            className={`seg-btn${direction === 'payable' ? ' active' : ''}`}
+            type="button"
+            onClick={() => setDirection('payable')}
+          >
+            چک پرداختی (صادره)
+          </button>
+          <button
+            className={`seg-btn${direction === 'receivable' ? ' active' : ''}`}
+            type="button"
+            onClick={() => setDirection('receivable')}
+          >
+            چک دریافتی
+          </button>
+        </div>
 
           {/* Amount */}
           <AmountField
@@ -254,30 +280,6 @@ export function ChequeSheet({
             </label>
           </div>
         </div>
-
-        <div className="sheet-footer" style={{ display: 'flex', gap: 8 }}>
-          {isEdit ? (
-            <button
-              className="cat-mini danger"
-              type="button"
-              disabled={saving}
-              style={{ minWidth: 70 }}
-              onClick={() => void handleDelete()}
-            >
-              حذف
-            </button>
-          ) : null}
-          <button
-            className="cta-confirm"
-            type="button"
-            disabled={saving || amount <= 0 || !party.trim()}
-            onClick={() => void handleSave()}
-            style={{ flex: 1 }}
-          >
-            {saving ? 'در حال ثبت…' : isEdit ? 'ذخیره تغییرات' : 'ثبت چک'}
-          </button>
-        </div>
-      </div>
-    </>
-  )
-}
+      </WindowPopup>
+    )
+  }

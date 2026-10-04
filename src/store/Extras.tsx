@@ -5,7 +5,7 @@ import { loadSession, signIn } from '../lib/sync'
 import { openCards, sealCards, unwrapText, validateCard, wrapText } from '../lib/vault'
 import { createId } from '../lib/ids'
 import { digitsOnly, toFaDigits } from '../lib/money'
-import type { BankCard, Budget, Cheque, ChequeStatus, CurrencyUnit, DebtLoan, DebtLoanStatus, ReminderSettings, SavingsGoal } from '../types'
+import type { BankCard, Budget, Cheque, ChequeStatus, CurrencyUnit, DebtLoan, ReminderSettings, SavingsGoal } from '../types'
 
 interface VaultBlob {
   salt: string

@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { formatPersianDateFull } from '../lib/dates'
-import { toFaDigits } from '../lib/money'
 import { useExtras } from '../store/Extras'
 import { useStore } from '../store/Store'
 import { WindowPopup } from './WindowPopup'
@@ -11,10 +10,11 @@ import type { DebtLoan, DebtLoanDirection } from '../types'
 interface DebtSheetProps {
   debt?: DebtLoan
   onClose: () => void
+  onMinimize?: () => void
 }
 
-export function DebtSheet({ debt, onClose }: DebtSheetProps) {
-  const { debts, saveDebt, deleteDebt, settleDebt, formatMoney } = useExtras()
+export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
+  const { saveDebt, deleteDebt, settleDebt, formatMoney } = useExtras()
   const { activeAccounts } = useStore()
 
   const isEdit = Boolean(debt)
@@ -98,6 +98,7 @@ export function DebtSheet({ debt, onClose }: DebtSheetProps) {
       icon="🤝"
       isOpen={true}
       onClose={onClose}
+      onMinimize={onMinimize}
       defaultWidth={520}
       defaultHeight={640}
     >

@@ -10,14 +10,16 @@ import { WindowPopup } from './WindowPopup'
 
 export function TransferSheet({
   presetFromId,
-  totalBalance,
+  totalBalance: _totalBalance,
   transferId,
   onClose,
+  onMinimize,
 }: {
   presetFromId?: string
   totalBalance: number
   transferId?: string
   onClose: () => void
+  onMinimize?: () => void
 }) {
   const { activeAccounts, addTransfer, updateTransaction, transactions } = useStore()
   const existingOut = transferId
@@ -124,6 +126,7 @@ export function TransferSheet({
       icon="⇄"
       isOpen={true}
       onClose={onClose}
+      onMinimize={onMinimize}
       defaultWidth={520}
       defaultHeight={620}
       footer={

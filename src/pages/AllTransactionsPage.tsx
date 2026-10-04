@@ -5,21 +5,30 @@ import { TransactionsTable } from '../components/TransactionsTable'
 import { WindowPopup } from '../components/WindowPopup'
 import { toFaDigits, toWesternDigits } from '../lib/money'
 import { getCategory } from '../lib/categories'
+import { formatPersianDateFull } from '../lib/dates'
+import { useExtras } from '../store/Extras'
+import { useUiActions } from '../components/UiActions'
 
 export function AllTransactionsPage({
   onBack,
   initialSearch = '',
+  onMinimize,
 }: {
   onBack: () => void
   initialSearch?: string
+  onMinimize?: () => void
 }) {
   const { transactions, accounts, customCategories } = useStore()
+  const actions = useUiActions()
+  const { formatMoney, unitLabel } = useExtras()
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 768
   const [search, setSearch] = useState(initialSearch)
   const [kindFilter, setKindFilter] = useState<'all' | 'expense' | 'income' | 'transfer'>('all')
   const [accountFilter, setAccountFilter] = useState<string>('all')
   const [pageSize, setPageSize] = useState<number>(20)
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [isTableView, setIsTableView] = useState<boolean>(() => window.innerWidth >= 900)
+  const [selectedTxId, setSelectedTxId] = useState<string | null>(null)
 
   const baseRows = useMemo(() => visibleLedger(transactions), [transactions])
 
@@ -96,6 +105,7 @@ export function AllTransactionsPage({
       icon="📒"
       isOpen={true}
       onClose={onBack}
+      onMinimize={onMinimize}
       defaultWidth={850}
       defaultHeight={680}
       allowTableViewToggle={true}
@@ -183,7 +193,7 @@ export function AllTransactionsPage({
         </span>
         <input
           className="field-input"
-          autoFocus
+          autoFocus={isDesktop}
           style={{
             paddingRight: 38,
             paddingLeft: search ? 36 : 14,
@@ -373,7 +383,129 @@ export function AllTransactionsPage({
             <p style={{ margin: 0, fontSize: '13px' }}>تراکنشی مطابق با جستجو یا فیلتر یافت نشد</p>
           </div>
         ) : (
-          paginatedRows.map((tx) => <TxRow key={tx.id} tx={tx} accounts={accounts} />)
+          paginatedRows.map((tx) => {
+            const isSelected = selectedTxId === tx.id
+            const account = accounts.find((a) => a.id === tx.accountId)
+            const counterparty = tx.counterpartyAccountId ? accounts.find((a) => a.id === tx.counterpartyAccountId) : undefined
+            const cat = getCategory(tx.categoryId, customCategories)
+
+            return (
+              <div key={tx.id} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                <TxRow
+                  tx={tx}
+                  accounts={accounts}
+                  onSelect={() => setSelectedTxId((prev) => (prev === tx.id ? null : tx.id))}
+                />
+                {isSelected && (
+                  <div
+                    style={{
+                      margin: '2px 4px 6px',
+                      padding: '12px 14px',
+                      borderRadius: '14px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.18)',
+                      boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                      animation: 'popIn 0.18s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                      <span style={{ color: 'var(--hy-text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span>📅</span>
+                        <span>{formatPersianDateFull(tx.date)}</span>
+                      </span>
+                      <span style={{ fontWeight: 800, fontSize: '13px', color: tx.kind === 'income' ? 'var(--hy-income)' : tx.kind === 'expense' ? 'var(--hy-expense)' : 'var(--hy-text)' }}>
+                        {formatMoney(tx.amount)} {unitLabel}
+                      </span>
+                    </div>
+
+                    {tx.note ? (
+                      <div style={{ fontSize: '12px', color: 'var(--hy-text)', background: 'rgba(0,0,0,0.1)', padding: '6px 10px', borderRadius: 8 }}>
+                        {tx.note}
+                      </div>
+                    ) : null}
+
+                    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: '11px', color: 'var(--hy-subtext)' }}>
+                      <span>حساب: <strong style={{ color: 'var(--hy-text)' }}>{account?.name || tx.accountId}</strong></span>
+                      {counterparty ? <span>مقصد: <strong style={{ color: 'var(--hy-text)' }}>{counterparty.name}</strong></span> : null}
+                      <span>دسته: <strong style={{ color: 'var(--hy-text)' }}>{cat?.name || 'عمومی'}</strong></span>
+                    </div>
+
+                    {tx.receiptPhoto ? (
+                      <div style={{ marginTop: 2 }}>
+                        <img
+                          src={tx.receiptPhoto}
+                          alt="تصویر رسید"
+                          style={{ maxHeight: 120, borderRadius: 8, objectFit: 'cover', border: '1px solid rgba(255,255,255,0.2)' }}
+                        />
+                      </div>
+                    ) : null}
+
+                    {/* Action buttons */}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 4, justifyContent: 'flex-end' }}>
+                      <button
+                        type="button"
+                        onClick={() => actions?.editTransaction(tx.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '6px 12px',
+                          borderRadius: 8,
+                          background: 'rgba(56, 189, 248, 0.16)',
+                          border: '1px solid rgba(56, 189, 248, 0.35)',
+                          color: '#38bdf8',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span>✏️</span>
+                        <span>ویرایش تراکنش</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => actions?.deleteTransaction(tx.id)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '6px 12px',
+                          borderRadius: 8,
+                          background: 'rgba(239, 68, 68, 0.16)',
+                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                          color: '#f87171',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <span>🗑️</span>
+                        <span>حذف</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTxId(null)}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: 8,
+                          background: 'rgba(255, 255, 255, 0.08)',
+                          border: '1px solid rgba(255, 255, 255, 0.15)',
+                          color: 'var(--hy-subtext)',
+                          fontSize: '11px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        بستن
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })
         )}
       </div>
     </WindowPopup>

@@ -20,6 +20,7 @@ export function InstallmentPlanSheet({
 }: {
   plan?: InstallmentPlan
   onClose: () => void
+  onMinimize?: () => void
 }) {
   const { activeAccounts, items, plans, customCategories, createInstallmentPlan, updateInstallmentPlan } = useStore()
   const planItems = items.filter((i) => i.planId === plan?.id)
@@ -195,6 +196,7 @@ export function InstallmentPlanSheet({
       icon="📅"
       isOpen={true}
       onClose={onClose}
+      onMinimize={onMinimize}
       defaultWidth={520}
       defaultHeight={680}
     >

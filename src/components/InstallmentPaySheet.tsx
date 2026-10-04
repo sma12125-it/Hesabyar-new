@@ -14,11 +14,13 @@ export function InstallmentPaySheet({
   item,
   remaining,
   onClose,
+  onMinimize,
 }: {
   plan: InstallmentPlan
   item: InstallmentItem
   remaining: number
   onClose: () => void
+  onMinimize?: () => void
 }) {
   const { activeAccounts, customCategories, payInstallment } = useStore()
   const [accountId, setAccountId] = useState(plan.defaultAccountId)
@@ -105,6 +107,7 @@ export function InstallmentPaySheet({
       icon="💳"
       isOpen={true}
       onClose={onClose}
+      onMinimize={onMinimize}
       defaultWidth={490}
       defaultHeight={600}
     >

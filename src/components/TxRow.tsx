@@ -40,10 +40,12 @@ export const TxRow = memo(function TxRow({
   tx,
   accounts,
   forAccountId,
+  onSelect,
 }: {
   tx: Transaction
   accounts: Account[]
   forAccountId?: string
+  onSelect?: (tx: Transaction) => void
 }) {
   const actions = useUiActions()
   const { customCategories } = useStore()
@@ -66,7 +68,19 @@ export const TxRow = memo(function TxRow({
       onEdit={actions ? () => actions.editTransaction(tx.id) : undefined}
       onDelete={actions ? () => actions.deleteTransaction(tx.id) : undefined}
     >
-      <div className="tx-row lg-row">
+      <div
+        className="tx-row lg-row"
+        onClick={() => {
+          if (onSelect) {
+            onSelect(tx)
+          } else {
+            actions?.editTransaction(tx.id)
+          }
+        }}
+        style={{ cursor: 'pointer' }}
+        role="button"
+        tabIndex={0}
+      >
         <div className="tx-ico">{txIcon(tx, customCategories)}</div>
         <div className="tx-meta">
           <div className="tx-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>

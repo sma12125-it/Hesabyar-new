@@ -14,15 +14,17 @@ import type { Account, Category, Transaction } from '../types'
 export function QuickEntrySheet({
   initialKind = 'expense',
   presetAccountId,
-  totalBalance,
+  totalBalance: _totalBalance,
   transaction,
   onClose,
+  onMinimize,
 }: {
   initialKind?: 'expense' | 'income'
   presetAccountId?: string
   totalBalance: number
   transaction?: Transaction
   onClose: () => void
+  onMinimize?: () => void
 }) {
   const { activeAccounts, addQuickEntry, updateTransaction, customCategories, createCategory, renameCategory, deleteCategory } = useStore()
   const isEdit = Boolean(transaction)
@@ -182,6 +184,7 @@ export function QuickEntrySheet({
       icon={kind === 'expense' ? '💸' : '💰'}
       isOpen={true}
       onClose={onClose}
+      onMinimize={onMinimize}
       defaultWidth={540}
       defaultHeight={640}
       footer={

@@ -11,9 +11,11 @@ import type { InstallmentItem } from '../types'
 export function InstallmentItemSheet({
   item,
   onClose,
+  onMinimize,
 }: {
   item: InstallmentItem
   onClose: () => void
+  onMinimize?: () => void
 }) {
   const { plans, accounts, transactions, updateInstallmentItem } = useStore()
   const plan = plans.find((p) => p.id === item.planId)
@@ -50,6 +52,7 @@ export function InstallmentItemSheet({
       icon="📅"
       isOpen={true}
       onClose={onClose}
+      onMinimize={onMinimize}
       defaultWidth={480}
       defaultHeight={540}
     >

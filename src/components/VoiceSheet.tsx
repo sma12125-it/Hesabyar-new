@@ -4,6 +4,7 @@ import { parseVoiceCommand } from '../lib/voice'
 import { formatRial } from '../lib/money'
 import { notifyUser } from '../lib/sync'
 import { useStore } from '../store/Store'
+import { WindowPopup } from './WindowPopup'
 
 type Rec = {
   lang: string
@@ -139,35 +140,35 @@ export function VoiceSheet({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <>
-      <div className="sheet-scrim" onClick={onClose} />
-      <div
-        className="glass-sheet sheet-sticky-cta"
-        role="dialog"
-        aria-label="دستیار صوتی"
-      >
-        <div className="sheet-handle" />
-        <div className="sheet-header">
-          <h1>دستیار صوتی</h1>
-          <button className="sheet-close" type="button" onClick={onClose} aria-label="بستن">✕</button>
-        </div>
-        <div className="sheet-body-scroll">
-          <p className="sheet-sub">مثلاً «هزینه ۵۰ هزار خوراک» یا «درآمد ۲ میلیون حقوق». قبل از ذخیره تأیید کنید.</p>
-          {error ? <div className="banner error"><span>{error}</span></div> : null}
-          <textarea className="field-input voice-box" value={text} onChange={(e) => setText(e.target.value)} placeholder="اینجا بگویید یا بنویسید" />
-          {draft ? (
-            <div className="banner">
-              <span>{draft.kind === 'income' ? 'درآمد' : 'هزینه'} {formatRial(draft.amount)} ریال {draft.note ? `· ${draft.note}` : ''}</span>
-            </div>
-          ) : null}
-        </div>
-        <div className="sheet-footer voice-actions">
-          <button className="cta-confirm" type="button" onClick={listen}>{listening ? 'در حال شنیدن…' : 'شنیدن'}</button>
-          <button className="cta-confirm" type="button" disabled={!draft || saving} onClick={() => void confirm()}>
+    <WindowPopup
+      title="دستیار صوتی هوشمند"
+      subtitle="ثبت سریع با گفتار یا متن"
+      icon="🎙️"
+      isOpen={true}
+      onClose={onClose}
+      defaultWidth={520}
+      defaultHeight={540}
+      footer={
+        <div style={{ display: 'flex', gap: 8, width: '100%', justifyContent: 'flex-end' }}>
+          <button className="cta-confirm" type="button" onClick={listen} style={{ flex: 1 }}>
+            {listening ? 'در حال شنیدن…' : 'شنیدن صدا'}
+          </button>
+          <button className="cta-confirm" type="button" disabled={!draft || saving} onClick={() => void confirm()} style={{ flex: 1 }}>
             {saving ? 'در حال ثبت…' : 'تأیید و ثبت'}
           </button>
         </div>
+      }
+    >
+      <div className="sheet-body-scroll" style={{ padding: '8px 2px' }}>
+        <p className="sheet-sub">مثلاً «هزینه ۵۰ هزار خوراک» یا «درآمد ۲ میلیون حقوق». قبل از ذخیره تأیید کنید.</p>
+        {error ? <div className="banner error"><span>{error}</span></div> : null}
+        <textarea className="field-input voice-box" value={text} onChange={(e) => setText(e.target.value)} placeholder="اینجا بگویید یا بنویسید" />
+        {draft ? (
+          <div className="banner">
+            <span>{draft.kind === 'income' ? 'درآمد' : 'هزینه'} {formatRial(draft.amount)} ریال {draft.note ? `· ${draft.note}` : ''}</span>
+          </div>
+        ) : null}
       </div>
-    </>
+    </WindowPopup>
   )
 }

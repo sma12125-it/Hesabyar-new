@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { createPortal } from 'react-dom'
 import { toJalaali } from '../lib/jalaali'
 import { validateCard } from '../lib/vault'
 import { digitsOnly } from '../lib/money'
 import { notifyUser } from '../lib/sync'
 import { useExtras } from '../store/Extras'
 import { detectBankFromPan } from '../lib/bankDetector'
+import { WindowPopup } from './WindowPopup'
 import type { BankCard } from '../types'
 
 const COLORS = [
@@ -109,70 +109,69 @@ export function CardFormSheet({ card, onClose }: { card?: BankCard; onClose: () 
     }
   }
 
-  return createPortal(
-    <>
-      <div className="sheet-scrim sheet-front" onClick={onClose} />
-      <div className="glass-sheet sheet-front" role="dialog" aria-label={card ? 'ویرایش کارت' : 'کارت جدید'}>
-        <div className="sheet-handle" />
-        <div className="sheet-header">
-          <h1>{card ? 'ویرایش کارت' : 'کارت جدید'}</h1>
-          <button className="sheet-close" type="button" onClick={onClose} aria-label="بستن">✕</button>
-        </div>
-        <div className="sheet-body-scroll">
-          {error ? <div className="banner error"><span>{error}</span></div> : null}
-          <div className="field-stack">
-            <select className="field-input" value={bankChoice} onChange={(e) => setBankChoice(e.target.value)}>
-              {IRAN_BANKS.map((name) => <option key={name} value={name}>{name}</option>)}
-              <option value="سایر">سایر</option>
-            </select>
-            {bankChoice === 'سایر' ? (
-              <input className="field-input" placeholder="نام بانک" value={customBank} onChange={(e) => setCustomBank(e.target.value)} />
-            ) : null}
-            <input className="field-input" placeholder="صاحب کارت" value={holder} onChange={(e) => setHolder(e.target.value)} />
+  return (
+    <WindowPopup
+      title={card ? 'ویرایش کارت بانکی' : 'کارت بانکی جدید'}
+      subtitle={bankChoice !== 'سایر' ? bankChoice : undefined}
+      icon="💳"
+      isOpen={true}
+      onClose={onClose}
+      defaultWidth={520}
+      defaultHeight={620}
+    >
+      <div className="sheet-body-scroll" style={{ padding: '8px 2px' }}>
+        {error ? <div className="banner error"><span>{error}</span></div> : null}
+        <div className="field-stack">
+          <select className="field-input" value={bankChoice} onChange={(e) => setBankChoice(e.target.value)}>
+            {IRAN_BANKS.map((name) => <option key={name} value={name}>{name}</option>)}
+            <option value="سایر">سایر</option>
+          </select>
+          {bankChoice === 'سایر' ? (
+            <input className="field-input" placeholder="نام بانک" value={customBank} onChange={(e) => setCustomBank(e.target.value)} />
+          ) : null}
+          <input className="field-input" placeholder="صاحب کارت" value={holder} onChange={(e) => setHolder(e.target.value)} />
+          <input
+            className="field-input"
+            inputMode="numeric"
+            placeholder="۱۲۳۴ ۵۶۷۸ ۹۰۱۲ ۳۴۵۶"
+            dir="ltr"
+            value={pan}
+            onChange={(e) => onPanChange(e.target.value)}
+          />
+          <div className="expiry-row">
+            <label>
+              ماه
+              <select value={month} onChange={(e) => setMonth(e.target.value)}>
+                {months.map((item) => <option key={item} value={item}>{item}</option>)}
+              </select>
+            </label>
+            <label>
+              سال شمسی
+              <select value={year} onChange={(e) => setYear(e.target.value)}>
+                {years.map((item) => <option key={item.label} value={item.value}>{item.label}</option>)}
+              </select>
+            </label>
+          </div>
+          <input className="field-input" inputMode="numeric" placeholder="CVV" value={cvv} onChange={(e) => setCvv(digitsOnly(e.target.value).slice(0, 4))} />
+          <div className="sheba-row">
+            <span>IR</span>
             <input
               className="field-input"
               inputMode="numeric"
-              placeholder="۱۲۳۴ ۵۶۷۸ ۹۰۱۲ ۳۴۵۶"
+              placeholder="۲۴ رقم"
               dir="ltr"
-              value={pan}
-              onChange={(e) => onPanChange(e.target.value)}
+              value={shebaDigits}
+              onChange={(e) => setShebaDigits(digitsOnly(e.target.value).slice(0, 24))}
             />
-            <div className="expiry-row">
-              <label>
-                ماه
-                <select value={month} onChange={(e) => setMonth(e.target.value)}>
-                  {months.map((item) => <option key={item} value={item}>{item}</option>)}
-                </select>
-              </label>
-              <label>
-                سال شمسی
-                <select value={year} onChange={(e) => setYear(e.target.value)}>
-                  {years.map((item) => <option key={item.label} value={item.value}>{item.label}</option>)}
-                </select>
-              </label>
-            </div>
-            <input className="field-input" inputMode="numeric" placeholder="CVV" value={cvv} onChange={(e) => setCvv(digitsOnly(e.target.value).slice(0, 4))} />
-            <div className="sheba-row">
-              <span>IR</span>
-              <input
-                className="field-input"
-                inputMode="numeric"
-                placeholder="۲۴ رقم"
-                dir="ltr"
-                value={shebaDigits}
-                onChange={(e) => setShebaDigits(digitsOnly(e.target.value).slice(0, 24))}
-              />
-            </div>
-            <div className="swatch-row" aria-label="رنگ کارت">
-              {COLORS.map((item) => (
-                <button key={item} type="button" className={`swatch${color === item ? ' on' : ''}`} style={{ background: item }} onClick={() => setColor(item)} />
-              ))}
-            </div>
-            <button className="cta-confirm" type="button" onClick={() => void save()}>{card ? 'ذخیره تغییرات' : 'ثبت کارت'}</button>
           </div>
+          <div className="swatch-row" aria-label="رنگ کارت">
+            {COLORS.map((item) => (
+              <button key={item} type="button" className={`swatch${color === item ? ' on' : ''}`} style={{ background: item }} onClick={() => setColor(item)} />
+            ))}
+          </div>
+          <button className="cta-confirm" type="button" onClick={() => void save()}>{card ? 'ذخیره تغییرات' : 'ثبت کارت'}</button>
         </div>
       </div>
-    </>,
-    document.body,
+    </WindowPopup>
   )
 }
