@@ -17,6 +17,7 @@ import type { InstallmentPlan, InstallmentPlanKind } from '../types'
 export function InstallmentPlanSheet({
   plan,
   onClose,
+  onMinimize,
 }: {
   plan?: InstallmentPlan
   onClose: () => void

@@ -6,7 +6,7 @@ import { useStore } from '../store/Store'
 import { AmountField } from './AmountField'
 import { BankCardFace } from './BankCardFace'
 import { WindowPopup } from './WindowPopup'
-import type { Account, AccountType, BankCard } from '../types'
+import type { Account, AccountClassification, AccountType, BankCard } from '../types'
 
 export function AccountFormSheet({
   account,
@@ -26,6 +26,10 @@ export function AccountFormSheet({
   const [picked, setPicked] = useState<BankCard | null>(null)
   const [name, setName] = useState(account?.name ?? '')
   const [type, setType] = useState<AccountType>(account?.type ?? 'cash')
+  const [classification, setClassification] = useState<AccountClassification>(
+    account?.classification ?? 'cash'
+  )
+  const [accountNumber, setAccountNumber] = useState(account?.accountNumber ?? '')
   const [initialBalance, setInitialBalance] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -42,11 +46,13 @@ export function AccountFormSheet({
     setSaving(true)
     try {
       if (isEdit && account) {
-        await updateAccount(account.id, { name, type })
+        await updateAccount(account.id, { name, type, classification, accountNumber })
       } else {
         const created = await createAccount({
           name: picked ? `${picked.bankName} ${picked.pan.slice(-4)}` : name,
           type: picked ? 'bank' : type,
+          classification: picked?.classification ?? classification,
+          accountNumber: picked?.accountNumber ?? accountNumber,
           initialBalance,
           cardId: picked?.id,
         })
@@ -139,6 +145,50 @@ export function AccountFormSheet({
             >
               بانک
             </button>
+          </div>
+
+          <div style={{ margin: '4px 0 2px', fontSize: 12, fontWeight: 600, color: 'var(--hy-text-tertiary)', paddingRight: 4 }}>
+            دسته‌بندی موجودی
+          </div>
+          <div className="seg" role="tablist">
+            <button
+              className={`seg-btn${classification === 'cash' ? ' active' : ''}`}
+              type="button"
+              onClick={() => setClassification('cash')}
+              style={{ fontSize: 11, padding: '6px 4px' }}
+            >
+              نقدی و جاری
+            </button>
+            <button
+              className={`seg-btn${classification === 'credit' ? ' active' : ''}`}
+              type="button"
+              onClick={() => setClassification('credit')}
+              style={{ fontSize: 11, padding: '6px 4px' }}
+            >
+              اعتبار خرید
+            </button>
+            <button
+              className={`seg-btn${classification === 'investment' ? ' active' : ''}`}
+              type="button"
+              onClick={() => setClassification('investment')}
+              style={{ fontSize: 11, padding: '6px 4px' }}
+            >
+              پس‌انداز و سرمایه
+            </button>
+          </div>
+
+          <div className="field-chip">
+            <span className="ficon">🔢</span>
+            <div style={{ flex: 1 }}>
+              <div className="flabel">شماره حساب بانکی (اختیاری)</div>
+              <input
+                className="field-input"
+                placeholder="مثال: ۱۰۲۹۳۸۴۷۵۶"
+                dir="ltr"
+                value={accountNumber}
+                onChange={(e) => setAccountNumber(e.target.value)}
+              />
+            </div>
           </div>
 
           {!isEdit ? (

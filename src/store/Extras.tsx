@@ -5,6 +5,7 @@ import { loadSession, signIn } from '../lib/sync'
 import { openCards, sealCards, unwrapText, validateCard, wrapText } from '../lib/vault'
 import { createId } from '../lib/ids'
 import { digitsOnly, toFaDigits } from '../lib/money'
+import { addDaysIso, todayIso } from '../lib/iso'
 import type { BankCard, Budget, Cheque, ChequeStatus, CurrencyUnit, DebtLoan, ReminderSettings, SavingsGoal } from '../types'
 
 interface VaultBlob {
@@ -112,10 +113,71 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       goalsRef.current = nextGoals ?? []
       setReminderState(nextReminders ?? emptyReminder)
       remindersRef.current = nextReminders ?? emptyReminder
-      setCheques(nextCheques ?? [])
-      chequesRef.current = nextCheques ?? []
-      setDebts(nextDebts ?? [])
-      debtsRef.current = nextDebts ?? []
+      const now = Date.now()
+      const today = todayIso(new Date(now))
+
+      let initialCheques = nextCheques
+      if (!initialCheques) {
+        initialCheques = [
+          {
+            id: 'chq_passargad',
+            direction: 'payable',
+            sayadId: '2104928374829104',
+            bankName: 'پاسارگاد',
+            amount: 15_000_000,
+            dueDate: addDaysIso(today, 5),
+            party: 'تجهیزات مدرن',
+            status: 'pending',
+            note: 'بابت تسویه فاکتور صندلی ارگونومیک',
+            createdAt: now - 3 * 86400000,
+          },
+          {
+            id: 'chq_mellat',
+            direction: 'receivable',
+            sayadId: '7829104839201948',
+            bankName: 'ملت',
+            amount: 28_000_000,
+            dueDate: addDaysIso(today, 12),
+            party: 'مهندس رضایی',
+            status: 'pending',
+            note: 'قسط دوم قرارداد طراحی',
+            createdAt: now - 5 * 86400000,
+          },
+        ]
+        void db.setKv('cheques', initialCheques)
+      }
+
+      let initialDebts = nextDebts
+      if (!initialDebts) {
+        initialDebts = [
+          {
+            id: 'debt_borrowed_1',
+            direction: 'borrowed',
+            party: 'حاج احمد',
+            amount: 20_000_000,
+            dueDate: addDaysIso(today, 8),
+            note: 'قرض‌الحسنه جهت رهن انبار',
+            status: 'active',
+            createdAt: now - 15 * 86400000,
+          },
+          {
+            id: 'debt_lent_1',
+            direction: 'lent',
+            party: 'دوست (علی)',
+            amount: 8_000_000,
+            dueDate: addDaysIso(today, 22),
+            note: 'مساعدت شخصی',
+            status: 'active',
+            createdAt: now - 7 * 86400000,
+          },
+        ]
+        void db.setKv('debts', initialDebts)
+      }
+
+      setCheques(initialCheques)
+      chequesRef.current = initialCheques
+      setDebts(initialDebts)
+      debtsRef.current = initialDebts
       if (savedUnit === 'IRT' || savedUnit === 'IRR') {
         setCurrencyUnitState(savedUnit)
         currencyUnitRef.current = savedUnit

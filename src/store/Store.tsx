@@ -37,6 +37,7 @@ import { applyShareToData, type SharePayload } from '../lib/share'
 import { validateTransfer } from '../lib/transfer'
 import type {
   Account,
+  AccountClassification,
   Category,
   CreateAccountInput,
   CreateInstallmentPlanInput,
@@ -62,7 +63,7 @@ interface StoreValue {
   totalBalance: number
   refresh: () => Promise<void>
   createAccount: (input: CreateAccountInput) => Promise<Account>
-  updateAccount: (id: string, patch: { name?: string; type?: Account['type'] }) => Promise<void>
+  updateAccount: (id: string, patch: { name?: string; type?: Account['type']; classification?: AccountClassification; accountNumber?: string }) => Promise<void>
   archiveAccount: (id: string) => Promise<void>
   restoreAccount: (id: string) => Promise<void>
   deleteAccount: (id: string) => Promise<void>
@@ -195,6 +196,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       id: createId('acc'),
       name: input.name.trim(),
       type: input.type,
+      classification: input.classification ?? 'cash',
+      accountNumber: input.accountNumber?.trim() || undefined,
       archived: false,
       openingBalance: input.initialBalance,
       balance: input.initialBalance,
@@ -207,7 +210,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return account
   }, [persistSnapshot])
 
-  const updateAccount = useCallback(async (id: string, patch: { name?: string; type?: Account['type'] }) => {
+  const updateAccount = useCallback(async (
+    id: string,
+    patch: {
+      name?: string
+      type?: Account['type']
+      classification?: AccountClassification
+      accountNumber?: string
+    }
+  ) => {
     const prev = dataRef.current
     const account = prev.accounts.find((a) => a.id === id)
     if (!account) throw new Error('حساب پیدا نشد')
@@ -218,6 +229,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...account,
       name: nextName.trim(),
       type: patch.type ?? account.type,
+      classification: patch.classification ?? account.classification ?? 'cash',
+      accountNumber: patch.accountNumber !== undefined ? (patch.accountNumber.trim() || undefined) : account.accountNumber,
       updatedAt: Date.now(),
     }
     await persistSnapshot(prev, {

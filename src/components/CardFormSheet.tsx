@@ -6,7 +6,7 @@ import { notifyUser } from '../lib/sync'
 import { useExtras } from '../store/Extras'
 import { detectBankFromPan } from '../lib/bankDetector'
 import { WindowPopup } from './WindowPopup'
-import type { BankCard } from '../types'
+import type { AccountClassification, BankCard } from '../types'
 
 const COLORS = [
   'linear-gradient(135deg, #0f766e 0%, #115e59 48%, #1e1b4b 100%)',
@@ -57,13 +57,23 @@ const years = Array.from({ length: 12 }, (_, i) => ({
   label: String(jalaliYear + i),
 }))
 
-export function CardFormSheet({ card, onClose }: { card?: BankCard; onClose: () => void }) {
+export function CardFormSheet({
+  card,
+  onClose,
+  onMinimize,
+}: {
+  card?: BankCard
+  onClose: () => void
+  onMinimize?: () => void
+}) {
   const { saveCard } = useExtras()
   const known = card ? IRAN_BANKS.includes(card.bankName) : true
   const [bankChoice, setBankChoice] = useState(card ? (known ? card.bankName : 'سایر') : IRAN_BANKS[0]!)
   const [customBank, setCustomBank] = useState(card && !known ? card.bankName : '')
   const [holder, setHolder] = useState(card?.holder ?? '')
   const [pan, setPan] = useState(card ? groupPan(card.pan) : '')
+  const [accountNumber, setAccountNumber] = useState(card?.accountNumber ?? '')
+  const [classification, setClassification] = useState<AccountClassification>(card?.classification ?? 'cash')
   const [month, setMonth] = useState(card?.expiry.slice(0, 2) || months[0]!)
   const [year, setYear] = useState(card?.expiry.slice(3, 5) || years[0]!.value)
   const [cvv, setCvv] = useState(card?.cvv ?? '')
@@ -100,7 +110,19 @@ export function CardFormSheet({ card, onClose }: { card?: BankCard; onClose: () 
       return
     }
     try {
-      await saveCard({ id: card?.id, bankName, holder, pan: digitsOnly(pan), expiry, cvv, sheba, note: card?.note ?? '', color })
+      await saveCard({
+        id: card?.id,
+        bankName,
+        holder,
+        pan: digitsOnly(pan),
+        expiry,
+        cvv,
+        sheba,
+        note: card?.note ?? '',
+        color,
+        accountNumber: accountNumber.trim() || undefined,
+        classification,
+      })
       onClose()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'کارت ذخیره نشد'
@@ -116,12 +138,44 @@ export function CardFormSheet({ card, onClose }: { card?: BankCard; onClose: () 
       icon="💳"
       isOpen={true}
       onClose={onClose}
+      onMinimize={onMinimize}
       defaultWidth={520}
-      defaultHeight={620}
+      defaultHeight={680}
     >
       <div className="sheet-body-scroll" style={{ padding: '8px 2px' }}>
         {error ? <div className="banner error"><span>{error}</span></div> : null}
         <div className="field-stack">
+          {/* Classification segment - Request 6 */}
+          <div style={{ margin: '2px 0', fontSize: 12, fontWeight: 600, color: 'var(--hy-text-tertiary)' }}>
+            دسته‌بندی کارت و حساب
+          </div>
+          <div className="seg" role="tablist">
+            <button
+              className={`seg-btn${classification === 'cash' ? ' active' : ''}`}
+              type="button"
+              onClick={() => setClassification('cash')}
+              style={{ fontSize: 11, padding: '6px 4px' }}
+            >
+              نقدی و جاری
+            </button>
+            <button
+              className={`seg-btn${classification === 'credit' ? ' active' : ''}`}
+              type="button"
+              onClick={() => setClassification('credit')}
+              style={{ fontSize: 11, padding: '6px 4px' }}
+            >
+              اعتباری / خرید
+            </button>
+            <button
+              className={`seg-btn${classification === 'investment' ? ' active' : ''}`}
+              type="button"
+              onClick={() => setClassification('investment')}
+              style={{ fontSize: 11, padding: '6px 4px' }}
+            >
+              پس‌انداز / سرمایه
+            </button>
+          </div>
+
           <select className="field-input" value={bankChoice} onChange={(e) => setBankChoice(e.target.value)}>
             {IRAN_BANKS.map((name) => <option key={name} value={name}>{name}</option>)}
             <option value="سایر">سایر</option>
@@ -133,10 +187,20 @@ export function CardFormSheet({ card, onClose }: { card?: BankCard; onClose: () 
           <input
             className="field-input"
             inputMode="numeric"
-            placeholder="۱۲۳۴ ۵۶۷۸ ۹۰۱۲ ۳۴۵۶"
+            placeholder="شماره کارت: ۱۲۳۴ ۵۶۷۸ ۹۰۱۲ ۳۴۵۶"
             dir="ltr"
             value={pan}
             onChange={(e) => onPanChange(e.target.value)}
+          />
+
+          {/* Request 11: Bank Account Number field */}
+          <input
+            className="field-input"
+            inputMode="numeric"
+            placeholder="شماره حساب بانکی (اختیاری)"
+            dir="ltr"
+            value={accountNumber}
+            onChange={(e) => setAccountNumber(digitsOnly(e.target.value))}
           />
           <div className="expiry-row">
             <label>

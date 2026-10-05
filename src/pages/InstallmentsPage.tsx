@@ -72,6 +72,7 @@ export function InstallmentsPage({
   const [debtSheetOpen, setDebtSheetOpen] = useState(false)
   const [editingDebt, setEditingDebt] = useState<DebtLoan | undefined>(undefined)
   const [debtFilter, setDebtFilter] = useState<'all' | 'borrowed' | 'lent' | 'settled'>('all')
+  const [planFilter, setPlanFilter] = useState<'all' | 'fixed' | 'loans'>('all')
 
   useEffect(() => {
     const onOpenDebt = (event: Event) => {
@@ -258,19 +259,55 @@ export function InstallmentsPage({
           ) : (
             <>
               <div className="section-head" style={{ marginTop: 14 }}>
-                <h2>برنامه‌های فعال</h2>
+                <h2>برنامه‌های فعال اقساط و وام</h2>
                 <span className="link">{toFaDigits(active.length)} مورد</span>
               </div>
+
+              {/* Sub-filter pills for fixed installments vs bank loans */}
+              <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+                <button
+                  type="button"
+                  className={`cat-mini${planFilter === 'all' ? ' active' : ''}`}
+                  onClick={() => setPlanFilter('all')}
+                >
+                  همه ({toFaDigits(active.length)})
+                </button>
+                <button
+                  type="button"
+                  className={`cat-mini${planFilter === 'fixed' ? ' active' : ''}`}
+                  onClick={() => setPlanFilter('fixed')}
+                >
+                  اقساط ثابت ({toFaDigits(active.filter((p) => !p.name.includes('وام') && !p.name.includes('بانک') && !p.name.includes('تسهیلات')).length)})
+                </button>
+                <button
+                  type="button"
+                  className={`cat-mini${planFilter === 'loans' ? ' active' : ''}`}
+                  onClick={() => setPlanFilter('loans')}
+                >
+                  وام‌های بانکی ({toFaDigits(active.filter((p) => p.name.includes('وام') || p.name.includes('بانک') || p.name.includes('تسهیلات')).length)})
+                </button>
+              </div>
+
               <div className="plan-list">
-                {active.map((plan) => (
-                  <PlanCard
-                    key={plan.id}
-                    plan={plan}
-                    items={items.filter((i) => i.planId === plan.id)}
-                    today={today}
-                    onClick={() => navigate(`/installments/${plan.id}`)}
-                  />
-                ))}
+                {active
+                  .filter((p) => {
+                    if (planFilter === 'loans') {
+                      return p.name.includes('وام') || p.name.includes('بانک') || p.name.includes('تسهیلات')
+                    }
+                    if (planFilter === 'fixed') {
+                      return !p.name.includes('وام') && !p.name.includes('بانک') && !p.name.includes('تسهیلات')
+                    }
+                    return true
+                  })
+                  .map((plan) => (
+                    <PlanCard
+                      key={plan.id}
+                      plan={plan}
+                      items={items.filter((i) => i.planId === plan.id)}
+                      today={today}
+                      onClick={() => navigate(`/installments/${plan.id}`)}
+                    />
+                  ))}
               </div>
             </>
           )}

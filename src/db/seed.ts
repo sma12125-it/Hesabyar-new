@@ -16,12 +16,14 @@ export function demoDataset(now = Date.now()): {
   const walletId = 'acc_wallet'
   const mellatId = 'acc_mellat'
   const homeId = 'acc_home'
+  const houdehId = 'acc_houdeh'
 
   const baseAccounts = [
     {
       id: walletId,
       name: 'کیف پول نقدی',
       type: 'cash' as const,
+      classification: 'cash' as const,
       archived: false,
       createdAt: now - 40 * day,
       updatedAt: now,
@@ -30,14 +32,28 @@ export function demoDataset(now = Date.now()): {
       id: mellatId,
       name: 'ملت — جاری',
       type: 'bank' as const,
+      classification: 'cash' as const,
+      accountNumber: '1029384756',
       archived: false,
       createdAt: now - 80 * day,
+      updatedAt: now,
+    },
+    {
+      id: houdehId,
+      name: 'کارت اعتباری هوده',
+      type: 'bank' as const,
+      classification: 'credit' as const,
+      accountNumber: '5892100099',
+      archived: false,
+      createdAt: now - 20 * day,
       updatedAt: now,
     },
     {
       id: homeId,
       name: 'پس‌انداز مسکن',
       type: 'bank' as const,
+      classification: 'investment' as const,
+      accountNumber: '7744110022',
       archived: false,
       createdAt: now - 120 * day,
       updatedAt: now,
@@ -150,6 +166,7 @@ export function demoDataset(now = Date.now()): {
   const targets: Record<string, number> = {
     [walletId]: 12_500_000,
     [mellatId]: 84_200_000,
+    [houdehId]: 50_000_000,
     [homeId]: 320_000_000,
   }
 

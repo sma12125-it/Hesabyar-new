@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { JALALI_MONTHS, isoToJalali } from '../lib/jalaali'
-import { expenseByCategory, monthKey, monthTotals, monthlySeries, spentInCategory } from '../lib/reports'
+import { expenseByCategory, lastJalaliMonths, monthKey, monthTotals, monthlySeries, spentInCategory } from '../lib/reports'
 import { formatPersianDateFull, formatRelativeFromIso } from '../lib/dates'
 import { homeInstallmentHints } from '../lib/installments'
 import { todayIso, compareIso } from '../lib/iso'
@@ -12,41 +12,201 @@ import { useExtras } from '../store/Extras'
 import { useSmsDrafts } from '../lib/sms/useSmsDrafts'
 import { useStore } from '../store/Store'
 
-function faNumber(value: number) {
-  const rounded = Math.round(Math.abs(value) * 10) / 10
-  const text = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
-  return toFaDigits(text).replace('.', '\u066b')
-}
-
 function percent(part: number, whole: number) {
   if (whole <= 0) return 0
   return Math.max(0, Math.round((part / whole) * 100))
 }
 
+type CashflowPeriod = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'sixMonths' | 'yearly' | 'custom'
+
 export function HomeDashboard({ onAll }: { onAll: () => void }) {
-  const { transactions, accounts, plans, items, customCategories, totalBalance, activeAccounts } = useStore()
-  const { budgets, goals, formatMoney, formatCompactMoney, cheques, currencyUnit, setCurrencyUnit } = useExtras()
-  const [hideAmounts, setHideAmounts] = useState(false)
+  const { transactions, accounts, plans, items, customCategories, activeAccounts } = useStore()
+  const { budgets, formatMoney, formatCompactMoney, cheques, debts, currencyUnit, setCurrencyUnit } = useExtras()
+  // Request 10: Default to privacy mode enabled
+  const [hideAmounts, setHideAmounts] = useState(true)
+  const [showAllObligations, setShowAllObligations] = useState(false)
+  const [cashflowPeriod, setCashflowPeriod] = useState<CashflowPeriod>('sixMonths')
+  const [customStart, setCustomStart] = useState<number>(1)
   const actions = useUiActions()
   const navigate = useNavigate()
   const today = todayIso()
   const month = monthKey(today) ?? ''
   const jalali = isoToJalali(today)
+  const [customEnd, setCustomEnd] = useState<number>(() => jalali?.jm ?? 6)
+
+  // Request 1: Segregate cash balance from credit and investment accounts
+  const cashAccounts = useMemo(
+    () => activeAccounts.filter((a) => (a.classification ?? 'cash') === 'cash'),
+    [activeAccounts],
+  )
+  const creditAccounts = useMemo(
+    () => activeAccounts.filter((a) => a.classification === 'credit'),
+    [activeAccounts],
+  )
+  const investmentAccounts = useMemo(
+    () => activeAccounts.filter((a) => a.classification === 'investment'),
+    [activeAccounts],
+  )
+
+  const cashBalance = useMemo(() => cashAccounts.reduce((sum, a) => sum + a.balance, 0), [cashAccounts])
+  const creditBalance = useMemo(() => creditAccounts.reduce((sum, a) => sum + a.balance, 0), [creditAccounts])
+  const investmentBalance = useMemo(
+    () => investmentAccounts.reduce((sum, a) => sum + a.balance, 0),
+    [investmentAccounts],
+  )
+
   const totals = monthTotals(transactions, month)
-  const series = monthlySeries(transactions, today).map((point) => ({
+  const baseMonthlySeries = monthlySeries(transactions, today).map((point) => ({
     ...point,
     label: JALALI_MONTHS[Number(point.label) - 1] ?? point.label,
   }))
+
+  // Request 7: Dynamic series calculation for Cashflow Chart
+  const activeSeries = useMemo(() => {
+    if (cashflowPeriod === 'daily') {
+      const days: Array<{ label: string; income: number; expense: number }> = []
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date()
+        d.setDate(d.getDate() - i)
+        const iso = d.toISOString().slice(0, 10)
+        const j = isoToJalali(iso)
+        let income = 0
+        let expense = 0
+        for (const tx of transactions) {
+          if (tx.date === iso) {
+            if (tx.kind === 'income') income += tx.amount
+            if (tx.kind === 'expense') expense += tx.amount
+          }
+        }
+        days.push({
+          label: j ? `${toFaDigits(j.jd)} ${JALALI_MONTHS[j.jm - 1]?.slice(0, 3)}` : iso.slice(5),
+          income,
+          expense,
+        })
+      }
+      return days
+    }
+
+    if (cashflowPeriod === 'weekly') {
+      const weeks: Array<{ label: string; income: number; expense: number }> = []
+      for (let i = 3; i >= 0; i--) {
+        const dEnd = new Date()
+        dEnd.setDate(dEnd.getDate() - i * 7)
+        const dStart = new Date(dEnd)
+        dStart.setDate(dStart.getDate() - 6)
+        const isoStart = dStart.toISOString().slice(0, 10)
+        const isoEnd = dEnd.toISOString().slice(0, 10)
+        let income = 0
+        let expense = 0
+        for (const tx of transactions) {
+          if (tx.date >= isoStart && tx.date <= isoEnd) {
+            if (tx.kind === 'income') income += tx.amount
+            if (tx.kind === 'expense') expense += tx.amount
+          }
+        }
+        weeks.push({
+          label: `هفته ${toFaDigits(4 - i)}`,
+          income,
+          expense,
+        })
+      }
+      return weeks
+    }
+
+    if (cashflowPeriod === 'monthly') {
+      const keys = lastJalaliMonths(today, 3)
+      return keys.map((key) => {
+        let income = 0
+        let expense = 0
+        for (const tx of transactions) {
+          if (monthKey(tx.date) === key) {
+            if (tx.kind === 'income') income += tx.amount
+            if (tx.kind === 'expense') expense += tx.amount
+          }
+        }
+        const [, m] = key.split('-')
+        const monthNum = Number(m)
+        return {
+          label: JALALI_MONTHS[monthNum - 1] ?? key,
+          income,
+          expense,
+        }
+      })
+    }
+
+    if (cashflowPeriod === 'quarterly') {
+      const keys = lastJalaliMonths(today, 4)
+      return keys.map((key) => {
+        let income = 0
+        let expense = 0
+        for (const tx of transactions) {
+          if (monthKey(tx.date) === key) {
+            if (tx.kind === 'income') income += tx.amount
+            if (tx.kind === 'expense') expense += tx.amount
+          }
+        }
+        const [, m] = key.split('-')
+        const monthNum = Number(m)
+        return {
+          label: JALALI_MONTHS[monthNum - 1] ?? key,
+          income,
+          expense,
+        }
+      })
+    }
+
+    if (cashflowPeriod === 'yearly') {
+      const keys = lastJalaliMonths(today, 12)
+      return keys.map((key) => {
+        let income = 0
+        let expense = 0
+        for (const tx of transactions) {
+          if (monthKey(tx.date) === key) {
+            if (tx.kind === 'income') income += tx.amount
+            if (tx.kind === 'expense') expense += tx.amount
+          }
+        }
+        const [, m] = key.split('-')
+        const monthNum = Number(m)
+        return {
+          label: JALALI_MONTHS[monthNum - 1]?.slice(0, 3) ?? key,
+          income,
+          expense,
+        }
+      })
+    }
+
+    if (cashflowPeriod === 'custom') {
+      const curYear = jalali ? jalali.jy : 1403
+      const s = Math.min(customStart, customEnd)
+      const e = Math.max(customStart, customEnd)
+      const list: Array<{ label: string; income: number; expense: number }> = []
+      for (let m = s; m <= e; m++) {
+        const key = `${curYear}-${String(m).padStart(2, '0')}`
+        let income = 0
+        let expense = 0
+        for (const tx of transactions) {
+          if (monthKey(tx.date) === key) {
+            if (tx.kind === 'income') income += tx.amount
+            if (tx.kind === 'expense') expense += tx.amount
+          }
+        }
+        list.push({
+          label: JALALI_MONTHS[m - 1] ?? String(m),
+          income,
+          expense,
+        })
+      }
+      return list.length > 0 ? list : baseMonthlySeries
+    }
+
+    return baseMonthlySeries
+  }, [cashflowPeriod, customStart, customEnd, transactions, today, jalali, baseMonthlySeries])
+
   const bars = expenseByCategory(transactions, month, customCategories).slice(0, 5)
   const catMax = Math.max(1, ...bars.map((bar) => bar.amount))
   const incomeCount = transactions.filter((tx) => tx.kind === 'income' && monthKey(tx.date) === month).length
   const expenseShare = percent(totals.expense, totals.income)
-  const previousBalance = totalBalance - totals.net
-  const balanceDelta = previousBalance !== 0 ? Math.round((totals.net / Math.abs(previousBalance)) * 1000) / 10 : null
-  const saved = goals.reduce((sum, goal) => sum + goal.saved, 0)
-  const goalTarget = goals.reduce((sum, goal) => sum + goal.target, 0)
-  const savingsAmount = goals.length > 0 ? saved : Math.max(totals.net, 0)
-  const savingsRate = goals.length > 0 ? percent(saved, goalTarget) : percent(Math.max(totals.net, 0), totals.income)
   const budgetLimit = budgets.reduce((sum, budget) => sum + budget.monthlyLimit, 0)
   const budgetSpent = budgets.reduce((sum, budget) => sum + spentInCategory(transactions, month, budget.categoryId), 0)
   const usingBudget = budgetLimit > 0
@@ -55,11 +215,67 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
   const ringRatio = Math.min(100, percent(ringSpent, ringLimit))
   const ringLeft = Math.max(ringLimit - ringSpent, 0)
   const hints = homeInstallmentHints(plans, items, today)
-  const overdueHints = hints.filter((h) => h.kind === 'overdue')
-  const upcomingCheques = cheques.filter((c) => c.status === 'pending' && compareIso(c.dueDate, today) <= 3)
+
+  // Request 2: Combined Upcoming Obligations
+  const obligations = useMemo(() => {
+    const list: Array<{
+      id: string
+      title: string
+      subtitle: string
+      amount: number
+      dueDate: string
+      isOverdue: boolean
+      badge: string
+      badgeClass: string
+    }> = []
+
+    for (const hint of hints) {
+      list.push({
+        id: `hint-${hint.plan.id}-${hint.item.id}`,
+        title: `قسط ${hint.plan.name}`,
+        subtitle: `موعد قسط: ${formatPersianDateFull(hint.item.dueDate)}`,
+        amount: hint.plan.installmentAmount,
+        dueDate: hint.item.dueDate,
+        isOverdue: hint.kind === 'overdue',
+        badge: hint.kind === 'overdue' ? 'معوق' : 'نزدیک',
+        badgeClass: hint.kind === 'overdue' ? 'overdue' : 'pending',
+      })
+    }
+
+    for (const c of cheques.filter((c) => c.status === 'pending')) {
+      const isOverdue = compareIso(c.dueDate, today) < 0
+      list.push({
+        id: `cheque-${c.id}`,
+        title: `چک ${c.bankName} (${c.direction === 'payable' ? 'صادره / پرداختی' : 'دریافتی'})`,
+        subtitle: `طرف‌حساب: ${c.party || 'نامشخص'} · سررسید ${formatPersianDateFull(c.dueDate)}`,
+        amount: c.amount,
+        dueDate: c.dueDate,
+        isOverdue,
+        badge: isOverdue ? 'سررسید گذشته' : 'در جریان وصول',
+        badgeClass: isOverdue ? 'overdue' : 'pending',
+      })
+    }
+
+    for (const d of debts.filter((d) => d.status === 'active')) {
+      const isOverdue = Boolean(d.dueDate && compareIso(d.dueDate, today) < 0)
+      list.push({
+        id: `debt-${d.id}`,
+        title: `${d.direction === 'borrowed' ? 'بدهی من به' : 'طلب من از'} ${d.party}`,
+        subtitle: d.dueDate ? `سررسید: ${formatPersianDateFull(d.dueDate)}` : 'بدون تاریخ سررسید',
+        amount: d.amount,
+        dueDate: d.dueDate || '9999',
+        isOverdue,
+        badge: d.direction === 'borrowed' ? 'بدهی' : 'طلب',
+        badgeClass: d.direction === 'borrowed' ? 'overdue' : 'ok',
+      })
+    }
+
+    return list.sort((a, b) => compareIso(a.dueDate, b.dueDate))
+  }, [hints, cheques, debts, today])
+
   const { pending } = useSmsDrafts()
   const recent = visibleLedger(transactions).slice(0, 4)
-  const chartMax = Math.max(1, ...series.flatMap((point) => [point.income, point.expense]))
+  const chartMax = Math.max(1, ...activeSeries.flatMap((point) => [point.income, point.expense]))
 
   const displayMoney = (amt: number) => (hideAmounts ? '••••••' : formatCompactMoney(amt))
 
@@ -131,48 +347,22 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
         </div>
       </div>
 
-      {/* Urgent Obligation Warning if Overdue installments or impending cheques */}
-      {overdueHints.length > 0 || upcomingCheques.length > 0 ? (
-        <div
-          className="home-card lg"
-          style={{
-            background: 'linear-gradient(135deg, rgba(220, 38, 38, 0.16) 0%, rgba(185, 28, 28, 0.08) 100%)',
-            borderColor: 'rgba(220, 38, 38, 0.4)',
-            marginBottom: 14,
-            cursor: 'pointer',
-          }}
-          onClick={() => navigate('/installments')}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 24 }}>🚨</span>
-              <div>
-                <strong style={{ color: 'var(--hy-expense)', fontSize: 14 }}>
-                  تعهدات مالی فوری ({toFaDigits(overdueHints.length + upcomingCheques.length)} مورد)
-                </strong>
-                <p style={{ margin: 0, fontSize: 12, color: 'var(--hy-text-secondary)' }}>
-                  {overdueHints.length > 0
-                    ? `${toFaDigits(overdueHints.length)} قسط معوق دارید که سررسید گذشته است.`
-                    : 'چک با سررسید نزدیک در جریان وصول است.'}
-                </p>
-              </div>
-            </div>
-            <span className="home-chip" style={{ background: 'rgba(220, 38, 38, 0.25)', color: '#fff' }}>
-              مشاهده و تسویه
-            </span>
-          </div>
-        </div>
-      ) : null}
-
+      {/* Request 1: Segregated KPI Cards (Cash, Credit, Investment, Income, Expense) */}
       <div className="home-kpis">
         <article className="home-kpi lg">
-          <span>موجودی کل</span>
-          <strong>{displayMoney(totalBalance)}</strong>
-          <small className={balanceDelta != null && balanceDelta >= 0 ? 'up' : 'down'}>
-            {balanceDelta == null
-              ? `${toFaDigits(activeAccounts.length)} حساب فعال`
-              : `${balanceDelta > 0 ? '+' : ''}${faNumber(balanceDelta)}٪ ماه قبل`}
-          </small>
+          <span>موجودی نقدی</span>
+          <strong style={{ color: 'var(--hy-teal)' }}>{displayMoney(cashBalance)}</strong>
+          <small>{toFaDigits(cashAccounts.length)} حساب نقدی و بانکی</small>
+        </article>
+        <article className="home-kpi lg">
+          <span>اعتبار خرید</span>
+          <strong style={{ color: '#38bdf8' }}>{displayMoney(creditBalance)}</strong>
+          <small>{toFaDigits(creditAccounts.length)} کارت / حساب اعتباری</small>
+        </article>
+        <article className="home-kpi lg">
+          <span>پس‌انداز و سرمایه</span>
+          <strong style={{ color: '#c084fc' }}>{displayMoney(investmentBalance)}</strong>
+          <small>{toFaDigits(investmentAccounts.length)} حساب پس‌انداز و سرمایه</small>
         </article>
         <article className="home-kpi lg">
           <span>درآمد این ماه</span>
@@ -184,12 +374,86 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
           <strong className="down">{displayMoney(totals.expense)}</strong>
           <small>{totals.income > 0 ? `${toFaDigits(expenseShare)}٪ از درآمد` : 'هنوز درآمدی ثبت نشده'}</small>
         </article>
-        <article className="home-kpi lg">
-          <span>پس‌انداز</span>
-          <strong>{displayMoney(savingsAmount)}</strong>
-          <small>نرخ {toFaDigits(savingsRate)}٪</small>
-        </article>
       </div>
+
+      {/* Request 8: Financial Insight placed right below balance and income/expense cards */}
+      <section className="home-card lg home-insight" style={{ margin: '14px 0 16px' }}>
+        <header style={{ marginBottom: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 18 }}>💡</span>
+            <h2 style={{ fontSize: 15, margin: 0, fontWeight: 700 }}>بینش مالی</h2>
+          </div>
+        </header>
+        <p style={{ margin: 0, fontSize: 13, lineHeight: '1.6', color: 'var(--hy-text-secondary)' }}>
+          {insightText(baseMonthlySeries, totals.income, totals.expense, totals.net, formatCompactMoney)}
+        </p>
+      </section>
+
+      {/* Request 2: Upcoming Obligations Section (Preview 3 items, expand all) */}
+      {obligations.length > 0 ? (
+        <section className="home-card lg" style={{ marginBottom: 16 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 20 }}>⏰</span>
+              <h2 style={{ fontSize: 15, margin: 0, fontWeight: 800 }}>تعهدات مالی پیش رو</h2>
+              <span className="badge pending">{toFaDigits(obligations.length)} مورد</span>
+            </div>
+            <button
+              className="cat-mini"
+              type="button"
+              onClick={() => navigate('/installments')}
+              style={{ fontSize: 11 }}
+            >
+              مدیریت اقساط و چک‌ها ‹
+            </button>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {(showAllObligations ? obligations : obligations.slice(0, 3)).map((item) => (
+              <div
+                key={item.id}
+                onClick={() => navigate('/installments')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '9px 12px',
+                  borderRadius: 12,
+                  background: item.isOverdue ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.04)',
+                  border: item.isOverdue ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
+                  cursor: 'pointer',
+                }}
+              >
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700 }}>
+                    <span>{item.title}</span>
+                    <span className={`badge ${item.badgeClass}`} style={{ fontSize: 10, padding: '2px 6px' }}>
+                      {item.badge}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--hy-subtext)', marginTop: 2 }}>{item.subtitle}</div>
+                </div>
+                <strong style={{ fontSize: 13, color: item.isOverdue ? '#f87171' : 'var(--hy-text)' }}>
+                  {displayMoney(item.amount)}
+                </strong>
+              </div>
+            ))}
+          </div>
+
+          {obligations.length > 3 ? (
+            <div style={{ textAlign: 'center', marginTop: 10 }}>
+              <button
+                type="button"
+                className="cat-mini"
+                onClick={() => setShowAllObligations((v) => !v)}
+                style={{ fontSize: 12, padding: '6px 14px', borderRadius: 10 }}
+              >
+                {showAllObligations ? 'نمایش کمتر ▴' : `مشاهده همه (${toFaDigits(obligations.length)} مورد) ▾`}
+              </button>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <Link to="/transactions/pending" className="home-card lg sms-pending-link">
         <div>
@@ -201,14 +465,79 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
 
       <div className="home-split">
         <section className="home-card lg">
-          <header>
+          <header style={{ flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' }}>
             <div>
               <h2>جریان نقدی</h2>
-              <p>درآمد و هزینه در ۶ ماه اخیر</p>
+              <p>درآمد و هزینه بر اساس دوره انتخابی</p>
             </div>
-            <span className="home-chip">۶ ماه</span>
+
+            {/* Request 7: Cashflow period selector */}
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+              {(
+                [
+                  { id: 'daily', label: 'روزانه' },
+                  { id: 'weekly', label: 'هفتگی' },
+                  { id: 'monthly', label: 'ماهانه' },
+                  { id: 'quarterly', label: '۳ ماه' },
+                  { id: 'sixMonths', label: '۶ ماه' },
+                  { id: 'yearly', label: 'سالانه' },
+                  { id: 'custom', label: 'بازه دستی' },
+                ] as const
+              ).map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setCashflowPeriod(p.id)}
+                  style={{
+                    padding: '3px 7px',
+                    borderRadius: 8,
+                    fontSize: 10,
+                    fontWeight: cashflowPeriod === p.id ? 700 : 500,
+                    border: cashflowPeriod === p.id ? '1px solid var(--hy-teal)' : '1px solid rgba(255,255,255,0.15)',
+                    background: cashflowPeriod === p.id ? 'rgba(15, 118, 110, 0.25)' : 'transparent',
+                    color: cashflowPeriod === p.id ? 'var(--hy-text)' : 'var(--hy-subtext)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
           </header>
-          <CashflowChart series={series} max={chartMax} />
+
+          {/* Request 7: Custom Month Selector */}
+          {cashflowPeriod === 'custom' ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0', fontSize: 11 }}>
+              <span>از ماه:</span>
+              <select
+                className="cat-mini"
+                value={customStart}
+                onChange={(e) => setCustomStart(Number(e.target.value))}
+                style={{ fontSize: 11, padding: '3px 6px' }}
+              >
+                {JALALI_MONTHS.map((m, idx) => (
+                  <option key={idx + 1} value={idx + 1}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+              <span>تا ماه:</span>
+              <select
+                className="cat-mini"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(Number(e.target.value))}
+                style={{ fontSize: 11, padding: '3px 6px' }}
+              >
+                {JALALI_MONTHS.map((m, idx) => (
+                  <option key={idx + 1} value={idx + 1}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
+          <CashflowChart series={activeSeries} max={chartMax} />
           <div className="home-legend">
             <span><i className="dot income" />درآمد</span>
             <span><i className="dot expense" />هزینه</span>
@@ -326,15 +655,6 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
             </div>
           )}
         </section>
-
-        <section className="home-card lg home-insight">
-          <header>
-            <div>
-              <h2>بینش مالی</h2>
-            </div>
-          </header>
-          <p>{insightText(series, totals.income, totals.expense, totals.net, formatCompactMoney)}</p>
-        </section>
       </div>
     </div>
   )
@@ -372,9 +692,9 @@ function CashflowChart({
   series: Array<{ label: string; income: number; expense: number }>
   max: number
 }) {
-  const width = 320
+  const width = Math.max(320, series.length * 48)
   const height = 150
-  const padX = 16
+  const padX = 22
   const top = 16
   const base = 112
   const step = series.length > 1 ? (width - padX * 2) / (series.length - 1) : 0
@@ -384,20 +704,28 @@ function CashflowChart({
     series.map((point, index) => `${index === 0 ? 'M' : 'L'} ${xAt(index)} ${yAt(point[key])}`).join(' ')
 
   return (
-    <svg className="home-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="نمودار درآمد و هزینه شش ماه">
-      {[0, 1, 2].map((line) => (
-        <line key={line} x1={padX} x2={width - padX} y1={top + line * 32} y2={top + line * 32} className="grid" />
-      ))}
-      <path d={path('income')} className="line income" />
-      <path d={path('expense')} className="line expense" />
-      {series.map((point, index) => (
-        <g key={point.label}>
-          <circle cx={xAt(index)} cy={yAt(point.income)} r="3.2" className="point income" />
-          <circle cx={xAt(index)} cy={yAt(point.expense)} r="3.2" className="point expense" />
-          <text x={xAt(index)} y="136" textAnchor="middle">{point.label}</text>
-        </g>
-      ))}
-    </svg>
+    <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <svg
+        className="home-chart"
+        viewBox={`0 0 ${width} ${height}`}
+        style={{ minWidth: width, height: 150, display: 'block' }}
+        role="img"
+        aria-label="نمودار جریان نقدی"
+      >
+        {[0, 1, 2].map((line) => (
+          <line key={line} x1={padX} x2={width - padX} y1={top + line * 32} y2={top + line * 32} className="grid" />
+        ))}
+        <path d={path('income')} className="line income" />
+        <path d={path('expense')} className="line expense" />
+        {series.map((point, index) => (
+          <g key={index}>
+            <circle cx={xAt(index)} cy={yAt(point.income)} r="3.2" className="point income" />
+            <circle cx={xAt(index)} cy={yAt(point.expense)} r="3.2" className="point expense" />
+            <text x={xAt(index)} y="136" textAnchor="middle" fontSize="10">{point.label}</text>
+          </g>
+        ))}
+      </svg>
+    </div>
   )
 }
 

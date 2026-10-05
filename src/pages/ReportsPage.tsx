@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { categoriesFor } from '../lib/categories'
-import { monthKey, monthlySeries, expenseByCategory, spentInCategory } from '../lib/reports'
+import { monthKey, expenseByCategory, spentInCategory } from '../lib/reports'
 import { todayIso } from '../lib/iso'
 import { formatRial, parseRialInput } from '../lib/money'
 import { createId } from '../lib/ids'
@@ -23,9 +23,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
   const { budgets, goals, saveBudget, deleteBudget, saveGoal, deleteGoal } = useExtras()
   const today = todayIso()
   const month = monthKey(today) ?? ''
-  const series = monthlySeries(transactions, today)
   const bars = expenseByCategory(transactions, month, customCategories)
-  const max = Math.max(1, ...series.flatMap((point) => [point.income, point.expense]))
   const catMax = Math.max(1, ...bars.map((bar) => bar.amount))
   const [limit, setLimit] = useState('')
   const [categoryId, setCategoryId] = useState(categoriesFor('expense', customCategories)[0]?.id ?? 'food')
@@ -36,34 +34,28 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
   return (
     <div className="app-scroll" onScroll={(e) => onScroll(e.currentTarget.scrollTop > 28)}>
       <div className="top-row">
-        <h1>گزارش</h1>
+        <div>
+          <h1>بودجه</h1>
+          <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--hy-text-secondary)' }}>
+            مدیریت سقف بودجه ماهانه، کنترل هزینه‌ها و اهداف مالی
+          </p>
+        </div>
         <SettingsButton />
       </div>
       <div className="split-wide">
         <section className="lg report-card">
-          <h2>شش ماه اخیر</h2>
-          <svg className="chart" viewBox="0 0 320 140" role="img" aria-label="نمودار درآمد و هزینه">
-            {series.map((point, index) => {
-              const x = 18 + index * 50
-              const incomeH = (point.income / max) * 90
-              const expenseH = (point.expense / max) * 90
-              return (
-                <g key={point.label}>
-                  <rect x={x} y={110 - incomeH} width="14" height={incomeH} rx="4" fill="#16A34A" />
-                  <rect x={x + 16} y={110 - expenseH} width="14" height={expenseH} rx="4" fill="#DC2626" />
-                  <text x={x + 14} y="128" textAnchor="middle" fontSize="10">{point.label}</text>
-                </g>
-              )
-            })}
-          </svg>
-          <p className="sheet-sub">سبز درآمد · قرمز هزینه · ماه شمسی</p>
-          {bars.map((bar) => (
-            <div key={bar.id} className="cat-bar-row">
-              <span className="name">{bar.name}</span>
-              <span className="track"><span style={{ width: `${(bar.amount / catMax) * 100}%` }} /></span>
-              <span className="amt">{formatRial(bar.amount)}</span>
-            </div>
-          ))}
+          <h2>هزینه‌های این ماه به تفکیک دسته‌بندی</h2>
+          {bars.length === 0 ? (
+            <p className="sheet-sub" style={{ margin: '14px 0' }}>هزینه‌ای در این ماه ثبت نشده است.</p>
+          ) : (
+            bars.map((bar) => (
+              <div key={bar.id} className="cat-bar-row">
+                <span className="name">{bar.name}</span>
+                <span className="track"><span style={{ width: `${(bar.amount / catMax) * 100}%` }} /></span>
+                <span className="amt">{formatRial(bar.amount)}</span>
+              </div>
+            ))
+          )}
 
           {/* Tag-based spending insights */}
           {(() => {

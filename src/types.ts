@@ -1,4 +1,5 @@
 export type AccountType = 'cash' | 'bank'
+export type AccountClassification = 'cash' | 'credit' | 'investment'
 export type TxKind = 'expense' | 'income' | 'transferOut' | 'transferIn'
 /** @deprecated Sprint 1 single-leg transfer; migrated to transferOut + transferIn */
 export type LegacyTxKind = TxKind | 'transfer'
@@ -11,6 +12,7 @@ export interface Account {
   id: string
   name: string
   type: AccountType
+  classification?: AccountClassification
   archived: boolean
   /** Immutable after create. Balance is computed from this + transactions. */
   openingBalance: number
@@ -18,6 +20,8 @@ export interface Account {
   balance: number
   createdAt: number
   updatedAt: number
+  /** Optional bank account number (distinct from PAN and SHEBA) */
+  accountNumber?: string
   /** Vault card this bank account was opened from. */
   cardId?: string
   /** Cloud ledger shared with another signed-in user. */
@@ -91,7 +95,9 @@ export interface InstallmentItem {
 export interface CreateAccountInput {
   name: string
   type: AccountType
+  classification?: AccountClassification
   initialBalance: number
+  accountNumber?: string
   cardId?: string
 }
 
@@ -169,6 +175,8 @@ export interface BankCard {
   note: string
   createdAt: number
   accountId?: string
+  accountNumber?: string
+  classification?: AccountClassification
   /** CSS gradient or solid color chosen from the palette. */
   color?: string
 }

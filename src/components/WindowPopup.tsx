@@ -196,10 +196,15 @@ export function WindowPopup({
   const [isMaximized, setIsMaximized] = useState(false)
   const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 768)
 
+  const [size, setSize] = useState<{ width: number; height: number }>(() => ({
+    width: typeof window !== 'undefined' ? Math.min(defaultWidth, window.innerWidth - 32) : defaultWidth,
+    height: typeof window !== 'undefined' ? Math.min(defaultHeight, window.innerHeight - 32) : defaultHeight,
+  }))
+
   const calcCenter = () => {
     if (typeof window === 'undefined') return { x: 40, y: 40 }
-    const w = Math.min(defaultWidth, window.innerWidth - 32)
-    const h = Math.min(defaultHeight, window.innerHeight - 32)
+    const w = Math.min(size?.width ?? defaultWidth, window.innerWidth - 32)
+    const h = Math.min(size?.height ?? defaultHeight, window.innerHeight - 32)
     return {
       x: Math.max(16, Math.round((window.innerWidth - w) / 2)),
       y: Math.max(16, Math.round((window.innerHeight - h) / 2)),
@@ -213,6 +218,76 @@ export function WindowPopup({
   const windowStartPos = useRef({ x: 0, y: 0 })
   const windowRef = useRef<HTMLDivElement>(null)
 
+  const resizingRef = useRef<{
+    direction: string
+    startX: number
+    startY: number
+    startW: number
+    startH: number
+    startXPos: number
+    startYPos: number
+  } | null>(null)
+
+  const handleResizeStart = (direction: string, e: React.PointerEvent) => {
+    if (!isDesktop || isMaximized || isMinimized) return
+    e.stopPropagation()
+    e.preventDefault()
+    resizingRef.current = {
+      direction,
+      startX: e.clientX,
+      startY: e.clientY,
+      startW: size.width,
+      startH: size.height,
+      startXPos: position.x,
+      startYPos: position.y,
+    }
+
+    const onPointerMove = (moveEv: PointerEvent) => {
+      if (!resizingRef.current) return
+      const { direction: dir, startX, startY, startW, startH, startXPos, startYPos } = resizingRef.current
+      const dx = moveEv.clientX - startX
+      const dy = moveEv.clientY - startY
+
+      let newW = startW
+      let newH = startH
+      let newX = startXPos
+      let newY = startYPos
+
+      if (dir.includes('e')) {
+        newW = Math.max(340, Math.min(window.innerWidth - startXPos - 12, startW + dx))
+      }
+      if (dir.includes('s')) {
+        newH = Math.max(300, Math.min(window.innerHeight - startYPos - 12, startH + dy))
+      }
+      if (dir.includes('w')) {
+        const potentialW = Math.max(340, startW - dx)
+        if (potentialW >= 340 && startXPos + dx >= 10) {
+          newW = potentialW
+          newX = startXPos + dx
+        }
+      }
+      if (dir.includes('n')) {
+        const potentialH = Math.max(300, startH - dy)
+        if (potentialH >= 300 && startYPos + dy >= 10) {
+          newH = potentialH
+          newY = startYPos + dy
+        }
+      }
+
+      setSize({ width: newW, height: newH })
+      setPosition({ x: newX, y: newY })
+    }
+
+    const onPointerUp = () => {
+      resizingRef.current = null
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerUp)
+    }
+
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onPointerUp)
+  }
+
   // Keep window in bounds on resize
   useEffect(() => {
     const handleResize = () => {
@@ -220,8 +295,8 @@ export function WindowPopup({
       setIsDesktop(desktop)
       if (desktop) {
         setPosition((prev) => {
-          const w = Math.min(defaultWidth, window.innerWidth - 32)
-          const h = Math.min(defaultHeight, window.innerHeight - 32)
+          const w = Math.min(size.width, window.innerWidth - 32)
+          const h = Math.min(size.height, window.innerHeight - 32)
           return {
             x: Math.max(10, Math.min(window.innerWidth - w - 10, prev.x)),
             y: Math.max(10, Math.min(window.innerHeight - h - 10, prev.y)),
@@ -231,7 +306,7 @@ export function WindowPopup({
     }
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [defaultWidth, defaultHeight])
+  }, [size.width, size.height])
 
   // Manage registration in global minimized dock
   useEffect(() => {
@@ -310,33 +385,35 @@ export function WindowPopup({
   if (!isOpen) return null
 
   // Desktop positioning logic:
-  // When maximized: 12px inset from edges, auto width/height, strictly within screen boundaries
-  // When normal: position.x & position.y, transform: none.
+  // When maximized: 0 inset from edges, takes the entire screen, strictly within boundaries.
+  // When normal: position.x & position.y with manual size.
   let desktopStyle: React.CSSProperties = {}
   if (isDesktop) {
     if (isMaximized) {
       desktopStyle = {
         position: 'fixed',
-        top: 12,
-        bottom: 12,
-        left: 16,
-        right: 16,
-        width: 'auto',
-        height: 'auto',
-        maxWidth: 'calc(100vw - 32px)',
-        maxHeight: 'calc(100vh - 24px)',
+        top: 0,
+        bottom: 0,
+        left: 0,
+        right: 0,
+        width: '100vw',
+        height: '100vh',
+        maxWidth: '100vw',
+        maxHeight: '100vh',
         margin: 0,
         transform: 'none',
-        borderRadius: 20,
-        zIndex: 1000,
+        borderRadius: 0,
+        zIndex: 10000,
         display: isMinimized ? 'none' : 'flex',
         flexDirection: 'column',
-        boxShadow: '0 24px 70px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.25)',
+        boxShadow: 'none',
         boxSizing: 'border-box',
         overflow: 'hidden',
         padding: 0,
       }
     } else {
+      const availW = typeof window !== 'undefined' ? window.innerWidth : 1200
+      const availH = typeof window !== 'undefined' ? window.innerHeight : 800
       desktopStyle = {
         position: 'fixed',
         left: position.x,
@@ -344,14 +421,15 @@ export function WindowPopup({
         right: 'auto',
         bottom: 'auto',
         transform: 'none',
-        width: `min(${defaultWidth}px, calc(100vw - 32px))`,
-        height: `min(${defaultHeight}px, calc(100vh - 32px))`,
-        maxHeight: 'calc(100vh - 32px)',
-        borderRadius: 24,
+        width: Math.min(size.width, availW - 20),
+        height: Math.min(size.height, availH - 20),
+        maxWidth: 'calc(100vw - 20px)',
+        maxHeight: 'calc(100vh - 20px)',
+        borderRadius: 20,
         zIndex: 1000,
         display: isMinimized ? 'none' : 'flex',
         flexDirection: 'column',
-        boxShadow: '0 24px 70px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.25)',
+        boxShadow: '0 24px 70px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.25)',
         boxSizing: 'border-box',
         overflow: 'hidden',
         padding: 0,
@@ -381,7 +459,9 @@ export function WindowPopup({
     boxSizing: 'border-box',
   }
 
-  return (
+  if (typeof document === 'undefined') return null
+
+  return createPortal(
     <>
       {/* Background Scrim - only shown when not minimized */}
       {!isMinimized && (
@@ -415,11 +495,87 @@ export function WindowPopup({
         }}
         style={{
           ...(isDesktop ? desktopStyle : mobileStyle),
-          transition: isDragging.current
+          transition: isDragging.current || resizingRef.current
             ? 'none'
             : 'border-radius 0.2s ease, width 0.2s ease, height 0.2s ease, top 0.2s ease, left 0.2s ease, right 0.2s ease, bottom 0.2s ease',
         }}
       >
+        {/* Resize Handles on Desktop (Drag border or corner to resize manually) */}
+        {isDesktop && !isMaximized ? (
+          <>
+            {/* Right edge */}
+            <div
+              onPointerDown={(e) => handleResizeStart('e', e)}
+              style={{
+                position: 'absolute',
+                top: 8,
+                bottom: 8,
+                right: -2,
+                width: 10,
+                cursor: 'ew-resize',
+                zIndex: 30,
+              }}
+              title="تغییر عرض پنجره"
+            />
+            {/* Left edge */}
+            <div
+              onPointerDown={(e) => handleResizeStart('w', e)}
+              style={{
+                position: 'absolute',
+                top: 8,
+                bottom: 8,
+                left: -2,
+                width: 10,
+                cursor: 'ew-resize',
+                zIndex: 30,
+              }}
+              title="تغییر عرض پنجره"
+            />
+            {/* Bottom edge */}
+            <div
+              onPointerDown={(e) => handleResizeStart('s', e)}
+              style={{
+                position: 'absolute',
+                left: 8,
+                right: 8,
+                bottom: -2,
+                height: 10,
+                cursor: 'ns-resize',
+                zIndex: 30,
+              }}
+              title="تغییر ارتفاع پنجره"
+            />
+            {/* Bottom-Right corner */}
+            <div
+              onPointerDown={(e) => handleResizeStart('se', e)}
+              style={{
+                position: 'absolute',
+                right: -2,
+                bottom: -2,
+                width: 16,
+                height: 16,
+                cursor: 'nwse-resize',
+                zIndex: 35,
+              }}
+              title="تغییر سایز پنجره"
+            />
+            {/* Bottom-Left corner */}
+            <div
+              onPointerDown={(e) => handleResizeStart('sw', e)}
+              style={{
+                position: 'absolute',
+                left: -2,
+                bottom: -2,
+                width: 16,
+                height: 16,
+                cursor: 'nesw-resize',
+                zIndex: 35,
+              }}
+              title="تغییر سایز پنجره"
+            />
+          </>
+        ) : null}
+
         {/* Mobile top handle */}
         {!isDesktop ? <div className="sheet-handle" style={{ marginTop: 8, marginBottom: 4 }} /> : null}
 
@@ -624,6 +780,7 @@ export function WindowPopup({
 
       {/* Global Dock rendering all minimized windows */}
       <GlobalMinimizedDock />
-    </>
+    </>,
+    document.body,
   )
 }

@@ -20,7 +20,6 @@ import { AuthGate } from './components/AuthGate'
 import { VoiceSheet } from './components/VoiceSheet'
 import { SyncSheet } from './components/SyncSheet'
 import { AllTransactionsPage } from './pages/AllTransactionsPage'
-import { WindowPopup } from './components/WindowPopup'
 import { InstallmentsPage } from './pages/InstallmentsPage'
 import { InstallmentsArchivePage } from './pages/InstallmentsArchivePage'
 import { InstallmentDetailPage } from './pages/InstallmentDetailPage'
@@ -56,6 +55,7 @@ function Shell() {
   const [compact, setCompact] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [sheet, setSheet] = useState<Sheet | null>(null)
+  const [minimizedSheets, setMinimizedSheets] = useState<Sheet[]>([])
   const [addOpen, setAddOpen] = useState(false)
 
   const closeSheet = useCallback((currentSheet?: Sheet | null) => {
@@ -63,6 +63,63 @@ function Shell() {
       setSheet({ type: 'all-tx', search: currentSheet.returnToAll })
     } else {
       setSheet(null)
+    }
+  }, [])
+
+  const minimizeCurrentSheet = useCallback(() => {
+    if (!sheet) return
+    setMinimizedSheets((prev) => {
+      const exists = prev.some((s) => JSON.stringify(s) === JSON.stringify(sheet))
+      if (exists) return prev
+      return [...prev, sheet]
+    })
+    setSheet(null)
+  }, [sheet])
+
+  const restoreMinimizedSheet = useCallback((index: number) => {
+    setMinimizedSheets((prev) => {
+      const target = prev[index]
+      if (!target) return prev
+      setSheet(target)
+      return prev.filter((_, i) => i !== index)
+    })
+  }, [])
+
+  const closeMinimizedSheet = useCallback((index: number) => {
+    setMinimizedSheets((prev) => prev.filter((_, i) => i !== index))
+  }, [])
+
+  const getSheetMeta = useCallback((s: Sheet) => {
+    switch (s.type) {
+      case 'quick':
+        return {
+          icon: s.kind === 'income' ? '🟢' : '🔴',
+          title: s.kind === 'income' ? 'ثبت سریع درآمد' : 'ثبت سریع هزینه',
+        }
+      case 'account':
+        return { icon: '💳', title: s.accountId ? 'ویرایش حساب' : 'حساب جدید' }
+      case 'transfer':
+        return { icon: '🔄', title: 'انتقال وجه بین حساب‌ها' }
+      case 'installment-plan':
+        return { icon: '📅', title: s.planId ? 'ویرایش برنامه اقساط' : 'برنامه اقساط جدید' }
+      case 'installment-item':
+        return { icon: '🗓️', title: 'ویرایش قسط' }
+      case 'installment-pay':
+        return { icon: '💰', title: 'پرداخت قسط' }
+      case 'tx-edit':
+        return { icon: '✏️', title: 'ویرایش تراکنش' }
+      case 'all-tx':
+        return { icon: '📒', title: 'دفتر کل تمام تراکنش‌ها' }
+      case 'voice':
+        return { icon: '🎙️', title: 'دستیار صوتی' }
+      case 'sync':
+        return { icon: '☁️', title: 'همگام‌سازی ابری' }
+      case 'settings':
+        return { icon: '⚙️', title: 'داده محلی' }
+      case 'confirm':
+        return { icon: '⚠️', title: s.title || 'تأیید عملیات' }
+      default:
+        return { icon: '🗂️', title: 'پنجره باز' }
     }
   }, [])
 
@@ -421,7 +478,12 @@ function Shell() {
         />
       ) : null}
 
-      {sheet?.type === 'voice' ? <VoiceSheet onClose={() => closeSheet(sheet)} /> : null}
+      {sheet?.type === 'voice' ? (
+        <VoiceSheet
+          onClose={() => closeSheet(sheet)}
+          onMinimize={minimizeCurrentSheet}
+        />
+      ) : null}
       {sheet?.type === 'share' && accounts.some((account) => account.id === sheet.accountId) ? (
         <ShareSheet
           account={accounts.find((account) => account.id === sheet.accountId)!}

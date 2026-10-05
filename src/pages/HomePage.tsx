@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from 'react'
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { CloudLamp } from '../components/CloudLamp'
 import { HomeDashboard } from '../components/HomeDashboard'
 import { SettingsButton } from '../components/SettingsButton'
@@ -15,10 +15,24 @@ interface HomePageProps {
   onSettings: () => void
 }
 
-export function HomePage({ onScroll, setToast, onQuickEntry, onTransfer, onAll, onSettings }: HomePageProps) {
-  const today = todayIso()
-  const jalali = isoToJalali(today)
-  const subtitle = jalali ? `${JALALI_MONTHS[jalali.jm - 1]} ${toFaDigits(jalali.jy)} · امروز` : 'امروز'
+const PERSIAN_WEEKDAYS = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه', 'شنبه']
+
+export function HomePage({ onScroll, onQuickEntry, onTransfer, onAll, onSettings }: HomePageProps) {
+  const [now, setNow] = useState(() => new Date())
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(timer)
+  }, [])
+
+  const jalali = isoToJalali(todayIso())
+  const weekdayName = PERSIAN_WEEKDAYS[now.getDay()]
+  const timeStr = toFaDigits(
+    `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`
+  )
+  const dateStr = jalali
+    ? `${weekdayName}، ${toFaDigits(jalali.jd)} ${JALALI_MONTHS[jalali.jm - 1]} ${toFaDigits(jalali.jy)}`
+    : weekdayName
 
   return (
     <div className="app-scroll page-home" onScroll={(e) => onScroll(e.currentTarget.scrollTop > 28)}>
@@ -32,23 +46,15 @@ export function HomePage({ onScroll, setToast, onQuickEntry, onTransfer, onAll, 
           >
             نمای کلی مالی
           </h1>
-          <p>{subtitle}</p>
+          <p style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 3 }}>
+            <span>📅 {dateStr}</span>
+            <span style={{ opacity: 0.4 }}>·</span>
+            <span style={{ fontWeight: 700, color: 'var(--hy-teal)', letterSpacing: '0.5px' }}>⏰ {timeStr}</span>
+          </p>
         </div>
         <div className="home-head-icons">
           <CloudLamp />
           <SettingsButton />
-          <button
-            className="icon-btn"
-            type="button"
-            title="اعلان‌ها"
-            onClick={() => setToast('اعلانی نیست')}
-            onContextMenu={(e) => {
-              e.preventDefault()
-              onSettings()
-            }}
-          >
-            🔔
-          </button>
         </div>
 
         {/* Global Search Bar right on the Home Page */}
