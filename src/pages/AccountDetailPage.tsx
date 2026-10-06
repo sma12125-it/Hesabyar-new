@@ -32,7 +32,7 @@ export function AccountDetailPage({
   const [search, setSearch] = useState('')
   const account = accounts.find((a) => a.id === id)
   const txs = useMemo(() => {
-    const list = transactions.filter((t) => t.accountId === id || t.counterpartyAccountId === id)
+    const list = transactions.filter((t) => t.accountId === id)
     const q = toWesternDigits(search.trim().toLowerCase())
     if (!q) return list
     const cleanQ = q.replace(/[,،\s]/g, '')

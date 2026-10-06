@@ -100,7 +100,7 @@ export const TransactionsTable = memo(function TransactionsTable({
                         ? 'هزینه'
                         : tx.kind === 'transferOut'
                           ? 'انتقال به'
-                          : 'انتقال از'}
+                          : 'واریز از'}
                   </span>
                 </td>
 

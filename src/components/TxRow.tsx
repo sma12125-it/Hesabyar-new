@@ -13,17 +13,18 @@ export function txTitle(tx: Transaction, accounts: Account[], categories: Parame
     if (tx.note) return tx.note
     if (tx.kind === 'transferIn') {
       const from = accounts.find((a) => a.id === tx.counterpartyAccountId)
-      return from ? `انتقال از ${from.name}` : 'انتقال'
+      return from ? `واریز از ${from.name}` : 'واریز به حساب'
     }
     const to = accounts.find((a) => a.id === tx.counterpartyAccountId)
-    return to ? `انتقال به ${to.name}` : 'انتقال'
+    return to ? `انتقال به ${to.name}` : 'انتقال به حساب'
   }
   if (tx.note) return tx.note
   return getCategory(tx.categoryId, categories)?.name ?? 'تراکنش'
 }
 
 export function txIcon(tx: Transaction, categories: Parameters<typeof getCategory>[1] = []): string {
-  if (tx.kind === 'transferOut' || tx.kind === 'transferIn') return '⇄'
+  if (tx.kind === 'transferIn') return '📥'
+  if (tx.kind === 'transferOut') return '📤'
   return getCategory(tx.categoryId, categories)?.icon ?? '💳'
 }
 
@@ -51,7 +52,12 @@ export const TxRow = memo(function TxRow({
   const { customCategories } = useStore()
   const { formatMoney, unitLabel } = useExtras()
   const account = accounts.find((a) => a.id === tx.accountId)
-  const amtClass = tx.kind === 'income' ? 'income' : tx.kind === 'expense' ? 'expense' : ''
+  const amtClass =
+    tx.kind === 'income' || tx.kind === 'transferIn'
+      ? 'income'
+      : tx.kind === 'expense' || tx.kind === 'transferOut'
+        ? 'expense'
+        : ''
   const subBits = [formatRelativeFromIso(tx.date)]
   if (!forAccountId && account) subBits.push(account.name)
   if (forAccountId && isTransferKind(tx.kind)) {
