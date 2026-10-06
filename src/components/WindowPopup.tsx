@@ -429,7 +429,10 @@ export function WindowPopup({
         zIndex: 1000,
         display: isMinimized ? 'none' : 'flex',
         flexDirection: 'column',
-        boxShadow: '0 24px 70px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.25)',
+        background: 'rgba(255, 255, 255, 0.95)',
+        backdropFilter: 'blur(28px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(28px) saturate(180%)',
+        boxShadow: '0 20px 60px rgba(15, 23, 42, 0.16), 0 0 0 1px rgba(255, 255, 255, 0.8)',
         boxSizing: 'border-box',
         overflow: 'hidden',
         padding: 0,
@@ -455,7 +458,10 @@ export function WindowPopup({
     padding: 0,
     margin: 0,
     transform: 'none',
-    boxShadow: '0 -12px 40px rgba(0, 0, 0, 0.5)',
+    background: 'rgba(255, 255, 255, 0.96)',
+    backdropFilter: 'blur(28px) saturate(180%)',
+    WebkitBackdropFilter: 'blur(28px) saturate(180%)',
+    boxShadow: '0 -10px 40px rgba(15, 23, 42, 0.14)',
     boxSizing: 'border-box',
   }
 
@@ -463,18 +469,18 @@ export function WindowPopup({
 
   return createPortal(
     <>
-      {/* Background Scrim - only shown when not minimized */}
+      {/* Background Scrim - gentle soft scrim matching app light theme */}
       {!isMinimized && (
         <div
-          className="sheet-scrim"
+          className="window-scrim"
           onClick={onClose}
           style={{
             position: 'fixed',
             inset: 0,
             zIndex: 998,
-            background: 'rgba(0, 0, 0, 0.52)',
-            backdropFilter: 'blur(6px)',
-            WebkitBackdropFilter: 'blur(6px)',
+            background: 'rgba(15, 23, 42, 0.08)',
+            backdropFilter: 'blur(3px)',
+            WebkitBackdropFilter: 'blur(3px)',
           }}
         />
       )}
@@ -765,11 +771,13 @@ export function WindowPopup({
         {/* Optional Footer (Always pinned at bottom) */}
         {footer ? (
           <div
-            className="sheet-footer"
+            className="window-popup-footer"
             style={{
-              padding: isDesktop ? '10px 16px' : '10px 14px 14px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-              background: 'rgba(255, 255, 255, 0.03)',
+              padding: isDesktop ? '12px 18px' : '10px 14px 14px',
+              borderTop: '1px solid rgba(255, 255, 255, 0.4)',
+              background: 'rgba(255, 255, 255, 0.25)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
               flexShrink: 0,
             }}
           >

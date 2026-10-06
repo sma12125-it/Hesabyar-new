@@ -141,6 +141,15 @@ export function CardFormSheet({
       onMinimize={onMinimize}
       defaultWidth={520}
       defaultHeight={680}
+      footer={
+        <button
+          className="cta-confirm"
+          type="button"
+          onClick={() => void save()}
+        >
+          {card ? 'ذخیره تغییرات' : 'ثبت کارت'}
+        </button>
+      }
     >
       <div className="sheet-body-scroll" style={{ padding: '8px 2px' }}>
         {error ? <div className="banner error"><span>{error}</span></div> : null}

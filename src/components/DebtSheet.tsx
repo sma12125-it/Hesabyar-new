@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { formatPersianDateFull } from '../lib/dates'
+import { notifyUser } from '../lib/sync'
 import { useExtras } from '../store/Extras'
 import { useStore } from '../store/Store'
 import { WindowPopup } from './WindowPopup'
@@ -14,7 +15,7 @@ interface DebtSheetProps {
 }
 
 export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
-  const { saveDebt, deleteDebt, settleDebt, formatMoney } = useExtras()
+  const { saveDebt, deleteDebt, settleDebt, unsettleDebt, formatMoney } = useExtras()
   const { activeAccounts } = useStore()
 
   const isEdit = Boolean(debt)
@@ -69,9 +70,25 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
     setSaving(true)
     try {
       await settleDebt(debt.id, accountId || undefined)
+      notifyUser('بدهی / طلب به وضعیت تسویه شده تغییر یافت')
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'خطا در ثبت تسویه')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleUnsettle() {
+    if (!debt) return
+    if (!confirm('آیا می‌خواهید این بدهی / طلب را به وضعیت پرداخت‌نشده (جاری) بازگردانید؟')) return
+    setSaving(true)
+    try {
+      await unsettleDebt(debt.id)
+      notifyUser('بدهی / طلب به وضعیت پرداخت‌نشده (جاری) بازگردانده شد')
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'خطا در بازگردانی وضعیت')
     } finally {
       setSaving(false)
     }
@@ -276,6 +293,25 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
               disabled={saving}
             >
               ✓ تسویه کامل و مختومه کردن
+            </button>
+          ) : null}
+
+          {isEdit && isSettled ? (
+            <button
+              className="action-chip lg-light"
+              type="button"
+              style={{
+                justifyContent: 'center',
+                height: 44,
+                background: 'rgba(59, 130, 246, 0.15)',
+                color: '#2563eb',
+                borderColor: 'rgba(59, 130, 246, 0.3)',
+                fontWeight: 700,
+              }}
+              onClick={() => void handleUnsettle()}
+              disabled={saving}
+            >
+              ↩️ بازگردانی به وضعیت پرداخت‌نشده (جاری)
             </button>
           ) : null}
 

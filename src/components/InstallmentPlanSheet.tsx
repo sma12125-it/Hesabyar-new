@@ -23,7 +23,7 @@ export function InstallmentPlanSheet({
   onClose: () => void
   onMinimize?: () => void
 }) {
-  const { activeAccounts, items, plans, customCategories, createInstallmentPlan, updateInstallmentPlan } = useStore()
+  const { activeAccounts, items, plans, customCategories, createInstallmentPlan, updateInstallmentPlan, deleteInstallmentPlan } = useStore()
   const planItems = items.filter((i) => i.planId === plan?.id)
   const locked = Boolean(plan && planHasPayment(planItems))
   const [kind, setKind] = useState<InstallmentPlanKind>(plan?.kind ?? 'fixed')
@@ -104,6 +104,23 @@ export function InstallmentPlanSheet({
     }
   }
 
+  async function convertToDebt() {
+    setPicker(null)
+    if (plan) {
+      await deleteInstallmentPlan(plan.id)
+    }
+    notifyUser('برنامه از اقساط حذف و به بخش بدهی‌ها منتقل شد')
+    onClose()
+    window.dispatchEvent(
+      new CustomEvent('hy-open-debt-sheet', {
+        detail: {
+          amount: kind === 'loan' ? principal : (amount * (count || 1) || amount),
+          party: name,
+        },
+      }),
+    )
+  }
+
   if (picker === 'account') {
     return (
       <PickerSheet title="حساب پرداخت" onClose={() => setPicker(null)}>
@@ -136,18 +153,14 @@ export function InstallmentPlanSheet({
           type="button"
           className="option-item lg-row"
           style={{ background: 'rgba(59, 130, 246, 0.12)', border: '1px solid rgba(59, 130, 246, 0.3)' }}
-          onClick={() => {
-            setPicker(null)
-            onClose()
-            window.dispatchEvent(new CustomEvent('hy-open-debt-sheet', { detail: { amount, party: name } }))
-          }}
+          onClick={() => void convertToDebt()}
         >
           <span className="oico">🤝</span>
           <div>
             <div className="otitle" style={{ color: '#2563eb', fontWeight: 700 }}>
               ثبت در بخش بدهی و قرض (غیر اقساطی)
             </div>
-            <div className="osub">انتقال این مبلغ به بخش مجزای بدهی و مطالبات</div>
+            <div className="osub">انتقال این مبلغ به بخش مجزای بدهی و مطالبات و حذف از اقساط</div>
           </div>
         </button>
 
@@ -200,6 +213,16 @@ export function InstallmentPlanSheet({
       onMinimize={onMinimize}
       defaultWidth={520}
       defaultHeight={680}
+      footer={
+        <button
+          className="cta-confirm"
+          type="button"
+          disabled={ctaDisabled}
+          onClick={() => void save()}
+        >
+          {saving ? 'در حال ذخیره…' : plan ? 'ذخیره تغییرات' : 'ذخیره برنامه اقساط'}
+        </button>
+      }
     >
       <div className="sheet-body-scroll" style={{ padding: '4px 0 16px' }}>
         {error ? (
@@ -228,10 +251,7 @@ export function InstallmentPlanSheet({
                 type="button"
                 className="cat-mini"
                 style={{ background: 'rgba(59, 130, 246, 0.18)', color: '#2563eb', fontWeight: 700, whiteSpace: 'nowrap' }}
-                onClick={() => {
-                  onClose()
-                  window.dispatchEvent(new CustomEvent('hy-open-debt-sheet', { detail: { amount, party: name } }))
-                }}
+                onClick={() => void convertToDebt()}
               >
                 ثبت در بدهی‌ها و مطالبات 🤝
               </button>
@@ -413,17 +433,6 @@ export function InstallmentPlanSheet({
             قسط آخر برای گرد کردن ریال ممکن است کمی متفاوت باشد · {toFaDigits(schedule!.months)} قسط
           </p>
         ) : null}
-
-        <div style={{ marginTop: 16 }}>
-          <button
-            className="cta-confirm"
-            type="button"
-            disabled={ctaDisabled}
-            onClick={() => void save()}
-          >
-            {saving ? 'در حال ذخیره…' : plan ? 'ذخیره تغییرات' : 'ذخیره برنامه اقساط'}
-          </button>
-        </div>
       </div>
     </WindowPopup>
   )

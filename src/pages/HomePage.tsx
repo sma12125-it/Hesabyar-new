@@ -37,24 +37,26 @@ export function HomePage({ onScroll, onQuickEntry, onTransfer, onAll, onSettings
   return (
     <div className="app-scroll page-home" onScroll={(e) => onScroll(e.currentTarget.scrollTop > 28)}>
       <div className="home-head">
-        <div className="home-title">
-          <h1
-            onContextMenu={(e) => {
-              e.preventDefault()
-              onSettings()
-            }}
-          >
-            نمای کلی مالی
-          </h1>
-          <p style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 3 }}>
-            <span>📅 {dateStr}</span>
-            <span style={{ opacity: 0.4 }}>·</span>
-            <span style={{ fontWeight: 700, color: 'var(--hy-teal)', letterSpacing: '0.5px' }}>⏰ {timeStr}</span>
-          </p>
-        </div>
-        <div className="home-head-icons">
-          <CloudLamp />
-          <SettingsButton />
+        <div className="home-top-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 12 }}>
+          <div className="home-title">
+            <h1
+              onContextMenu={(e) => {
+                e.preventDefault()
+                onSettings()
+              }}
+            >
+              نمای کلی مالی
+            </h1>
+            <p style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 3 }}>
+              <span>📅 {dateStr}</span>
+              <span style={{ opacity: 0.4 }}>·</span>
+              <span style={{ fontWeight: 700, color: 'var(--hy-teal)', letterSpacing: '0.5px' }}>⏰ {timeStr}</span>
+            </p>
+          </div>
+          <div className="home-head-icons" style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <CloudLamp />
+            <SettingsButton showLabel={true} />
+          </div>
         </div>
 
         {/* Global Search Bar right on the Home Page */}

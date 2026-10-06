@@ -49,6 +49,7 @@ interface ExtrasValue {
   saveDebt: (debt: Omit<DebtLoan, 'id' | 'createdAt'> & { id?: string }) => Promise<DebtLoan>
   deleteDebt: (id: string) => Promise<void>
   settleDebt: (id: string, accountId?: string) => Promise<void>
+  unsettleDebt: (id: string) => Promise<void>
   setReminders: (next: ReminderSettings) => Promise<void>
   exportLocal: () => Promise<Record<string, unknown>>
   importLocal: (data: Record<string, unknown>) => Promise<void>
@@ -363,6 +364,18 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
     notifyLocalChange()
   }, [])
 
+  const unsettleDebt = useCallback(async (id: string) => {
+    const current = debtsRef.current
+    const next = current.map((d) =>
+      d.id === id ? { ...d, status: 'active' as const, settledAt: undefined } : d,
+    )
+    debtsRef.current = next
+    setDebts(next)
+    await db.setKv('debts', next)
+    const { notifyLocalChange } = await import('../lib/sync')
+    notifyLocalChange()
+  }, [])
+
   const value = useMemo<ExtrasValue>(
     () => ({
       unlocked: passphrase != null,
@@ -524,6 +537,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       saveDebt,
       deleteDebt,
       settleDebt,
+      unsettleDebt,
       setReminders: async (next) => {
         setReminderState(next)
         await db.setKv('reminders', next)

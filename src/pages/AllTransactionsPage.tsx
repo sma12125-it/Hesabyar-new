@@ -499,66 +499,11 @@ export function AllTransactionsPage({
     </>
   )
 
-  // Mobile layout: Full-page view with top navigation, returns to home, NO close 'X' button
-  if (!isDesktop) {
-    return (
-      <div className="app-scroll page-all-tx-mobile" style={{ minHeight: '100%', padding: '0 0 84px' }}>
-        <div
-          style={{
-            position: 'sticky',
-            top: 0,
-            zIndex: 40,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '12px 14px',
-            background: 'rgba(15, 23, 42, 0.94)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.12)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <button
-              type="button"
-              onClick={onBack}
-              style={{
-                background: 'rgba(255, 255, 255, 0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                color: 'var(--hy-text)',
-                padding: '6px 12px',
-                borderRadius: 12,
-                cursor: 'pointer',
-                fontSize: 13,
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <span>←</span>
-              <span>بازگشت به خانه</span>
-            </button>
-            <h1 style={{ fontSize: 16, margin: 0, fontWeight: 800 }}>دفتر کل تراکنش‌ها</h1>
-          </div>
-          <span style={{ fontSize: 12, color: 'var(--hy-subtext)' }}>
-            {toFaDigits(filteredRows.length)} تراکنش
-          </span>
-        </div>
-
-        <div style={{ padding: '12px 14px' }}>
-          {innerContent}
-          {paginationFooter ? <div style={{ marginTop: 14 }}>{paginationFooter}</div> : null}
-        </div>
-      </div>
-    )
-  }
-
-  // Desktop layout: WindowPopup with full window controls (max/min/move/resize/table view)
+  // Unified layout using WindowPopup on both mobile and desktop
   return (
     <WindowPopup
       title="دفتر کل تمام تراکنش‌ها"
-      subtitle="امکان فیلتر، صفحه‌بندی، جابجایی پنجره، تمام صفحه و نمای جدولی"
+      subtitle={`${toFaDigits(filteredRows.length)} تراکنش · امکان جستجو، فیلتر و صفحه‌بندی`}
       icon="📒"
       isOpen={true}
       onClose={onBack}
@@ -570,7 +515,9 @@ export function AllTransactionsPage({
       onToggleTableView={() => setIsTableView((prev) => !prev)}
       footer={paginationFooter}
     >
-      {innerContent}
+      <div style={{ padding: isDesktop ? 0 : '4px 0' }}>
+        {innerContent}
+      </div>
     </WindowPopup>
   )
 }

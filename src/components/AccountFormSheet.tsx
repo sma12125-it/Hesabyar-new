@@ -78,6 +78,18 @@ export function AccountFormSheet({
       onMinimize={onMinimize}
       defaultWidth={500}
       defaultHeight={640}
+      footer={
+        isEdit || source === 'fresh' ? (
+          <button
+            className={`cta-confirm${canSave ? '' : ' disabled'}`}
+            type="button"
+            disabled={!canSave}
+            onClick={() => void save()}
+          >
+            {saving ? 'در حال ذخیره…' : 'ذخیره'}
+          </button>
+        ) : null
+      }
     >
       <div className="sheet-body-scroll" style={{ padding: '6px 0 16px' }}>
         {error ? (
@@ -206,17 +218,6 @@ export function AccountFormSheet({
             </div>
           ) : null}
         </div>
-        ) : null}
-        {isEdit || source === 'fresh' ? (
-        <button
-          className={`cta-confirm${canSave ? '' : ' disabled'}`}
-          type="button"
-          disabled={!canSave}
-          onClick={() => void save()}
-          style={{ marginTop: 'auto' }}
-        >
-          {saving ? 'در حال ذخیره…' : 'ذخیره'}
-        </button>
         ) : null}
       </div>
     </WindowPopup>

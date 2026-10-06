@@ -188,11 +188,14 @@ export function QuickEntrySheet({
       defaultWidth={540}
       defaultHeight={640}
       footer={
-        <div className="sheet-footer" style={{ padding: 0 }}>
-          <button className={`cta-confirm${disabled ? ' disabled' : ''}`} type="button" onClick={() => void submit()} disabled={disabled}>
-            {saving ? 'در حال ثبت…' : isEdit ? 'ذخیره تغییرات' : 'تأیید و ثبت'}
-          </button>
-        </div>
+        <button
+          className={`cta-confirm${disabled ? ' disabled' : ''}`}
+          type="button"
+          onClick={() => void submit()}
+          disabled={disabled}
+        >
+          {saving ? 'در حال ثبت…' : isEdit ? 'ذخیره تغییرات' : 'تأیید و ثبت'}
+        </button>
       }
     >
       <div className="sheet-body-scroll">
@@ -253,26 +256,23 @@ export function QuickEntrySheet({
             </div>
             <span className="fchev">‹</span>
           </button>
-          <DateField label="تاریخ" value={date} onChange={setDate} />
-          <button className="field-chip" type="button" onClick={() => setPicker(picker === 'note' ? null : 'note')}>
+          <DateField label="تاریخ ثبت تراکنش" value={date} onChange={setDate} />
+          
+          {/* Request 12: Note input must not be inside a button so spacebar never loses focus */}
+          <div className="field-chip" style={{ cursor: 'text' }}>
             <span className="ficon">📝</span>
             <div style={{ flex: 1 }}>
-              <div className="flabel">یادداشت</div>
-              {picker === 'note' ? (
-                <input
-                  className="field-input"
-                  placeholder="اختیاری…"
-                  value={note}
-                  autoFocus
-                  onChange={(e) => setNote(e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              ) : (
-                <div className={note ? 'fvalue' : 'fvalue placeholder-val'}>{note || 'اختیاری…'}</div>
-              )}
+              <div className="flabel">توضیحات و یادداشت</div>
+              <input
+                className="field-input"
+                placeholder="توضیح اختیاری (مثلاً: خرید هفتگی)..."
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+                style={{ width: '100%' }}
+              />
             </div>
-            <span className="fchev">‹</span>
-          </button>
+          </div>
 
           {/* Tags / Hashtags */}
           <div

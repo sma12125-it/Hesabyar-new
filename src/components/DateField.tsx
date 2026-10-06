@@ -19,8 +19,7 @@ export function DateField({
   const [portalRoot, setPortalRoot] = useState<HTMLElement | null>(null)
 
   useLayoutEffect(() => {
-    const host = btnRef.current?.closest('.device-screen')
-    setPortalRoot((host as HTMLElement | null) ?? document.body)
+    setPortalRoot(typeof document !== 'undefined' ? document.body : null)
   }, [])
 
   return (
