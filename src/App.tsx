@@ -18,6 +18,7 @@ import { ReportsPage } from './pages/ReportsPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AuthGate } from './components/AuthGate'
 import { VoiceSheet } from './components/VoiceSheet'
+import { getCurrentTheme, applyTheme } from './lib/theme'
 import { SyncSheet } from './components/SyncSheet'
 import { AllTransactionsPage } from './pages/AllTransactionsPage'
 import { InstallmentsPage } from './pages/InstallmentsPage'
@@ -691,10 +692,10 @@ function InstallmentDetailRoute({
 
 export default function App() {
   const [open, setOpen] = useState(false)
-  if (typeof document !== 'undefined') {
-    const theme = localStorage.getItem('hy-theme')
-    if (theme === 'dark' || theme === 'light') document.documentElement.dataset.theme = theme
-  }
+  useEffect(() => {
+    const theme = getCurrentTheme()
+    applyTheme(theme)
+  }, [])
   return (
     <StoreProvider>
       <ExtrasProvider>

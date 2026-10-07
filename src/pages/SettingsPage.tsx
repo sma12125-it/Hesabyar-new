@@ -13,6 +13,7 @@ import { useStore } from '../store/Store'
 import { SmsSettingsSection } from '../components/SmsSettingsSection'
 import { VaultRecover } from '../components/VaultRecover'
 import { AboutPopup } from '../components/AboutPopup'
+import { ThemeGallery } from '../components/ThemeGallery'
 import type { Account, Category, Transaction } from '../types'
 
 type Popup = 'cloud' | 'security' | 'vault' | 'supabase' | 'about' | null
@@ -62,7 +63,6 @@ function generateTransactionsCsv(transactions: Transaction[], accounts: Account[
 }
 
 export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => void }) {
-  const [theme, setTheme] = useState(() => document.documentElement.dataset.theme || 'light')
   const [popup, setPopup] = useState<Popup>(null)
   const [shareCode, setShareCode] = useState('')
   const [shareError, setShareError] = useState<string | null>(null)
@@ -74,11 +74,6 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
 
   const { currencyUnit, setCurrencyUnit, exportLocal, importLocal, vaultConfigured } = useExtras()
   const { accounts, transactions, plans, items, customCategories, importCloud } = useStore()
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme
-    localStorage.setItem('hy-theme', theme)
-  }, [theme])
 
   useEffect(() => {
     const onSessionChange = () => setSession(loadSession())
@@ -246,36 +241,19 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
         </div>
       </div>
 
-      {/* App Preferences */}
+      {/* App Preferences & Themes */}
       <section className="lg settings-block">
         <h2 style={{ fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
           <span>🎨</span>
-          <span>شخصی‌سازی و نمایش</span>
+          <span>شخصی‌سازی و تم ظاهری</span>
         </h2>
+        <p className="sheet-sub" style={{ marginTop: 4 }}>
+          انتخاب از بین ۷ تم گرافیکی مجزا: تاریک مات بدون شیشه، مینیمال کاغذی، زمرد و طلا، سایبرپانک، نئوبروتالیسم، سرمه‌ای و شیشه‌ای.
+        </p>
 
-        <div style={{ marginTop: 12 }}>
-          <span style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: 6, color: 'var(--hy-text)' }}>
-            تم تاریک / روشن
-          </span>
-          <div className="seg" role="tablist">
-            <button
-              className={`seg-btn${theme === 'light' ? ' active' : ''}`}
-              type="button"
-              onClick={() => setTheme('light')}
-            >
-              ☀️ حالت روشن
-            </button>
-            <button
-              className={`seg-btn${theme === 'dark' ? ' active' : ''}`}
-              type="button"
-              onClick={() => setTheme('dark')}
-            >
-              🌙 حالت تاریک
-            </button>
-          </div>
-        </div>
+        <ThemeGallery />
 
-        <div style={{ marginTop: 14 }}>
+        <div style={{ marginTop: 18 }}>
           <span style={{ fontSize: '12px', fontWeight: 600, display: 'block', marginBottom: 6, color: 'var(--hy-text)' }}>
             واحد پول پیش‌فرض
           </span>

@@ -2,6 +2,7 @@ import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { CloudLamp } from '../components/CloudLamp'
 import { HomeDashboard } from '../components/HomeDashboard'
 import { SettingsButton } from '../components/SettingsButton'
+import { ThemeModal } from '../components/ThemeModal'
 import { isoToJalali, JALALI_MONTHS } from '../lib/jalaali'
 import { todayIso } from '../lib/iso'
 import { toFaDigits } from '../lib/money'
@@ -19,6 +20,7 @@ const PERSIAN_WEEKDAYS = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چ
 
 export function HomePage({ onScroll, onQuickEntry, onTransfer, onAll, onSettings }: HomePageProps) {
   const [now, setNow] = useState(() => new Date())
+  const [showThemeModal, setShowThemeModal] = useState(false)
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000)
@@ -53,7 +55,27 @@ export function HomePage({ onScroll, onQuickEntry, onTransfer, onAll, onSettings
               <span style={{ fontWeight: 700, color: 'var(--hy-teal)', letterSpacing: '0.5px' }}>⏰ {timeStr}</span>
             </p>
           </div>
-          <div className="home-head-icons" style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <div className="home-head-icons" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <button
+              type="button"
+              className="cat-mini"
+              onClick={() => setShowThemeModal(true)}
+              title="انتخاب و تغییر تم ظاهری"
+              aria-label="انتخاب تم ظاهری"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '6px 10px',
+                borderRadius: 12,
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              <span>🎨</span>
+              <span>تم</span>
+            </button>
             <CloudLamp />
             <SettingsButton showLabel={true} />
           </div>
@@ -117,6 +139,7 @@ export function HomePage({ onScroll, onQuickEntry, onTransfer, onAll, onSettings
         </div>
       </div>
       <HomeDashboard onAll={() => onAll('')} />
+      {showThemeModal && <ThemeModal onClose={() => setShowThemeModal(false)} />}
     </div>
   )
 }

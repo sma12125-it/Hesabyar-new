@@ -429,10 +429,9 @@ export function WindowPopup({
         zIndex: 1000,
         display: isMinimized ? 'none' : 'flex',
         flexDirection: 'column',
-        background: 'rgba(255, 255, 255, 0.95)',
-        backdropFilter: 'blur(28px) saturate(180%)',
-        WebkitBackdropFilter: 'blur(28px) saturate(180%)',
-        boxShadow: '0 20px 60px rgba(15, 23, 42, 0.16), 0 0 0 1px rgba(255, 255, 255, 0.8)',
+        background: 'var(--glass-chrome-sheet)',
+        boxShadow: 'var(--shadow-glass-float)',
+        border: 'var(--glass-border)',
         boxSizing: 'border-box',
         overflow: 'hidden',
         padding: 0,
@@ -458,10 +457,9 @@ export function WindowPopup({
     padding: 0,
     margin: 0,
     transform: 'none',
-    background: 'rgba(255, 255, 255, 0.96)',
-    backdropFilter: 'blur(28px) saturate(180%)',
-    WebkitBackdropFilter: 'blur(28px) saturate(180%)',
-    boxShadow: '0 -10px 40px rgba(15, 23, 42, 0.14)',
+    background: 'var(--glass-chrome-sheet)',
+    boxShadow: 'var(--shadow-glass-float)',
+    borderTop: 'var(--glass-border)',
     boxSizing: 'border-box',
   }
 
@@ -469,7 +467,7 @@ export function WindowPopup({
 
   return createPortal(
     <>
-      {/* Background Scrim - gentle soft scrim matching app light theme */}
+      {/* Background Scrim - responsive to theme */}
       {!isMinimized && (
         <div
           className="window-scrim"
@@ -478,9 +476,6 @@ export function WindowPopup({
             position: 'fixed',
             inset: 0,
             zIndex: 998,
-            background: 'rgba(15, 23, 42, 0.08)',
-            backdropFilter: 'blur(3px)',
-            WebkitBackdropFilter: 'blur(3px)',
           }}
         />
       )}
@@ -774,10 +769,8 @@ export function WindowPopup({
             className="window-popup-footer"
             style={{
               padding: isDesktop ? '12px 18px' : '10px 14px 14px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.4)',
-              background: 'rgba(255, 255, 255, 0.25)',
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
+              borderTop: 'var(--glass-border)',
+              background: 'var(--glass-chrome-strong)',
               flexShrink: 0,
             }}
           >
