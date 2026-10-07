@@ -105,7 +105,6 @@ export function AccountsPage({
     const counts: Record<string, number> = {}
     for (const tx of transactions) {
       if (tx.accountId) counts[tx.accountId] = (counts[tx.accountId] || 0) + 1
-      if (tx.counterpartyAccountId) counts[tx.counterpartyAccountId] = (counts[tx.counterpartyAccountId] || 0) + 1
     }
     return counts
   }, [transactions])

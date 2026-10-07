@@ -6,7 +6,7 @@ import { openCards, sealCards, unwrapText, validateCard, wrapText } from '../lib
 import { createId } from '../lib/ids'
 import { digitsOnly, toFaDigits } from '../lib/money'
 import { addDaysIso, todayIso } from '../lib/iso'
-import type { BankCard, Budget, Cheque, ChequeStatus, CurrencyUnit, DebtLoan, ReminderSettings, SavingsGoal } from '../types'
+import type { BankCard, Budget, Cheque, ChequeStatus, CurrencyUnit, DebtLoan, DongEvent, InvestmentAsset, ReminderSettings, SavingsGoal } from '../types'
 
 interface VaultBlob {
   salt: string
@@ -20,6 +20,8 @@ interface ExtrasValue {
   cards: BankCard[]
   budgets: Budget[]
   goals: SavingsGoal[]
+  investments: InvestmentAsset[]
+  dongEvents: DongEvent[]
   cheques: Cheque[]
   debts: DebtLoan[]
   reminders: ReminderSettings
@@ -43,6 +45,10 @@ interface ExtrasValue {
   deleteBudget: (id: string) => Promise<void>
   saveGoal: (goal: Omit<SavingsGoal, 'id'> & { id?: string }) => Promise<void>
   deleteGoal: (id: string) => Promise<void>
+  saveInvestment: (asset: Omit<InvestmentAsset, 'id' | 'createdAt'> & { id?: string }) => Promise<InvestmentAsset>
+  deleteInvestment: (id: string) => Promise<void>
+  saveDongEvent: (event: Omit<DongEvent, 'id' | 'createdAt'> & { id?: string }) => Promise<DongEvent>
+  deleteDongEvent: (id: string) => Promise<void>
   saveCheque: (cheque: Omit<Cheque, 'id' | 'createdAt'> & { id?: string }) => Promise<Cheque>
   deleteCheque: (id: string) => Promise<void>
   updateChequeStatus: (id: string, status: ChequeStatus, clearedDate?: string) => Promise<void>
@@ -80,6 +86,12 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
   const goalsRef = useRef<SavingsGoal[]>([])
   const [goals, setGoals] = useState<SavingsGoal[]>([])
   goalsRef.current = goals
+  const investmentsRef = useRef<InvestmentAsset[]>([])
+  const [investments, setInvestments] = useState<InvestmentAsset[]>([])
+  investmentsRef.current = investments
+  const dongEventsRef = useRef<DongEvent[]>([])
+  const [dongEvents, setDongEvents] = useState<DongEvent[]>([])
+  dongEventsRef.current = dongEvents
   const chequesRef = useRef<Cheque[]>([])
   const [cheques, setCheques] = useState<Cheque[]>([])
   chequesRef.current = cheques
@@ -96,7 +108,17 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
-      const [vault, nextBudgets, nextGoals, nextReminders, nextCheques, nextDebts, savedUnit] = await Promise.all([
+      const [
+        vault,
+        nextBudgets,
+        nextGoals,
+        nextReminders,
+        nextCheques,
+        nextDebts,
+        savedUnit,
+        nextInvestments,
+        nextDongEvents,
+      ] = await Promise.all([
         db.getKv<VaultBlob>('cardVault'),
         db.getKv<Budget[]>('budgets'),
         db.getKv<SavingsGoal[]>('goals'),
@@ -104,6 +126,8 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         db.getKv<Cheque[]>('cheques'),
         db.getKv<DebtLoan[]>('debts'),
         db.getKv<CurrencyUnit>('currencyUnit'),
+        db.getKv<InvestmentAsset[]>('investments'),
+        db.getKv<DongEvent[]>('dongEvents'),
       ])
       if (cancelled) return
       setBlob(vault ?? null)
@@ -114,6 +138,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       goalsRef.current = nextGoals ?? []
       setReminderState(nextReminders ?? emptyReminder)
       remindersRef.current = nextReminders ?? emptyReminder
+
       const now = Date.now()
       const today = todayIso(new Date(now))
 
@@ -175,10 +200,78 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         void db.setKv('debts', initialDebts)
       }
 
+      let initialInvestments = nextInvestments
+      if (!initialInvestments) {
+        initialInvestments = [
+          {
+            id: 'inv_gold_1',
+            name: 'طلای آب‌شده / ۱۸ عیار',
+            market: 'gold',
+            purchaseAmount: 85_000_000,
+            currentValue: 98_500_000,
+            quantity: 21.5,
+            purchaseDate: addDaysIso(today, -60),
+            note: 'پوشش تورم و پس‌انداز بلندمدت',
+            createdAt: now - 60 * 86400000,
+          },
+          {
+            id: 'inv_fund_1',
+            name: 'صندوق سهامی اهرمی',
+            market: 'fund',
+            purchaseAmount: 50_000_000,
+            currentValue: 56_200_000,
+            purchaseDate: addDaysIso(today, -30),
+            note: 'سرمایه‌گذاری در بورس',
+            createdAt: now - 30 * 86400000,
+          },
+        ]
+        void db.setKv('investments', initialInvestments)
+      }
+
+      let initialDong = nextDongEvents
+      if (!initialDong) {
+        initialDong = [
+          {
+            id: 'dong_trip_1',
+            title: 'سفر تفریحی شمال',
+            date: today,
+            participants: [
+              { id: 'p1', name: 'من (مدیر)' },
+              { id: 'p2', name: 'علی' },
+              { id: 'p3', name: 'رضا' },
+            ],
+            expenses: [
+              {
+                id: 'exp1',
+                title: 'اقامتگاه و ویلا',
+                amount: 18_000_000,
+                paidById: 'p1',
+                splitAmongIds: ['p1', 'p2', 'p3'],
+              },
+              {
+                id: 'exp2',
+                title: 'خرید رستوران و شام',
+                amount: 6_000_000,
+                paidById: 'p2',
+                splitAmongIds: ['p1', 'p2', 'p3'],
+              },
+            ],
+            note: 'دونگ‌های تفریح آخر هفته',
+            settled: false,
+            createdAt: now - 2 * 86400000,
+          },
+        ]
+        void db.setKv('dongEvents', initialDong)
+      }
+
       setCheques(initialCheques)
       chequesRef.current = initialCheques
       setDebts(initialDebts)
       debtsRef.current = initialDebts
+      setInvestments(initialInvestments)
+      investmentsRef.current = initialInvestments
+      setDongEvents(initialDong)
+      dongEventsRef.current = initialDong
       if (savedUnit === 'IRT' || savedUnit === 'IRR') {
         setCurrencyUnitState(savedUnit)
         currencyUnitRef.current = savedUnit
@@ -197,6 +290,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const unitLabel = currencyUnit === 'IRT' ? 'تومان' : 'ریال'
+
 
   const formatMoney = useCallback(
     (amountInRials: number, withUnit = true): string => {
@@ -383,6 +477,8 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       cards,
       budgets,
       goals,
+      investments,
+      dongEvents,
       cheques,
       debts,
       reminders,
@@ -459,11 +555,15 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         setCards([])
         setBudgets([])
         setGoals([])
+        setInvestments([])
+        setDongEvents([])
         setCheques([])
         setDebts([])
         setReminderState(emptyReminder)
         await db.setKv('budgets', [])
         await db.setKv('goals', [])
+        await db.setKv('investments', [])
+        await db.setKv('dongEvents', [])
         await db.setKv('cheques', [])
         await db.setKv('debts', [])
         await db.setKv('reminders', emptyReminder)
@@ -531,6 +631,57 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         const { notifyLocalChange } = await import('../lib/sync')
         notifyLocalChange()
       },
+      saveInvestment: async (asset) => {
+        const existing = asset.id ? investmentsRef.current.find((item) => item.id === asset.id) : undefined
+        const row: InvestmentAsset = {
+          ...asset,
+          id: existing?.id ?? createId('inv'),
+          createdAt: existing?.createdAt ?? Date.now(),
+          updatedAt: Date.now(),
+        }
+        const next = investmentsRef.current.some((item) => item.id === row.id)
+          ? investmentsRef.current.map((item) => (item.id === row.id ? row : item))
+          : [...investmentsRef.current, row]
+        investmentsRef.current = next
+        setInvestments(next)
+        await db.setKv('investments', next)
+        const { notifyLocalChange } = await import('../lib/sync')
+        notifyLocalChange()
+        return row
+      },
+      deleteInvestment: async (id) => {
+        const next = investmentsRef.current.filter((item) => item.id !== id)
+        investmentsRef.current = next
+        setInvestments(next)
+        await db.setKv('investments', next)
+        const { notifyLocalChange } = await import('../lib/sync')
+        notifyLocalChange()
+      },
+      saveDongEvent: async (event) => {
+        const existing = event.id ? dongEventsRef.current.find((item) => item.id === event.id) : undefined
+        const row: DongEvent = {
+          ...event,
+          id: existing?.id ?? createId('dong'),
+          createdAt: existing?.createdAt ?? Date.now(),
+        }
+        const next = dongEventsRef.current.some((item) => item.id === row.id)
+          ? dongEventsRef.current.map((item) => (item.id === row.id ? row : item))
+          : [...dongEventsRef.current, row]
+        dongEventsRef.current = next
+        setDongEvents(next)
+        await db.setKv('dongEvents', next)
+        const { notifyLocalChange } = await import('../lib/sync')
+        notifyLocalChange()
+        return row
+      },
+      deleteDongEvent: async (id) => {
+        const next = dongEventsRef.current.filter((item) => item.id !== id)
+        dongEventsRef.current = next
+        setDongEvents(next)
+        await db.setKv('dongEvents', next)
+        const { notifyLocalChange } = await import('../lib/sync')
+        notifyLocalChange()
+      },
       saveCheque,
       deleteCheque,
       updateChequeStatus,
@@ -545,7 +696,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         notifyLocalChange()
       },
       exportLocal: async () => {
-        const [storedCheques, storedDebts, storedBudgets, storedGoals, storedReminders, storedUnit, storedVault] = await Promise.all([
+        const [storedCheques, storedDebts, storedBudgets, storedGoals, storedReminders, storedUnit, storedVault, storedInvestments, storedDong] = await Promise.all([
           db.getKv<Cheque[]>('cheques'),
           db.getKv<DebtLoan[]>('debts'),
           db.getKv<Budget[]>('budgets'),
@@ -553,10 +704,14 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
           db.getKv<ReminderSettings>('reminders'),
           db.getKv<CurrencyUnit>('currencyUnit'),
           db.getKv<VaultBlob>('cardVault'),
+          db.getKv<InvestmentAsset[]>('investments'),
+          db.getKv<DongEvent[]>('dongEvents'),
         ])
         return {
           budgets: storedBudgets ?? budgetsRef.current,
           goals: storedGoals ?? goalsRef.current,
+          investments: storedInvestments ?? investmentsRef.current,
+          dongEvents: storedDong ?? dongEventsRef.current,
           cheques: storedCheques ?? chequesRef.current,
           debts: storedDebts ?? debtsRef.current,
           reminders: storedReminders ?? remindersRef.current,
@@ -574,6 +729,16 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
           goalsRef.current = data.goals as SavingsGoal[]
           setGoals(data.goals as SavingsGoal[])
           await db.setKv('goals', data.goals)
+        }
+        if (Array.isArray(data.investments)) {
+          investmentsRef.current = data.investments as InvestmentAsset[]
+          setInvestments(data.investments as InvestmentAsset[])
+          await db.setKv('investments', data.investments)
+        }
+        if (Array.isArray(data.dongEvents)) {
+          dongEventsRef.current = data.dongEvents as DongEvent[]
+          setDongEvents(data.dongEvents as DongEvent[])
+          await db.setKv('dongEvents', data.dongEvents)
         }
         if (Array.isArray(data.cheques)) {
           chequesRef.current = data.cheques as Cheque[]
@@ -629,6 +794,8 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       formatCompactMoney,
       formatMoney,
       goals,
+      investments,
+      dongEvents,
       passphrase,
       persistCards,
       reminders,

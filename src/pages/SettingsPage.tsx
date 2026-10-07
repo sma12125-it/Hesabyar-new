@@ -12,9 +12,10 @@ import { useExtras } from '../store/Extras'
 import { useStore } from '../store/Store'
 import { SmsSettingsSection } from '../components/SmsSettingsSection'
 import { VaultRecover } from '../components/VaultRecover'
+import { AboutPopup } from '../components/AboutPopup'
 import type { Account, Category, Transaction } from '../types'
 
-type Popup = 'cloud' | 'security' | 'vault' | 'supabase' | null
+type Popup = 'cloud' | 'security' | 'vault' | 'supabase' | 'about' | null
 
 function downloadFile(content: string, filename: string, mimeType: string) {
   const blob = new Blob([content], { type: mimeType })
@@ -437,8 +438,50 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
         </div>
       </section>
 
+      {/* About App & Version Section */}
+      <section className="lg settings-block">
+        <h2 style={{ fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span>ℹ️</span>
+          <span>درباره برنامه و مشخصات نسخه</span>
+        </h2>
+        <p className="sheet-sub" style={{ marginTop: 4 }}>
+          مشاهده اطلاعات کامل برنامه، امکانات، شماره نگارش و گزارش تغییرات نسخه ۰.۲.۰.
+        </p>
+
+        <div style={{ marginTop: 10 }}>
+          <button
+            className="settings-row"
+            type="button"
+            onClick={() => setPopup('about')}
+            style={{ borderRadius: 14, padding: '12px 14px', width: '100%' }}
+          >
+            <span>
+              <strong style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>درباره حساب‌یار (نسخه {toFaDigits('0.2.0')})</span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    padding: '2px 6px',
+                    borderRadius: 6,
+                    background: 'rgba(16, 185, 129, 0.2)',
+                    color: 'var(--hy-income)',
+                    fontWeight: 700,
+                  }}
+                >
+                  به‌روزشده
+                </span>
+              </strong>
+              <small style={{ fontSize: '11px', color: 'var(--hy-subtext)' }}>
+                امکانات کامل، گزارش تغییرات نسخه ۰.۲.۰ و تاریخ آخرین آپدیت
+              </small>
+            </span>
+            <span className="fchev">‹</span>
+          </button>
+        </div>
+      </section>
+
       <p className="settings-credit" style={{ marginTop: 24, marginBottom: 12 }}>
-        حساب‌یار · سازنده محمد احمدی · نسخه {toFaDigits('0.1.0').replaceAll('.', '\u066b')}
+        حساب‌یار · سازنده محمد احمدی · نسخه {toFaDigits('0.2.0').replaceAll('.', '\u066b')}
       </p>
 
       {/* Sheets / Popups */}
@@ -446,6 +489,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
       {popup === 'supabase' ? <SupabaseConfigSheet onClose={() => setPopup(null)} /> : null}
       {popup === 'security' ? <SecurityPopup onClose={() => setPopup(null)} /> : null}
       {popup === 'vault' ? <VaultPopup onClose={() => setPopup(null)} /> : null}
+      {popup === 'about' ? <AboutPopup onClose={() => setPopup(null)} /> : null}
     </div>
   )
 }

@@ -193,6 +193,52 @@ export interface SavingsGoal {
   target: number
   saved: number
   market: CardMarket
+  targetDate?: string
+  icon?: string
+  note?: string
+  createdAt?: number
+}
+
+export type InvestmentMarket = 'gold' | 'stock' | 'fund' | 'crypto' | 'bank' | 'property' | 'other'
+
+export interface InvestmentAsset {
+  id: string
+  name: string
+  market: InvestmentMarket
+  purchaseAmount: number
+  currentValue: number
+  quantity?: number
+  unitPrice?: number
+  currentUnitPrice?: number
+  purchaseDate?: string
+  note?: string
+  createdAt: number
+  updatedAt?: number
+}
+
+export interface DongParticipant {
+  id: string
+  name: string
+}
+
+export interface DongExpenseItem {
+  id: string
+  title: string
+  amount: number
+  paidById: string
+  splitAmongIds: string[]
+  date?: string
+}
+
+export interface DongEvent {
+  id: string
+  title: string
+  date: string
+  participants: DongParticipant[]
+  expenses: DongExpenseItem[]
+  note?: string
+  settled?: boolean
+  createdAt: number
 }
 
 export interface ReminderSettings {

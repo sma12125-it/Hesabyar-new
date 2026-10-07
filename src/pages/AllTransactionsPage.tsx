@@ -34,16 +34,19 @@ export function AllTransactionsPage({
 
   const filteredRows = useMemo(() => {
     const q = toWesternDigits(search.trim().toLowerCase())
-    return baseRows.filter((tx) => {
+    // When filtering by a specific account, only transactions belonging to that account (tx.accountId === accountFilter) are shown.
+    // In source account: transferOut (انتقال به...) is shown.
+    // In destination account: transferIn (واریز از...) is shown.
+    // In global view ('all'): visibleLedger ensures single-row view for transfers.
+    const sourceRows = accountFilter === 'all'
+      ? baseRows
+      : transactions.filter((tx) => tx.accountId === accountFilter)
+
+    return sourceRows.filter((tx) => {
       // Kind filter
       if (kindFilter === 'expense' && tx.kind !== 'expense') return false
       if (kindFilter === 'income' && tx.kind !== 'income') return false
       if (kindFilter === 'transfer' && tx.kind !== 'transferOut' && tx.kind !== 'transferIn') return false
-
-      // Account filter
-      if (accountFilter !== 'all') {
-        if (tx.accountId !== accountFilter && tx.counterpartyAccountId !== accountFilter) return false
-      }
 
       // Search query: description (note), category name, account name, amount (Rial/Toman), tags
       if (q) {

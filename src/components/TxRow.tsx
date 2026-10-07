@@ -10,13 +10,14 @@ import { useUiActions } from './UiActions'
 
 export function txTitle(tx: Transaction, accounts: Account[], categories: Parameters<typeof getCategory>[1] = []): string {
   if (tx.kind === 'transferOut' || tx.kind === 'transferIn') {
-    if (tx.note) return tx.note
     if (tx.kind === 'transferIn') {
       const from = accounts.find((a) => a.id === tx.counterpartyAccountId)
-      return from ? `واریز از ${from.name}` : 'واریز به حساب'
+      const baseTitle = from ? `واریز از ${from.name}` : 'واریز از بانک'
+      return tx.note ? `${baseTitle} · ${tx.note}` : baseTitle
     }
     const to = accounts.find((a) => a.id === tx.counterpartyAccountId)
-    return to ? `انتقال به ${to.name}` : 'انتقال به حساب'
+    const baseTitle = to ? `انتقال به ${to.name}` : 'انتقال به بانک'
+    return tx.note ? `${baseTitle} · ${tx.note}` : baseTitle
   }
   if (tx.note) return tx.note
   return getCategory(tx.categoryId, categories)?.name ?? 'تراکنش'
