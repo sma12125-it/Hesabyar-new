@@ -15,6 +15,7 @@ import { SmsSettingsSection } from '../components/SmsSettingsSection'
 import { VaultRecover } from '../components/VaultRecover'
 import { AboutContent } from '../components/AboutPopup'
 import { ThemeGallery } from '../components/ThemeGallery'
+import { ChatGPTApiSection } from '../components/ChatGPTApiSection'
 import { getCurrentTheme, THEMES } from '../lib/theme'
 import type { Account, Category, Transaction } from '../types'
 
@@ -25,6 +26,7 @@ export type SettingsSection =
   | 'vault'
   | 'sms'
   | 'share'
+  | 'api'
   | 'backup'
   | 'about'
   | null
@@ -728,6 +730,20 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           </div>
         )
 
+      case 'api':
+        return (
+          <div className="settings-sub-screen">
+            <SettingsSubHeader
+              icon="🤖"
+              title="اتصال به ChatGPT و API (MCP)"
+              subtitle="پیکربندی اتصال مستقیم حساب شخصی شما به ChatGPT و ابزارهای هوش مصنوعی"
+              onBack={() => setActiveSection(null)}
+            />
+
+            <ChatGPTApiSection onOpenCloud={() => setCloudPopup('cloud')} />
+          </div>
+        )
+
       case 'about':
         return (
           <div className="settings-sub-screen">
@@ -814,6 +830,14 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           subtitle: 'پیوستن به حساب‌ها و کارت‌های اشتراکی با کد امنیتی و تایید ایمیل',
           badge: 'همکاری',
           badgeClass: 'info',
+        },
+        {
+          id: 'api' as const,
+          icon: '🤖',
+          title: 'اتصال به ChatGPT و API (MCP)',
+          subtitle: 'اتصال هوشمند حسابیار به ChatGPT، دریافت توکن و مشخصات سرور MCP',
+          badge: 'هوش مصنوعی',
+          badgeClass: 'accent',
         },
       ],
     },

@@ -21,6 +21,7 @@ export function supabaseConfig(): { url: string; key: string } {
 }
 
 export function loadSession(): CloudSession | null {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return null
   try {
     const raw = localStorage.getItem(SESSION_KEY)
     return raw ? (JSON.parse(raw) as CloudSession) : null
@@ -30,6 +31,7 @@ export function loadSession(): CloudSession | null {
 }
 
 export function saveSession(session: CloudSession | null) {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return
   if (!session) localStorage.removeItem(SESSION_KEY)
   else localStorage.setItem(SESSION_KEY, JSON.stringify(session))
   window.dispatchEvent(new Event('hy-cloud-session'))

@@ -6,13 +6,28 @@ export interface SupabaseSettings {
   isCustom: boolean
 }
 
-const DEFAULT_URL = import.meta.env.VITE_SUPABASE_URL || 'https://yiluruldxtgfuxqwosri.supabase.co'
-const DEFAULT_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_tHV7NoCAC-3czs4yMG1Z7Q_bg05S1MI'
+const DEFAULT_URL =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) ||
+  (typeof process !== 'undefined' && (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL)) ||
+  'https://yiluruldxtgfuxqwosri.supabase.co'
+
+const DEFAULT_KEY =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) ||
+  (typeof process !== 'undefined' && (process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY)) ||
+  'sb_publishable_tHV7NoCAC-3czs4yMG1Z7Q_bg05S1MI'
 
 const STORAGE_KEY_URL = 'hy-custom-supabase-url'
 const STORAGE_KEY_KEY = 'hy-custom-supabase-key'
 
 export function getSupabaseSettings(): SupabaseSettings {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+    return {
+      url: DEFAULT_URL,
+      anonKey: DEFAULT_KEY,
+      isCustom: false,
+    }
+  }
+
   const customUrl = localStorage.getItem(STORAGE_KEY_URL)?.trim()
   const customKey = localStorage.getItem(STORAGE_KEY_KEY)?.trim()
 
