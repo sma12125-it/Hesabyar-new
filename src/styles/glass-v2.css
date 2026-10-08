@@ -400,32 +400,29 @@ html, body {
   margin-right: 3px;
 }
 
-/* ── FLOATING pill tab bar (NOT edge-to-edge) ── */
+/* ── PERMANENT bottom navigation bar (Full width & permanent display) ── */
 .tab-bar {
   position: absolute;
-  bottom: var(--tab-bottom-gap);
-  left: 50%;
-  transform: translateX(-50%);
-  width: calc(100% - 48px);
-  max-width: 340px;
-  height: 62px;
-  border-radius: var(--radius-pill);
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  max-width: 100%;
+  transform: none;
+  height: 68px;
+  border-radius: 0;
   display: flex;
   align-items: center;
   justify-content: space-around;
-  padding: 5px 6px;
-  z-index: 40;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+  z-index: 45;
   background: var(--glass-chrome-float);
   backdrop-filter: blur(var(--glass-blur-chrome)) saturate(var(--glass-saturate-chrome));
   -webkit-backdrop-filter: blur(var(--glass-blur-chrome)) saturate(var(--glass-saturate-chrome));
-  border: var(--glass-border);
+  border-top: var(--glass-border);
   box-shadow:
-    0 6px 24px rgba(15, 23, 42, 0.07),
-    0 2px 6px rgba(15, 23, 42, 0.03),
-    inset 0 1.5px 0 rgba(255, 255, 255, 1),
-    inset 0 -0.5px 0 rgba(15, 23, 42, 0.04),
-    inset 1px 0 0 rgba(255, 255, 255, 0.45),
-    inset -1px 0 0 rgba(255, 255, 255, 0.3);
+    0 -4px 20px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 .tab-bar::before {
   content: '';

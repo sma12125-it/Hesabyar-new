@@ -594,36 +594,6 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
         <section className="home-card lg">
           <header>
             <div>
-              <h2>تعهدات پیش‌رو</h2>
-              <p>اقساط نزدیک و معوق</p>
-            </div>
-            <button className="home-chip" type="button" onClick={() => navigate('/installments')}>
-              {toFaDigits(hints.length)} مورد
-            </button>
-          </header>
-          {hints.length === 0 ? (
-            <p className="sheet-sub">قسط نزدیکی در لیست فعال نیست.</p>
-          ) : (
-            <div className="home-dues">
-              {hints.map(({ plan, item, kind }) => (
-                <button key={item.id} type="button" onClick={() => navigate(`/installments/${plan.id}`)}>
-                  <span>
-                    <strong>{plan.name}</strong>
-                    <small>{kind === 'overdue' ? 'معوق' : 'به‌زودی'}</small>
-                  </span>
-                  <em>{formatPersianDateFull(item.dueDate)}</em>
-                  <b>{formatCompactMoney(item.amount)}</b>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
-
-      <div className="home-split even">
-        <section className="home-card lg">
-          <header>
-            <div>
               <h2>آخرین تراکنش‌ها</h2>
             </div>
             {recent.length > 0 ? (

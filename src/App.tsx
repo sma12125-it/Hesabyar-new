@@ -53,7 +53,6 @@ function Shell() {
   const location = useLocation()
   const { ready, error, totalBalance, accounts, transactions, plans, items, resetDemo, wipeAll, deleteTransaction, deleteAccount, deleteInstallmentPlan, deleteInstallmentItem, unpayInstallment } = useStore()
   const { unlocked: vaultOpen, vaultConfigured } = useExtras()
-  const [compact, setCompact] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [sheet, setSheet] = useState<Sheet | null>(null)
   const [minimizedSheets, setMinimizedSheets] = useState<Sheet[]>([])
@@ -124,7 +123,7 @@ function Shell() {
     }
   }, [])
 
-  const onScroll = useCallback((next: boolean) => setCompact(next), [])
+  const onScroll = useCallback((_next: boolean) => {}, [])
 
   useEffect(() => {
     const onShare = (event: Event) => {
@@ -389,7 +388,7 @@ function Shell() {
         ) : null}
 
         {!sheetOpen ? (
-          <TabBar compact={compact} onQuickEntry={() => setSheet({ type: 'quick', kind: 'expense' })} />
+          <TabBar onQuickEntry={() => setSheet({ type: 'quick', kind: 'expense' })} />
         ) : null}
       </div>
 
