@@ -3,6 +3,7 @@ import cors from 'cors'
 import { resolve } from 'node:path'
 import { existsSync } from 'node:fs'
 import { apiRouter } from './src/server/apiRouter'
+import { createMcpRouter } from './mcp'
 
 const app = express()
 const PORT = Number(process.env.PORT) || 3000
@@ -13,6 +14,9 @@ app.use(express.json({ limit: '10mb' }))
 
 // Mount RESTful API routes
 app.use('/api/v1', apiRouter)
+
+// Mount Model Context Protocol (MCP) Server endpoints
+app.use('/mcp', createMcpRouter())
 
 async function startServer() {
   if (!isProd) {

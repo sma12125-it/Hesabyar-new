@@ -52,6 +52,15 @@ export async function loadUserData(user: AuthenticatedUser): Promise<AppData> {
           transactions: payload.transactions || [],
           plans: payload.plans || [],
           items: payload.items || [],
+          cheques: payload.cheques || [],
+          debts: payload.debts || [],
+          cards: payload.cards || [],
+          budgets: payload.budgets || [],
+          goals: payload.goals || [],
+          investments: payload.investments || [],
+          dongEvents: payload.dongEvents || [],
+          reminders: payload.reminders || { enabled: false, leadDays: 2 },
+          unit: payload.unit || 'IRT',
         }
       }
     }
@@ -65,6 +74,15 @@ export async function loadUserData(user: AuthenticatedUser): Promise<AppData> {
     transactions: [],
     plans: [],
     items: [],
+    cheques: [],
+    debts: [],
+    cards: [],
+    budgets: [],
+    goals: [],
+    investments: [],
+    dongEvents: [],
+    reminders: { enabled: false, leadDays: 2 },
+    unit: 'IRT',
   }
   return empty
 }

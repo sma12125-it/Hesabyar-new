@@ -1,17 +1,61 @@
 import { Router, type Request, type Response } from 'express'
 import {
+  archiveAccount,
+  archiveInstallmentPlan,
+  createAccount,
+  createCard,
+  createCheque,
+  createDebt,
+  createInstallmentPlan,
+  createInvestment,
+  createSavingsGoal,
   createTransaction,
   createTransfer,
+  deleteCard,
+  deleteCheque,
+  deleteDebt,
+  deleteInstallmentItem,
+  deleteInstallmentPlan,
+  deleteInvestment,
+  deleteSavingsGoal,
   deleteTransaction,
   getAccountBalance,
   getAccounts,
+  getCard,
+  getCards,
   getCategories,
+  getCheque,
+  getCheques,
+  getDebt,
+  getDebts,
+  getInstallmentItems,
+  getInstallmentPlan,
+  getInstallmentPlans,
+  getInvestment,
+  getInvestments,
+  getRemindersSettings,
   getReports,
+  getSavingsGoal,
+  getSavingsGoals,
   getTransactions,
+  getUpcomingReminders,
+  linkCardToAccount,
+  payInstallment,
+  restoreAccount,
+  restoreInstallmentPlan,
   searchTransactions,
+  settleDebt,
+  unpayInstallment,
+  unsettleDebt,
+  updateAccount,
+  updateChequeStatus,
+  updateInstallmentPlan,
+  updateInvestment,
+  updateRemindersSettings,
+  updateSavingsGoal,
   updateTransaction,
 } from '../lib/business/hesabyarBusiness'
-import type { CurrencyUnit } from '../types'
+import type { ChequeDirection, ChequeStatus, CurrencyUnit, DebtLoanDirection, DebtLoanStatus } from '../types'
 import { requireAuth } from './auth'
 import { loadUserData, saveUserData } from './storage'
 
@@ -606,5 +650,888 @@ apiRouter.get('/reports', requireAuth, async (req: Request, res: Response): Prom
     res.json({ success: true, data: reports })
   } catch (err) {
     res.status(500).json({ success: false, error: err instanceof Error ? err.message : 'خطای سرور' })
+  }
+})
+
+// ============================================================================
+// INSTALLMENT ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/v1/installments/plans
+ */
+apiRouter.get('/installments/plans', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const plans = getInstallmentPlans(data)
+    res.json({ success: true, count: plans.length, data: plans })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : 'خطای سرور' })
+  }
+})
+
+/**
+ * GET /api/v1/installments/plans/:id
+ */
+apiRouter.get('/installments/plans/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const result = getInstallmentPlan(data, String(req.params.id))
+    res.json({ success: true, data: result })
+  } catch (err) {
+    res.status(404).json({ success: false, error: err instanceof Error ? err.message : 'برنامه پیدا نشد' })
+  }
+})
+
+/**
+ * POST /api/v1/installments/plans
+ */
+apiRouter.post('/installments/plans', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    const data = await loadUserData(req.user!)
+    const result = createInstallmentPlan(data, {
+      name: String(body.name),
+      installmentAmount: Number(body.installmentAmount),
+      totalCount: Number(body.totalCount),
+      startDate: String(body.startDate),
+      defaultAccountId: String(body.defaultAccountId),
+      kind: body.kind,
+      principal: body.principal != null ? Number(body.principal) : undefined,
+      annualRatePercent: body.annualRatePercent != null ? Number(body.annualRatePercent) : undefined,
+    })
+    await saveUserData(req.user!, result.nextData)
+    res.status(201).json({ success: true, data: result.plan, itemsCount: result.items.length })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در ایجاد برنامه اقساط' })
+  }
+})
+
+/**
+ * PATCH /api/v1/installments/plans/:id
+ */
+apiRouter.patch('/installments/plans/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    const data = await loadUserData(req.user!)
+    const result = updateInstallmentPlan(data, String(req.params.id), {
+      name: body.name ? String(body.name) : undefined,
+      defaultAccountId: body.defaultAccountId ? String(body.defaultAccountId) : undefined,
+    })
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, data: result.plan })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در ویرایش برنامه اقساط' })
+  }
+})
+
+/**
+ * DELETE /api/v1/installments/plans/:id
+ */
+apiRouter.delete('/installments/plans/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const result = deleteInstallmentPlan(data, String(req.params.id))
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, message: 'برنامه اقساط با موفقیت حذف شد' })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در حذف برنامه اقساط' })
+  }
+})
+
+/**
+ * POST /api/v1/installments/plans/:id/archive
+ */
+apiRouter.post('/installments/plans/:id/archive', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const result = archiveInstallmentPlan(data, String(req.params.id))
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, data: result.plan })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در بایگانی' })
+  }
+})
+
+/**
+ * POST /api/v1/installments/plans/:id/restore
+ */
+apiRouter.post('/installments/plans/:id/restore', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const result = restoreInstallmentPlan(data, String(req.params.id))
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, data: result.plan })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در بازگردانی' })
+  }
+})
+
+/**
+ * GET /api/v1/installments/items
+ */
+apiRouter.get('/installments/items', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const planId = typeof req.query.planId === 'string' ? req.query.planId : undefined
+    const items = getInstallmentItems(data, planId)
+    res.json({ success: true, count: items.length, data: items })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : 'خطای سرور' })
+  }
+})
+
+/**
+ * POST /api/v1/installments/items/:id/pay
+ */
+apiRouter.post('/installments/items/:id/pay', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    if (!body.accountId) {
+      res.status(400).json({ success: false, error: 'حساب پرداخت الزامی است (accountId)' })
+      return
+    }
+    const data = await loadUserData(req.user!)
+    const result = payInstallment(data, String(req.params.id), String(body.accountId), body.note)
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, message: 'قسط با موفقیت پرداخت شد', data: result.item, expense: result.expense })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در پرداخت قسط' })
+  }
+})
+
+/**
+ * POST /api/v1/installments/items/:id/unpay
+ */
+apiRouter.post('/installments/items/:id/unpay', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const result = unpayInstallment(data, String(req.params.id))
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, message: 'وضعیت پرداخت قسط با موفقیت لغو شد' })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در لغو پرداخت قسط' })
+  }
+})
+
+/**
+ * DELETE /api/v1/installments/items/:id
+ */
+apiRouter.delete('/installments/items/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const result = deleteInstallmentItem(data, String(req.params.id))
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, message: 'قسط با موفقیت حذف شد' })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در حذف قسط' })
+  }
+})
+
+// ============================================================================
+// ACCOUNT MANAGEMENT ENDPOINTS
+// ============================================================================
+
+/**
+ * POST /api/v1/accounts
+ */
+apiRouter.post('/accounts', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    if (!body.name) {
+      res.status(400).json({ success: false, error: 'نام حساب الزامی است (name)' })
+      return
+    }
+    const data = await loadUserData(req.user!)
+    const result = createAccount(data, {
+      name: String(body.name),
+      type: body.type === 'bank' ? 'bank' : 'cash',
+      classification: body.classification,
+      initialBalance: Number(body.initialBalance || 0),
+      currency: (body.currency as CurrencyUnit) || 'IRT',
+      accountNumber: body.accountNumber ? String(body.accountNumber) : undefined,
+      cardId: body.cardId ? String(body.cardId) : undefined,
+    })
+    await saveUserData(req.user!, result.nextData)
+    res.status(201).json({ success: true, data: result.account })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در ایجاد حساب' })
+  }
+})
+
+/**
+ * PATCH /api/v1/accounts/:id
+ */
+apiRouter.patch('/accounts/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    const data = await loadUserData(req.user!)
+    const result = updateAccount(data, String(req.params.id), {
+      name: body.name ? String(body.name) : undefined,
+      type: body.type,
+      accountNumber: body.accountNumber,
+    })
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, data: result.account })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در ویرایش حساب' })
+  }
+})
+
+/**
+ * POST /api/v1/accounts/:id/archive
+ */
+apiRouter.post('/accounts/:id/archive', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const result = archiveAccount(data, String(req.params.id))
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, data: result.account })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در بایگانی حساب' })
+  }
+})
+
+/**
+ * POST /api/v1/accounts/:id/restore
+ */
+apiRouter.post('/accounts/:id/restore', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const result = restoreAccount(data, String(req.params.id))
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, data: result.account })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در بازگردانی حساب' })
+  }
+})
+
+// ============================================================================
+// CHEQUES ENDPOINTS (چک‌ها)
+// ============================================================================
+
+/**
+ * GET /api/v1/cheques
+ */
+apiRouter.get('/cheques', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const status = typeof req.query.status === 'string' ? (req.query.status as ChequeStatus) : undefined
+    const direction = typeof req.query.direction === 'string' ? (req.query.direction as ChequeDirection) : undefined
+    const cheques = getCheques(data, { status, direction })
+    res.json({ success: true, count: cheques.length, data: cheques })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : 'خطای سرور' })
+  }
+})
+
+/**
+ * GET /api/v1/cheques/:id
+ */
+apiRouter.get('/cheques/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const cheque = getCheque(data, String(req.params.id))
+    res.json({ success: true, data: cheque })
+  } catch (err) {
+    res.status(404).json({ success: false, error: err instanceof Error ? err.message : 'چک پیدا نشد' })
+  }
+})
+
+/**
+ * POST /api/v1/cheques
+ */
+apiRouter.post('/cheques', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    if (!body.sayadId || !body.bankName || !body.amount || !body.dueDate || !body.party || !body.direction) {
+      res.status(400).json({
+        success: false,
+        error: 'فیلدهای الزامی: sayadId, bankName, amount, dueDate, party, direction',
+      })
+      return
+    }
+    const data = await loadUserData(req.user!)
+    const result = createCheque(data, {
+      direction: body.direction,
+      sayadId: String(body.sayadId),
+      bankName: String(body.bankName),
+      amount: Number(body.amount),
+      dueDate: String(body.dueDate),
+      party: String(body.party),
+      note: body.note ? String(body.note) : undefined,
+      accountId: body.accountId ? String(body.accountId) : undefined,
+      currency: (body.currency as CurrencyUnit) || 'IRT',
+    })
+    await saveUserData(req.user!, result.nextData)
+    res.status(201).json({ success: true, data: result.cheque })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در ثبت چک' })
+  }
+})
+
+/**
+ * PATCH /api/v1/cheques/:id/status
+ */
+apiRouter.patch('/cheques/:id/status', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    if (!body.status) {
+      res.status(400).json({ success: false, error: 'وضعیت جدید الزامی است (status: pending | cleared | bounced)' })
+      return
+    }
+    const data = await loadUserData(req.user!)
+    const result = updateChequeStatus(data, String(req.params.id), body.status as ChequeStatus, body.clearedDate)
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, data: result.cheque })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در تغییر وضعیت چک' })
+  }
+})
+
+/**
+ * DELETE /api/v1/cheques/:id
+ */
+apiRouter.delete('/cheques/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const result = deleteCheque(data, String(req.params.id))
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, message: 'چک با موفقیت حذف شد' })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در حذف چک' })
+  }
+})
+
+// ============================================================================
+// DEBTS & LOANS ENDPOINTS (بدهی و طلب)
+// ============================================================================
+
+/**
+ * GET /api/v1/debts
+ */
+apiRouter.get('/debts', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const status = typeof req.query.status === 'string' ? (req.query.status as DebtLoanStatus) : undefined
+    const direction = typeof req.query.direction === 'string' ? (req.query.direction as DebtLoanDirection) : undefined
+    const debts = getDebts(data, { status, direction })
+    res.json({ success: true, count: debts.length, data: debts })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : 'خطای سرور' })
+  }
+})
+
+/**
+ * GET /api/v1/debts/:id
+ */
+apiRouter.get('/debts/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const debt = getDebt(data, String(req.params.id))
+    res.json({ success: true, data: debt })
+  } catch (err) {
+    res.status(404).json({ success: false, error: err instanceof Error ? err.message : 'طلب یا بدهی پیدا نشد' })
+  }
+})
+
+/**
+ * POST /api/v1/debts
+ */
+apiRouter.post('/debts', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    if (!body.direction || !body.party || !body.amount) {
+      res.status(400).json({ success: false, error: 'فیلدهای الزامی: direction (borrowed | lent), party, amount' })
+      return
+    }
+    const data = await loadUserData(req.user!)
+    const result = createDebt(data, {
+      direction: body.direction,
+      party: String(body.party),
+      amount: Number(body.amount),
+      dueDate: body.dueDate ? String(body.dueDate) : undefined,
+      note: body.note ? String(body.note) : undefined,
+      accountId: body.accountId ? String(body.accountId) : undefined,
+      currency: (body.currency as CurrencyUnit) || 'IRT',
+    })
+    await saveUserData(req.user!, result.nextData)
+    res.status(201).json({ success: true, data: result.debt })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در ثبت طلب یا بدهی' })
+  }
+})
+
+/**
+ * POST /api/v1/debts/:id/settle
+ */
+apiRouter.post('/debts/:id/settle', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const result = settleDebt(data, String(req.params.id), req.body?.accountId)
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, message: 'با موفقیت تسویه شد', data: result.debt })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در تسویه' })
+  }
+})
+
+/**
+ * POST /api/v1/debts/:id/unsettle
+ */
+apiRouter.post('/debts/:id/unsettle', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const result = unsettleDebt(data, String(req.params.id))
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, message: 'وضعیت تسویه لغو شد', data: result.debt })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در لغو تسویه' })
+  }
+})
+
+/**
+ * DELETE /api/v1/debts/:id
+ */
+apiRouter.delete('/debts/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const result = deleteDebt(data, String(req.params.id))
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, message: 'مورد با موفقیت حذف شد' })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در حذف' })
+  }
+})
+
+// ============================================================================
+// BANK CARDS ENDPOINTS (کارت‌های بانکی)
+// ============================================================================
+
+/**
+ * GET /api/v1/cards
+ */
+apiRouter.get('/cards', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const cards = getCards(data)
+    res.json({ success: true, count: cards.length, data: cards })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : 'خطای سرور' })
+  }
+})
+
+/**
+ * GET /api/v1/cards/:id
+ */
+apiRouter.get('/cards/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const card = getCard(data, String(req.params.id))
+    res.json({ success: true, data: card })
+  } catch (err) {
+    res.status(404).json({ success: false, error: err instanceof Error ? err.message : 'کارت پیدا نشد' })
+  }
+})
+
+/**
+ * POST /api/v1/cards
+ */
+apiRouter.post('/cards', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    if (!body.bankName || !body.holder || !body.pan) {
+      res.status(400).json({ success: false, error: 'فیلدهای الزامی: bankName, holder, pan (شماره ۱۶ رقمی)' })
+      return
+    }
+    const data = await loadUserData(req.user!)
+    const result = createCard(data, {
+      bankName: String(body.bankName),
+      holder: String(body.holder),
+      pan: String(body.pan),
+      expiry: body.expiry ? String(body.expiry) : undefined,
+      cvv: body.cvv ? String(body.cvv) : undefined,
+      sheba: body.sheba ? String(body.sheba) : undefined,
+      note: body.note ? String(body.note) : undefined,
+      accountId: body.accountId ? String(body.accountId) : undefined,
+      color: body.color ? String(body.color) : undefined,
+    })
+    await saveUserData(req.user!, result.nextData)
+    res.status(201).json({ success: true, data: result.card })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در ثبت کارت' })
+  }
+})
+
+/**
+ * POST /api/v1/cards/:id/link
+ */
+apiRouter.post('/cards/:id/link', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    if (!body.accountId) {
+      res.status(400).json({ success: false, error: 'شناسه حساب الزامی است (accountId)' })
+      return
+    }
+    const data = await loadUserData(req.user!)
+    const result = linkCardToAccount(data, String(req.params.id), String(body.accountId))
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, message: 'کارت به حساب متصل شد', data: result.card })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در اتصال کارت' })
+  }
+})
+
+/**
+ * DELETE /api/v1/cards/:id
+ */
+apiRouter.delete('/cards/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const result = deleteCard(data, String(req.params.id))
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, message: 'کارت با موفقیت حذف شد' })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در حذف کارت' })
+  }
+})
+
+// ============================================================================
+// SAVINGS GOALS ENDPOINTS (اهداف پس‌انداز و قلک)
+// ============================================================================
+
+/**
+ * GET /api/v1/savings
+ */
+apiRouter.get('/savings', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const goals = getSavingsGoals(data)
+    res.json({ success: true, count: goals.length, data: goals })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : 'خطای سرور' })
+  }
+})
+
+/**
+ * GET /api/v1/savings/:id
+ */
+apiRouter.get('/savings/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const goal = getSavingsGoal(data, String(req.params.id))
+    res.json({ success: true, data: goal })
+  } catch (err) {
+    res.status(404).json({ success: false, error: err instanceof Error ? err.message : 'هدف پس‌انداز پیدا نشد' })
+  }
+})
+
+/**
+ * POST /api/v1/savings
+ */
+apiRouter.post('/savings', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    if (!body.name || !body.target) {
+      res.status(400).json({ success: false, error: 'فیلدهای الزامی: name, target' })
+      return
+    }
+    const data = await loadUserData(req.user!)
+    const result = createSavingsGoal(data, {
+      name: String(body.name),
+      target: Number(body.target),
+      saved: body.saved != null ? Number(body.saved) : 0,
+      market: body.market,
+      targetDate: body.targetDate ? String(body.targetDate) : undefined,
+      icon: body.icon ? String(body.icon) : undefined,
+      note: body.note ? String(body.note) : undefined,
+      currency: (body.currency as CurrencyUnit) || 'IRT',
+    })
+    await saveUserData(req.user!, result.nextData)
+    res.status(201).json({ success: true, data: result.goal })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در ثبت هدف پس‌انداز' })
+  }
+})
+
+/**
+ * PATCH /api/v1/savings/:id
+ */
+apiRouter.patch('/savings/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    const data = await loadUserData(req.user!)
+    const result = updateSavingsGoal(data, String(req.params.id), {
+      name: body.name ? String(body.name) : undefined,
+      target: body.target != null ? Number(body.target) : undefined,
+      saved: body.saved != null ? Number(body.saved) : undefined,
+      currency: (body.currency as CurrencyUnit) || 'IRT',
+    })
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, data: result.goal })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در ویرایش هدف پس‌انداز' })
+  }
+})
+
+/**
+ * DELETE /api/v1/savings/:id
+ */
+apiRouter.delete('/savings/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const result = deleteSavingsGoal(data, String(req.params.id))
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, message: 'هدف پس‌انداز حذف شد' })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در حذف هدف پس‌انداز' })
+  }
+})
+
+// ============================================================================
+// INVESTMENTS ENDPOINTS (دارایی‌ها و سرمایه‌گذاری)
+// ============================================================================
+
+/**
+ * GET /api/v1/investments
+ */
+apiRouter.get('/investments', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const assets = getInvestments(data)
+    res.json({ success: true, count: assets.length, data: assets })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : 'خطای سرور' })
+  }
+})
+
+/**
+ * GET /api/v1/investments/:id
+ */
+apiRouter.get('/investments/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const asset = getInvestment(data, String(req.params.id))
+    res.json({ success: true, data: asset })
+  } catch (err) {
+    res.status(404).json({ success: false, error: err instanceof Error ? err.message : 'دارایی پیدا نشد' })
+  }
+})
+
+/**
+ * POST /api/v1/investments
+ */
+apiRouter.post('/investments', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    if (!body.name || !body.market || body.purchaseAmount == null || body.currentValue == null) {
+      res.status(400).json({ success: false, error: 'فیلدهای الزامی: name, market, purchaseAmount, currentValue' })
+      return
+    }
+    const data = await loadUserData(req.user!)
+    const result = createInvestment(data, {
+      name: String(body.name),
+      market: body.market,
+      purchaseAmount: Number(body.purchaseAmount),
+      currentValue: Number(body.currentValue),
+      quantity: body.quantity != null ? Number(body.quantity) : undefined,
+      unitPrice: body.unitPrice != null ? Number(body.unitPrice) : undefined,
+      currentUnitPrice: body.currentUnitPrice != null ? Number(body.currentUnitPrice) : undefined,
+      purchaseDate: body.purchaseDate ? String(body.purchaseDate) : undefined,
+      note: body.note ? String(body.note) : undefined,
+      currency: (body.currency as CurrencyUnit) || 'IRT',
+    })
+    await saveUserData(req.user!, result.nextData)
+    res.status(201).json({ success: true, data: result.asset })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در ثبت دارایی' })
+  }
+})
+
+/**
+ * PATCH /api/v1/investments/:id
+ */
+apiRouter.patch('/investments/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    const data = await loadUserData(req.user!)
+    const result = updateInvestment(data, String(req.params.id), {
+      currentValue: body.currentValue != null ? Number(body.currentValue) : undefined,
+      currentUnitPrice: body.currentUnitPrice != null ? Number(body.currentUnitPrice) : undefined,
+      note: body.note ? String(body.note) : undefined,
+      currency: (body.currency as CurrencyUnit) || 'IRT',
+    })
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, data: result.asset })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در به‌روزرسانی دارایی' })
+  }
+})
+
+/**
+ * DELETE /api/v1/investments/:id
+ */
+apiRouter.delete('/investments/:id', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const result = deleteInvestment(data, String(req.params.id))
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, message: 'دارایی حذف شد' })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در حذف دارایی' })
+  }
+})
+
+// ============================================================================
+// REMINDERS & DUE DATES ENDPOINTS (یادآورها)
+// ============================================================================
+
+/**
+ * GET /api/v1/reminders
+ */
+apiRouter.get('/reminders', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const settings = getRemindersSettings(data)
+    res.json({ success: true, data: settings })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : 'خطای سرور' })
+  }
+})
+
+/**
+ * PUT /api/v1/reminders
+ */
+apiRouter.put('/reminders', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    const data = await loadUserData(req.user!)
+    const result = updateRemindersSettings(data, {
+      enabled: Boolean(body.enabled),
+      leadDays: Number(body.leadDays) || 2,
+    })
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, data: result.settings })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در تنظیم یادآور' })
+  }
+})
+
+/**
+ * GET /api/v1/reminders/upcoming
+ */
+apiRouter.get('/reminders/upcoming', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const leadDays = req.query.leadDays ? Number(req.query.leadDays) : 7
+    const list = getUpcomingReminders(data, leadDays)
+    res.json({ success: true, count: list.length, data: list })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : 'خطای سرور' })
+  }
+})
+
+// ============================================================================
+// SHARED LEDGERS ENDPOINTS (دفاتر حساب اشتراکی)
+// ============================================================================
+
+/**
+ * GET /api/v1/sharing
+ */
+apiRouter.get('/sharing', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://yiluruldxtgfuxqwosri.supabase.co'
+    const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_tHV7NoCAC-3czs4yMG1Z7Q_bg05S1MI'
+
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/shared_ledgers?select=id,code,title,account_id,updated_at`, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${req.user!.token}`,
+      },
+    })
+    const list = (await response.json().catch(() => [])) as unknown[]
+    res.json({ success: true, count: Array.isArray(list) ? list.length : 0, data: list })
+  } catch (err) {
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : 'خطای سرور' })
+  }
+})
+
+/**
+ * POST /api/v1/sharing
+ */
+apiRouter.post('/sharing', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    if (!body.accountId || !body.title) {
+      res.status(400).json({ success: false, error: 'فیلدهای الزامی: accountId, title' })
+      return
+    }
+
+    const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://yiluruldxtgfuxqwosri.supabase.co'
+    const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_tHV7NoCAC-3czs4yMG1Z7Q_bg05S1MI'
+
+    const rpcRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/create_shared_ledger`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${req.user!.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        p_account_id: String(body.accountId),
+        p_title: String(body.title),
+        p_payload: body.payload || {},
+      }),
+    })
+
+    if (!rpcRes.ok) {
+      const errText = await rpcRes.text()
+      res.status(400).json({ success: false, error: errText })
+      return
+    }
+
+    const created = (await rpcRes.json()) as unknown
+    res.status(201).json({ success: true, data: created })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در ایجاد دفتر مشترک' })
+  }
+})
+
+/**
+ * POST /api/v1/sharing/join
+ */
+apiRouter.post('/sharing/join', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    if (!body.code) {
+      res.status(400).json({ success: false, error: 'کد اشتراک الزامی است (code)' })
+      return
+    }
+
+    const SUPABASE_URL = process.env.VITE_SUPABASE_URL || 'https://yiluruldxtgfuxqwosri.supabase.co'
+    const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_tHV7NoCAC-3czs4yMG1Z7Q_bg05S1MI'
+
+    const rpcRes = await fetch(`${SUPABASE_URL}/rest/v1/rpc/join_shared_code`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${req.user!.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        p_code: String(body.code),
+      }),
+    })
+
+    if (!rpcRes.ok) {
+      const errText = await rpcRes.text()
+      res.status(400).json({ success: false, error: errText })
+      return
+    }
+
+    const ledgerId = (await rpcRes.json()) as unknown
+    res.json({ success: true, message: 'با موفقیت به دفتر مشترک پیوستید', ledgerId })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در پیوستن به دفتر مشترک' })
   }
 })

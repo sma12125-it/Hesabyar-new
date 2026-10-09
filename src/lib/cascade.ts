@@ -1,13 +1,36 @@
 import { hydrateAccounts } from './balance'
 import { itemEffectiveStatus } from './installments'
 import { todayIso } from './iso'
-import type { Account, InstallmentItem, InstallmentPlan, Transaction } from '../types'
+import type {
+  Account,
+  BankCard,
+  Budget,
+  Cheque,
+  CurrencyUnit,
+  DebtLoan,
+  DongEvent,
+  InstallmentItem,
+  InstallmentPlan,
+  InvestmentAsset,
+  ReminderSettings,
+  SavingsGoal,
+  Transaction,
+} from '../types'
 
 export interface AppData {
   accounts: Account[]
   transactions: Transaction[]
   plans: InstallmentPlan[]
   items: InstallmentItem[]
+  cheques?: Cheque[]
+  debts?: DebtLoan[]
+  cards?: BankCard[]
+  budgets?: Budget[]
+  goals?: SavingsGoal[]
+  investments?: InvestmentAsset[]
+  dongEvents?: DongEvent[]
+  reminders?: ReminderSettings
+  unit?: CurrencyUnit
 }
 
 function rebalance(data: AppData): AppData {
