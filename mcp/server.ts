@@ -54,7 +54,15 @@ export function createMcpRouter(server?: McpServer): Router {
 
   // Health check endpoint for MCP
   router.get('/health', async (_req: Request, res: Response) => {
-    const apiHealth = await hesabyarApi.checkHealth()
+    let apiStatus = 'unreachable'
+    try {
+      const apiHealth = await hesabyarApi.checkHealth()
+      if (apiHealth && apiHealth.status) {
+        apiStatus = apiHealth.status
+      }
+    } catch {
+      apiStatus = 'unreachable'
+    }
     // Count registered tools safely
     const toolsCount = Object.keys((mcpServer as any)._registeredTools || {}).length
 
@@ -63,7 +71,7 @@ export function createMcpRouter(server?: McpServer): Router {
       mcp: 'HesabYar MCP Server',
       version: '1.0.0',
       transport: 'Streamable HTTP / SSE',
-      apiConnection: apiHealth.status,
+      apiConnection: apiStatus,
       toolsCount,
       timestamp: new Date().toISOString(),
     })
@@ -75,7 +83,7 @@ export function createMcpRouter(server?: McpServer): Router {
 
     // Execute the request within the AsyncLocalStorage auth context
     await runWithAuthContext({ token }, async () => {
-      await transport.handleRequest(req, res)
+      await transport.handleRequest(req, res, req.body)
     })
   })
 

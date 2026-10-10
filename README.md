@@ -107,7 +107,104 @@ The deploy workflow publishes `dist` to `gh-pages` and also copies the built `in
 
 ## Architecture
 
-- Vite + React + TypeScript
-- Persistence: IndexedDB (`hesabyar` database) — no server
-- Visual system: `src/styles/tokens.css` + `src/styles/glass-v2.css` (Liquid Glass; row blur reduced for mobile)
-- GitHub Pages deploy: `.github/workflows/deploy.yml` publishes `dist` from `main`
+- **Frontend:** Vite + React 19 + TypeScript (Hosted on GitHub Pages as static SPA)
+- **Frontend Storage:** IndexedDB (`hesabyar` database) for 100% offline-first functionality, optional client-side sync to Supabase
+- **Backend Service:** Node.js Express server running REST API (`/api/v1`) and Model Context Protocol (`/mcp`)
+- **Backend Persistence:** Supabase PostgreSQL (`snapshots` table) isolated per-user with Supabase Auth & Row Level Security
+- **MCP Gateway:** Streamable HTTP / SSE transport on `/mcp` connecting AI models (ChatGPT, Claude, custom agents) directly to HesabYar REST API & business logic
+
+---
+
+## Backend & MCP Server Deployment Guide
+
+### Why GitHub Pages Cannot Run the Backend
+GitHub Pages is a static file hosting service. It does not execute Node.js runtimes, run server background processes, or maintain open HTTP/SSE connections. Therefore, the Node.js backend (Express REST API and `/mcp` server) must be hosted on an HTTPS-enabled Node.js service (e.g., Render, Railway, Fly.io, Cloud Run, or a VPS).
+
+The existing frontend continues to run on GitHub Pages without any changes or breaking offline capabilities.
+
+### Deployment Architecture (Single Service)
+> 📘 **Render Quickstart:** For step-by-step instructions specifically for Render, see [Render Deployment Guide](docs/render-deployment.md).
+
+The Express server, REST API (`/api/v1`), and MCP server (`/mcp`) run together as **one unified Node.js process** via `server.ts`.
+
+```
+ChatGPT / MCP Clients ──(HTTPS POST/SSE)──┐
+                                          │
+GitHub Pages Frontend ──(HTTPS REST)─────┼──>  [ HesabYar Node.js Server ]
+                                          │           ├── /health
+                                          │           ├── /api/v1/* (REST API)
+                                          │           └── /mcp (MCP Server)
+                                          │                     │
+                                          └─────────────> [ Supabase Cloud ]
+                                                          (Auth + Snapshots DB)
+```
+
+### Build and Start Commands
+- **Install dependencies:**
+  ```bash
+  npm install
+  ```
+- **Run test suite:**
+  ```bash
+  npm test
+  ```
+- **Build production frontend:**
+  ```bash
+  npm run build
+  ```
+- **Start production server:**
+  ```bash
+  npm start
+  ```
+  *(Executes `tsx server.ts` binding to `0.0.0.0:${PORT}`)*
+
+### Required Environment Variables
+
+| Variable | Required | Description | Example |
+| :--- | :--- | :--- | :--- |
+| `PORT` | Optional (default: 3000) | Port for the HTTP/MCP server | `3000` or `8080` |
+| `NODE_ENV` | Recommended | Application environment mode | `production` |
+| `SUPABASE_URL` | **Required** (for cloud sync) | Supabase project URL | `https://xxxx.supabase.co` |
+| `SUPABASE_ANON_KEY` | **Required** (for cloud sync) | Supabase public/anon API key | `sb_publishable_...` |
+| `HESABYAR_API_URL` | Optional | Internal API URL used by MCP gateway | Auto-derives `http://127.0.0.1:${PORT}/api/v1` |
+| `ALLOW_DEV_TOKENS` | Optional | Development token bypass flag (**never** in prod) | `false` |
+
+### Service Endpoints
+
+- **Root Health Check:** `GET /health`
+- **REST API Health Check:** `GET /api/v1/health`
+- **OpenAPI 3.1 Spec:** `GET /api/v1/openapi.json`
+- **Interactive REST API Docs:** `GET /api/v1/docs`
+- **MCP Server Health Check:** `GET /mcp/health`
+- **MCP Server Endpoint:** `POST /mcp` (Streamable HTTP / SSE)
+
+### Post-Deployment Verification Steps
+
+Replace `https://api.yourdomain.com` with your deployed backend URL:
+
+1. **Verify Root Health:**
+   ```bash
+   curl -s -i https://api.yourdomain.com/health
+   # Expected: HTTP 200 OK with JSON status: "ok"
+   ```
+
+2. **Verify MCP Health & Registered Tools:**
+   ```bash
+   curl -s -i https://api.yourdomain.com/mcp/health
+   # Expected: HTTP 200 OK with "mcp": "HesabYar MCP Server", toolsCount: 30+
+   ```
+
+3. **Verify Security (Unauthorized Request Rejection):**
+   ```bash
+   curl -s -i https://api.yourdomain.com/api/v1/accounts
+   # Expected: HTTP 401 Unauthorized (No anonymous access to financial records)
+   ```
+
+4. **Verify MCP Session Initialization:**
+   ```bash
+   curl -s -X POST https://api.yourdomain.com/mcp \
+     -H "Content-Type: application/json" \
+     -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}},"id":1}'
+   # Expected: HTTP 200 OK with JSON-RPC initialize response
+   ```
+

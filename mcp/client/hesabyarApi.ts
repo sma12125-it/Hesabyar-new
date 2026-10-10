@@ -9,7 +9,9 @@ export class HesabyarApiClient {
   private baseUrl: string
 
   constructor(baseUrl?: string) {
-    this.baseUrl = (baseUrl || process.env.HESABYAR_API_URL || 'http://127.0.0.1:3000/api/v1').replace(/\/$/, '')
+    const port = process.env.PORT || '3000'
+    const defaultLocalUrl = `http://127.0.0.1:${port}/api/v1`
+    this.baseUrl = (baseUrl || process.env.HESABYAR_API_URL || defaultLocalUrl).replace(/\/$/, '')
   }
 
   private resolveHeaders(options?: ApiFetchOptions): HeadersInit {

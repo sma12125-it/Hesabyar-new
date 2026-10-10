@@ -16,13 +16,13 @@ declare global {
 }
 
 const SUPABASE_URL =
-  process.env.VITE_SUPABASE_URL ||
   process.env.SUPABASE_URL ||
+  process.env.VITE_SUPABASE_URL ||
   'https://yiluruldxtgfuxqwosri.supabase.co'
 
 const SUPABASE_ANON_KEY =
-  process.env.VITE_SUPABASE_ANON_KEY ||
   process.env.SUPABASE_ANON_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
   'sb_publishable_tHV7NoCAC-3czs4yMG1Z7Q_bg05S1MI'
 
 /**
@@ -34,13 +34,12 @@ export async function verifySupabaseToken(token: string): Promise<AuthenticatedU
   const cleanToken = token.trim()
   if (!cleanToken) return null
 
-  // Support test tokens for integration tests and dev
-  if (
-    cleanToken.startsWith('test-user-') ||
-    cleanToken === 'dev-token' ||
-    process.env.NODE_ENV === 'test' ||
-    process.env.ALLOW_DEV_TOKENS === 'true'
-  ) {
+  // Support test tokens ONLY in test mode (vitest or NODE_ENV=test) or local development (!isProd)
+  const isProd = process.env.NODE_ENV === 'production'
+  const isTest = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST)
+  const isDev = !isProd && process.env.ALLOW_DEV_TOKENS !== 'false'
+
+  if (isTest || isDev) {
     if (cleanToken.startsWith('test-user-') || cleanToken === 'dev-token') {
       return {
         id: cleanToken.startsWith('test-user-') ? cleanToken : 'dev-user-001',

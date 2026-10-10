@@ -2,13 +2,13 @@ import type { AppData } from '../lib/cascade'
 import type { AuthenticatedUser } from './auth'
 
 const SUPABASE_URL =
-  process.env.VITE_SUPABASE_URL ||
   process.env.SUPABASE_URL ||
+  process.env.VITE_SUPABASE_URL ||
   'https://yiluruldxtgfuxqwosri.supabase.co'
 
 const SUPABASE_ANON_KEY =
-  process.env.VITE_SUPABASE_ANON_KEY ||
   process.env.SUPABASE_ANON_KEY ||
+  process.env.VITE_SUPABASE_ANON_KEY ||
   'sb_publishable_tHV7NoCAC-3czs4yMG1Z7Q_bg05S1MI'
 
 // In-memory fallback for local dev / tests
@@ -95,8 +95,11 @@ export async function saveUserData(user: AuthenticatedUser, nextData: AppData): 
   // Update memory store
   memoryStore.set(user.id, JSON.parse(JSON.stringify(nextData)) as AppData)
 
-  // In test mode, memory store is sufficient
-  if (process.env.NODE_ENV === 'test' || user.token.startsWith('test-user-')) {
+  // In test mode or local dev with test tokens, memory store is sufficient
+  if (
+    process.env.NODE_ENV === 'test' ||
+    (process.env.NODE_ENV !== 'production' && user.token.startsWith('test-user-'))
+  ) {
     return
   }
 

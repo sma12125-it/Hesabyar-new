@@ -18,6 +18,25 @@ app.use('/api/v1', apiRouter)
 // Mount Model Context Protocol (MCP) Server endpoints
 app.use('/mcp', createMcpRouter())
 
+// Top-level unified health check endpoint for container orchestrators and cloud load balancers
+app.get('/health', (_req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'HesabYar Server',
+    version: '0.2.0',
+    mode: isProd ? 'production' : 'development',
+    endpoints: {
+      health: '/health',
+      restApi: '/api/v1',
+      apiHealth: '/api/v1/health',
+      openapi: '/api/v1/openapi.json',
+      mcp: '/mcp',
+      mcpHealth: '/mcp/health',
+    },
+    timestamp: new Date().toISOString(),
+  })
+})
+
 async function startServer() {
   if (!isProd) {
     const { createServer } = await import('vite')
@@ -30,7 +49,7 @@ async function startServer() {
     const distPath = resolve(process.cwd(), 'dist')
     if (existsSync(distPath)) {
       app.use(express.static(distPath))
-      app.get('*', (_req, res) => {
+      app.use((_req, res) => {
         res.sendFile(resolve(distPath, 'index.html'))
       })
     }
