@@ -31,7 +31,7 @@ import { SharedSync } from './components/SharedSync'
 import { ShareSheet } from './components/ShareSheet'
 import { SmsBridge } from './components/SmsBridge'
 import { PendingTransactionsPage } from './pages/PendingTransactionsPage'
-import { ExtrasProvider, useExtras } from './store/Extras'
+import { ExtrasProvider } from './store/Extras'
 import { StoreProvider, useStore } from './store/Store'
 
 export type Sheet =
@@ -52,11 +52,9 @@ export type Sheet =
 function Shell() {
   const location = useLocation()
   const { ready, error, totalBalance, accounts, transactions, plans, items, resetDemo, wipeAll, deleteTransaction, deleteAccount, deleteInstallmentPlan, deleteInstallmentItem, unpayInstallment } = useStore()
-  const { unlocked: vaultOpen, vaultConfigured } = useExtras()
   const [toast, setToast] = useState<string | null>(null)
   const [sheet, setSheet] = useState<Sheet | null>(null)
   const [minimizedSheets, setMinimizedSheets] = useState<Sheet[]>([])
-  const [addOpen, setAddOpen] = useState(false)
 
   const closeSheet = useCallback((currentSheet?: Sheet | null) => {
     if (currentSheet && 'returnToAll' in currentSheet && currentSheet.returnToAll !== undefined) {
@@ -144,14 +142,15 @@ function Shell() {
   }, [])
 
   useEffect(() => {
-    setAddOpen(false)
-  }, [location.pathname, sheet])
+    const onNewAccount = () => {
+      setSheet({ type: 'account' })
+    }
+    window.addEventListener('hy-new-account', onNewAccount)
+    return () => window.removeEventListener('hy-new-account', onNewAccount)
+  }, [])
 
   const isHome = location.pathname === '/'
-  const isAccountsList = location.pathname === '/accounts'
-  const isInstallmentsList = location.pathname === '/installments'
   const sheetOpen = sheet !== null
-  const hasPlans = plans.length > 0
   const editingAccount =
     sheet?.type === 'account' && sheet.accountId
       ? accounts.find((a) => a.id === sheet.accountId)
@@ -318,72 +317,6 @@ function Shell() {
             onClick={() => setSheet({ type: 'voice' })}
           >
             🎤
-          </button>
-        ) : null}
-
-        {!sheetOpen && isAccountsList ? (
-          <div className={`corner-add${addOpen ? ' is-open' : ''}`}>
-            <button
-              className="corner-scrim"
-              type="button"
-              aria-label="بستن منو"
-              inert={!addOpen}
-              onClick={() => setAddOpen(false)}
-            />
-            <div className="corner-menu" role="menu" aria-hidden={!addOpen} inert={!addOpen}>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setAddOpen(false)
-                  if (vaultOpen) {
-                    window.dispatchEvent(new Event('hy-new-card'))
-                    return
-                  }
-                  setToast(vaultConfigured ? 'اول گاوصندوق را باز کنید' : 'اول رمز گاوصندوق را در تنظیمات مشخص کنید')
-                }}
-              >
-                <span className="corner-item-ico" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <rect x="3" y="5" width="18" height="14" rx="3" />
-                    <path d="M3 10h18" />
-                  </svg>
-                </span>
-                <span>ساخت کارت</span>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setAddOpen(false)
-                  setSheet({ type: 'account' })
-                }}
-              >
-                <span className="corner-item-ico" aria-hidden="true">
-                  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <path d="M4 10.5V17a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6.5" />
-                    <path d="M4 10.5 12 5l8 5.5" />
-                    <path d="M10 19v-4h4v4" />
-                  </svg>
-                </span>
-                <span>حساب جدید</span>
-              </button>
-            </div>
-            <button
-              className="corner-add-btn"
-              type="button"
-              aria-expanded={addOpen}
-              aria-label={addOpen ? 'بستن' : 'افزودن'}
-              onClick={() => setAddOpen((open) => !open)}
-            >
-              <span className="corner-plus" aria-hidden="true" />
-            </button>
-          </div>
-        ) : null}
-
-        {!sheetOpen && isInstallmentsList && hasPlans ? (
-          <button className="fab-pill" type="button" onClick={() => setSheet({ type: 'installment-plan' })}>
-            <span>＋</span> برنامه جدید
           </button>
         ) : null}
 

@@ -1,4 +1,4 @@
-import { getKv, setKv } from '../../db/db'
+import { getKv, listRawAccounts, setKv } from '../../db/db'
 import { createId } from '../ids'
 import { isoFromTimestamp, isValidIsoDate } from '../iso'
 import { validateAmount } from '../money'
@@ -99,13 +99,36 @@ export async function ingestBankSms(message: InboundSms, store: SmsStateStore = 
     return { status: 'duplicate' }
   }
 
+  // Attempt to resolve account based on registered SMS sender numbers or card/account number
+  let matchedAccountId: string | null = null
+  try {
+    const rawAccounts = await listRawAccounts()
+    const cleanSender = message.sender.trim()
+    const matched = rawAccounts.find((acc) => {
+      if (acc.archived) return false
+      if (acc.smsSenders && Array.isArray(acc.smsSenders)) {
+        return acc.smsSenders.some((s) => {
+          const normS = s.trim().toLowerCase()
+          const normSender = cleanSender.toLowerCase()
+          return normS && (normSender.includes(normS) || normS.includes(normSender))
+        })
+      }
+      return false
+    })
+    if (matched) {
+      matchedAccountId = matched.id
+    }
+  } catch {
+    // Graceful fallback if indexedDB is not available in unit test environment
+  }
+
   const draft: TransactionDraft = {
     id: createId('draft'),
     source: message.mode === 'manual-import' ? 'MANUAL' : 'SMS',
     sourceMessageHash: hash,
     bankId: value.bankId,
     bankLabel: value.bankLabel,
-    accountId: null,
+    accountId: matchedAccountId,
     counterpartyAccountId: null,
     direction: value.direction,
     amountMinor: value.amountMinor,

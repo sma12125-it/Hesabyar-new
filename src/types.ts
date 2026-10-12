@@ -22,6 +22,8 @@ export interface Account {
   updatedAt: number
   /** Optional bank account number (distinct from PAN and SHEBA) */
   accountNumber?: string
+  /** Phone numbers or SMS sender IDs sending bank SMS for this account */
+  smsSenders?: string[]
   /** Vault card this bank account was opened from. */
   cardId?: string
   /** Cloud ledger shared with another signed-in user. */
@@ -98,6 +100,7 @@ export interface CreateAccountInput {
   classification?: AccountClassification
   initialBalance: number
   accountNumber?: string
+  smsSenders?: string[]
   cardId?: string
 }
 
@@ -176,6 +179,8 @@ export interface BankCard {
   createdAt: number
   accountId?: string
   accountNumber?: string
+  /** Phone numbers or SMS sender IDs sending bank SMS for this card */
+  smsSenders?: string[]
   classification?: AccountClassification
   /** CSS gradient or solid color chosen from the palette. */
   color?: string

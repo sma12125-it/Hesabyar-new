@@ -62,7 +62,7 @@ interface StoreValue {
   totalBalance: number
   refresh: () => Promise<void>
   createAccount: (input: CreateAccountInput) => Promise<Account>
-  updateAccount: (id: string, patch: { name?: string; type?: Account['type']; classification?: AccountClassification; accountNumber?: string }) => Promise<void>
+  updateAccount: (id: string, patch: { name?: string; type?: Account['type']; classification?: AccountClassification; accountNumber?: string; smsSenders?: string[] }) => Promise<void>
   archiveAccount: (id: string) => Promise<void>
   restoreAccount: (id: string) => Promise<void>
   deleteAccount: (id: string) => Promise<void>
@@ -197,6 +197,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       type: input.type,
       classification: input.classification ?? 'cash',
       accountNumber: input.accountNumber?.trim() || undefined,
+      smsSenders: input.smsSenders && input.smsSenders.length > 0 ? input.smsSenders : undefined,
       archived: false,
       openingBalance: input.initialBalance,
       balance: input.initialBalance,
@@ -216,6 +217,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       type?: Account['type']
       classification?: AccountClassification
       accountNumber?: string
+      smsSenders?: string[]
     }
   ) => {
     const prev = dataRef.current
@@ -230,6 +232,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       type: patch.type ?? account.type,
       classification: patch.classification ?? account.classification ?? 'cash',
       accountNumber: patch.accountNumber !== undefined ? (patch.accountNumber.trim() || undefined) : account.accountNumber,
+      smsSenders: patch.smsSenders !== undefined ? (patch.smsSenders.length > 0 ? patch.smsSenders : undefined) : account.smsSenders,
       updatedAt: Date.now(),
     }
     await persistSnapshot(prev, {

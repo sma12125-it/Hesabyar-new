@@ -30,6 +30,9 @@ export function AccountFormSheet({
     account?.classification ?? 'cash'
   )
   const [accountNumber, setAccountNumber] = useState(account?.accountNumber ?? '')
+  const [smsSendersInput, setSmsSendersInput] = useState(
+    account?.smsSenders?.join('، ') ?? ''
+  )
   const [initialBalance, setInitialBalance] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -44,15 +47,20 @@ export function AccountFormSheet({
       return
     }
     setSaving(true)
+    const smsSenders = smsSendersInput
+      .split(/[,،\s]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
     try {
       if (isEdit && account) {
-        await updateAccount(account.id, { name, type, classification, accountNumber })
+        await updateAccount(account.id, { name, type, classification, accountNumber, smsSenders })
       } else {
         const created = await createAccount({
           name: picked ? `${picked.bankName} ${picked.pan.slice(-4)}` : name,
           type: picked ? 'bank' : type,
           classification: picked?.classification ?? classification,
           accountNumber: picked?.accountNumber ?? accountNumber,
+          smsSenders: picked?.smsSenders ?? smsSenders,
           initialBalance,
           cardId: picked?.id,
         })
@@ -199,6 +207,20 @@ export function AccountFormSheet({
                 dir="ltr"
                 value={accountNumber}
                 onChange={(e) => setAccountNumber(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="field-chip">
+            <span className="ficon">📱</span>
+            <div style={{ flex: 1 }}>
+              <div className="flabel">شماره‌های ارسال پیامک بانکی (برای تحلیل خودکار)</div>
+              <input
+                className="field-input"
+                placeholder="مثلاً: 20004000, 9820004000, بانک"
+                dir="ltr"
+                value={smsSendersInput}
+                onChange={(e) => setSmsSendersInput(e.target.value)}
               />
             </div>
           </div>

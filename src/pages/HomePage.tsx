@@ -1,8 +1,10 @@
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { Link } from 'react-router-dom'
 import { CloudLamp } from '../components/CloudLamp'
 import { HomeDashboard } from '../components/HomeDashboard'
 import { SettingsButton } from '../components/SettingsButton'
 import { ThemeModal } from '../components/ThemeModal'
+import { useSmsDrafts } from '../lib/sms/useSmsDrafts'
 import { isoToJalali, JALALI_MONTHS } from '../lib/jalaali'
 import { todayIso } from '../lib/iso'
 import { toFaDigits } from '../lib/money'
@@ -21,6 +23,7 @@ const PERSIAN_WEEKDAYS = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چ
 export function HomePage({ onScroll, onQuickEntry, onTransfer, onAll, onSettings }: HomePageProps) {
   const [now, setNow] = useState(() => new Date())
   const [showThemeModal, setShowThemeModal] = useState(false)
+  const { pending } = useSmsDrafts()
 
   useEffect(() => {
     const timer = setInterval(() => setNow(new Date()), 1000)
@@ -77,6 +80,53 @@ export function HomePage({ onScroll, onQuickEntry, onTransfer, onAll, onSettings
               <span>تم</span>
             </button>
             <CloudLamp />
+            {/* Notification button for pending SMS transactions (Request 3) */}
+            <Link
+              to="/transactions/pending"
+              className="icon-btn"
+              title="تراکنش‌های در انتظار تأیید پیامک بانکی"
+              aria-label="تراکنش‌های در انتظار تأیید"
+              style={{
+                position: 'relative',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                background: 'var(--glass-chrome)',
+                border: 'var(--glass-border)',
+                textDecoration: 'none',
+                color: 'inherit',
+                fontSize: 18,
+              }}
+            >
+              <span>📩</span>
+              {pending.length > 0 ? (
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: -4,
+                    right: -4,
+                    minWidth: 18,
+                    height: 18,
+                    padding: '0 4px',
+                    borderRadius: 10,
+                    background: '#ef4444',
+                    color: '#fff',
+                    fontSize: 10,
+                    fontWeight: 900,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 2px 6px rgba(239, 68, 68, 0.4)',
+                    lineHeight: 1,
+                  }}
+                >
+                  {toFaDigits(pending.length)}
+                </span>
+              ) : null}
+            </Link>
             <SettingsButton showLabel={true} />
           </div>
         </div>

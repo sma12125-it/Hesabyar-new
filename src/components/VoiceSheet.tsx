@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useScrollFocusedIntoView } from '../lib/keyboardInset'
 import { parseVoiceCommand } from '../lib/voice'
 import { formatRial } from '../lib/money'
 import { notifyUser } from '../lib/sync'
+import { categoriesFor } from '../lib/categories'
+import { suggestCategory } from '../lib/sms/categorize'
 import { useStore } from '../store/Store'
 import { WindowPopup } from './WindowPopup'
 
@@ -42,13 +44,40 @@ export function VoiceSheet({
   onClose: () => void
   onMinimize?: () => void
 }) {
-  const { activeAccounts, addQuickEntry } = useStore()
+  const { activeAccounts, addQuickEntry, customCategories } = useStore()
   const [text, setText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [listening, setListening] = useState(false)
+  const [accountId, setAccountId] = useState(() => activeAccounts[0]?.id ?? '')
+  const [categoryId, setCategoryId] = useState('')
   useScrollFocusedIntoView()
   const draft = parseVoiceCommand(text)
+
+  const kind = draft?.kind ?? 'expense'
+  const availableCategories = useMemo(
+    () => categoriesFor(kind, customCategories),
+    [kind, customCategories],
+  )
+
+  // Automatically suggest category when speech/text changes
+  useEffect(() => {
+    if (draft) {
+      const suggested = suggestCategory(text, draft.kind === 'income' ? 'INCOME' : 'EXPENSE')
+      if (suggested) {
+        setCategoryId(suggested)
+      } else if (!categoryId) {
+        setCategoryId(draft.kind === 'income' ? 'other-inc' : 'other-exp')
+      }
+    }
+  }, [text, draft?.kind])
+
+  // Sync default account if not yet selected
+  useEffect(() => {
+    if (!accountId && activeAccounts.length > 0) {
+      setAccountId(activeAccounts[0]!.id)
+    }
+  }, [activeAccounts, accountId])
 
   async function listen() {
     setError(null)
@@ -110,7 +139,7 @@ export function VoiceSheet({
 
   async function confirm() {
     if (!draft) return
-    const account = activeAccounts[0]
+    const account = activeAccounts.find((a) => a.id === accountId) || activeAccounts[0]
     if (!account) {
       setError('اول یک حساب بانکی یا نقدی بسازید.')
       return
@@ -121,7 +150,7 @@ export function VoiceSheet({
         kind: draft.kind,
         amount: draft.amount,
         accountId: account.id,
-        categoryId: draft.kind === 'income' ? 'other-inc' : 'other-exp',
+        categoryId: categoryId || (draft.kind === 'income' ? 'other-inc' : 'other-exp'),
         note: draft.note || (draft.kind === 'income' ? 'درآمد صوتی' : 'هزینه صوتی'),
       })
       onClose()
@@ -143,7 +172,7 @@ export function VoiceSheet({
       onClose={onClose}
       onMinimize={onMinimize}
       defaultWidth={520}
-      defaultHeight={540}
+      defaultHeight={580}
       footer={
         <div style={{ display: 'flex', gap: 8, width: '100%', justifyContent: 'flex-end' }}>
           <button
@@ -161,7 +190,7 @@ export function VoiceSheet({
           <button
             className="cta-confirm"
             type="button"
-            disabled={!draft || saving}
+            disabled={!draft || saving || activeAccounts.length === 0}
             onClick={() => void confirm()}
             style={{ flex: 1 }}
           >
@@ -184,10 +213,46 @@ export function VoiceSheet({
           style={{ width: '100%', resize: 'none', fontSize: 14 }}
         />
         {draft ? (
-          <div className="banner" style={{ marginTop: 12 }}>
-            <span>
-              {draft.kind === 'income' ? 'درآمد' : 'هزینه'} {formatRial(draft.amount)} ریال {draft.note ? `· ${draft.note}` : ''}
-            </span>
+          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div className="banner">
+              <span>
+                {draft.kind === 'income' ? 'درآمد' : 'هزینه'} {formatRial(draft.amount)} ریال {draft.note ? `· ${draft.note}` : ''}
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <label className="field-stack" style={{ margin: 0 }}>
+                <span style={{ fontSize: 12, fontWeight: 700 }}>حساب واریز/برداشت</span>
+                <select
+                  className="field-input"
+                  value={accountId}
+                  onChange={(e) => setAccountId(e.target.value)}
+                  style={{ fontSize: 13 }}
+                >
+                  {activeAccounts.map((acc) => (
+                    <option key={acc.id} value={acc.id}>
+                      {acc.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="field-stack" style={{ margin: 0 }}>
+                <span style={{ fontSize: 12, fontWeight: 700 }}>دسته‌بندی</span>
+                <select
+                  className="field-input"
+                  value={categoryId}
+                  onChange={(e) => setCategoryId(e.target.value)}
+                  style={{ fontSize: 13 }}
+                >
+                  {availableCategories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.icon} {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </div>
         ) : null}
       </div>

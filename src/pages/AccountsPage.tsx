@@ -417,27 +417,29 @@ export function AccountsPage({
           </button>
         </div>
 
-        {/* Action Button */}
-        <div>
-          {subTab === 'accounts' ? (
-            <button
-              type="button"
-              className="cat-mini"
-              onClick={() => window.dispatchEvent(new CustomEvent('hy-new-account'))}
-              style={{ fontSize: 11, padding: '6px 12px', background: 'rgba(15, 118, 110, 0.2)', color: 'var(--hy-teal)' }}
-            >
-              ＋ ایجاد حساب جدید
-            </button>
-          ) : (
-            <button
-              type="button"
-              className="cat-mini"
-              onClick={() => setCardId(null)}
-              style={{ fontSize: 11, padding: '6px 12px', background: 'rgba(15, 118, 110, 0.2)', color: 'var(--hy-teal)' }}
-            >
-              ＋ افزودن کارت جدید
-            </button>
-          )}
+        {/* Action Buttons for both creating accounts and cards (Request 1) */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="cat-mini"
+            onClick={() => window.dispatchEvent(new CustomEvent('hy-new-account'))}
+            style={{ fontSize: 11, padding: '6px 12px', background: 'rgba(15, 118, 110, 0.2)', color: 'var(--hy-teal)' }}
+          >
+            ＋ ایجاد حساب جدید
+          </button>
+          <button
+            type="button"
+            className="cat-mini"
+            onClick={() => {
+              if (vaultConfigured && !unlocked) {
+                setSubTab('cards')
+              }
+              setCardId(null)
+            }}
+            style={{ fontSize: 11, padding: '6px 12px', background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8' }}
+          >
+            ＋ ایجاد کارت جدید
+          </button>
         </div>
       </div>
 
@@ -731,7 +733,7 @@ export function AccountsPage({
                     onClick={() => setCardId(null)}
                     style={{ fontSize: 12, padding: '8px 16px', width: 'auto' }}
                   >
-                    ＋ افزودن کارت جدید
+                    ＋ ایجاد کارت جدید
                   </button>
                 </div>
               ) : (

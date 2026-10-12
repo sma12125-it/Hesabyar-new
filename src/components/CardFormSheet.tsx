@@ -73,6 +73,7 @@ export function CardFormSheet({
   const [holder, setHolder] = useState(card?.holder ?? '')
   const [pan, setPan] = useState(card ? groupPan(card.pan) : '')
   const [accountNumber, setAccountNumber] = useState(card?.accountNumber ?? '')
+  const [smsSendersInput, setSmsSendersInput] = useState(card?.smsSenders?.join('، ') ?? '')
   const [classification, setClassification] = useState<AccountClassification>(card?.classification ?? 'cash')
   const [month, setMonth] = useState(card?.expiry.slice(0, 2) || months[0]!)
   const [year, setYear] = useState(card?.expiry.slice(3, 5) || years[0]!.value)
@@ -110,6 +111,10 @@ export function CardFormSheet({
       return
     }
     try {
+      const smsSenders = smsSendersInput
+        .split(/[,،\s]+/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0)
       await saveCard({
         id: card?.id,
         bankName,
@@ -121,6 +126,7 @@ export function CardFormSheet({
         note: card?.note ?? '',
         color,
         accountNumber: accountNumber.trim() || undefined,
+        smsSenders: smsSenders.length > 0 ? smsSenders : undefined,
         classification,
       })
       onClose()
@@ -210,6 +216,13 @@ export function CardFormSheet({
             dir="ltr"
             value={accountNumber}
             onChange={(e) => setAccountNumber(digitsOnly(e.target.value))}
+          />
+          <input
+            className="field-input"
+            placeholder="شماره‌های ارسال پیامک بانکی (مثلاً: 20004000، 9820004000)"
+            dir="ltr"
+            value={smsSendersInput}
+            onChange={(e) => setSmsSendersInput(e.target.value)}
           />
           <div className="expiry-row">
             <label>
