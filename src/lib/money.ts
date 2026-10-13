@@ -52,6 +52,15 @@ export function formatRialInput(amount: number): string {
   return formatRial(amount)
 }
 
+/** Parse then re-format any numeric string with Persian digits and 3-digit thousand separators (،). Empty if 0. */
+export function formatSeparatedNumber(raw: string | number): string {
+  const western = typeof raw === 'number' ? String(Math.abs(Math.trunc(raw))) : digitsOnly(String(raw))
+  if (!western) return ''
+  const n = Number(western)
+  if (!Number.isFinite(n) || n === 0) return ''
+  return n.toLocaleString('fa-IR')
+}
+
 /** Parse then re-format so typing always shows thousand separators. */
 export function maskRialInput(raw: string): string {
   return formatRialInput(parseRialInput(raw))

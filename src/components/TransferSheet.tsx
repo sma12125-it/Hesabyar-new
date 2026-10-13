@@ -245,13 +245,11 @@ export function TransferSheet({
           </div>
           {hasFee ? (
             <div style={{ marginTop: 6, padding: '0 4px' }}>
-              <input
-                className="field-input"
-                type="number"
-                placeholder="مبلغ کارمزد به ریال (مثلاً ۱۲,۰۰۰)"
-                value={fee || ''}
-                onChange={(e) => setFee(Number(e.target.value) || 0)}
-                style={{ width: '100%', fontSize: 13 }}
+              <AmountField
+                value={fee}
+                onChange={setFee}
+                placeholder="مبلغ کارمزد به ریال (مثلاً ۱۲٬۰۰۰)"
+                ariaLabel="مبلغ کارمزد به ریال"
               />
             </div>
           ) : null}

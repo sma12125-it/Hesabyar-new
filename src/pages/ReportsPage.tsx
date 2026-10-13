@@ -3,7 +3,7 @@ import { categoriesFor } from '../lib/categories'
 import { monthKey, expenseByCategory, spentInCategory } from '../lib/reports'
 import { todayIso } from '../lib/iso'
 import { createId } from '../lib/ids'
-import { toFaDigits } from '../lib/money'
+import { digitsOnly, formatSeparatedNumber, toFaDigits } from '../lib/money'
 import { SettingsButton } from '../components/SettingsButton'
 import { useExtras } from '../store/Extras'
 import { useStore } from '../store/Store'
@@ -156,8 +156,13 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
   // Dong form states
   const [dongTitle, setDongTitle] = useState('')
   const [dongMemberInput, setDongMemberInput] = useState('')
-  const [dongMembers, setDongMembers] = useState<string[]>(['من', 'همراه ۱'])
+  const [dongMembers, setDongMembers] = useState<string[]>(['من'])
+  const [editingMemberIdx, setEditingMemberIdx] = useState<number | null>(null)
+  const [editingMemberName, setEditingMemberName] = useState('')
   const [selectedDongId, setSelectedDongId] = useState<string | null>(null)
+  const [editingParticipantId, setEditingParticipantId] = useState<string | null>(null)
+  const [editingParticipantName, setEditingParticipantName] = useState('')
+  const [eventNewMemberInput, setEventNewMemberInput] = useState('')
   const [newExpTitle, setNewExpTitle] = useState('')
   const [newExpAmount, setNewExpAmount] = useState('')
   const [newExpPayer, setNewExpPayer] = useState('')
@@ -167,7 +172,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
 
   // Parse Rial amount taking into account current currency unit (IRT is x10 Rial)
   const parseAmountToRials = (val: string): number => {
-    const raw = Number(val.replace(/[,،\s]/g, ''))
+    const raw = Number(digitsOnly(val))
     if (isNaN(raw) || raw <= 0) return 0
     return currencyUnit === 'IRT' ? raw * 10 : raw
   }
@@ -408,7 +413,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                   inputMode="numeric"
                   placeholder={`سقف ماهانه (${unitLabel})`}
                   value={limit}
-                  onChange={(e) => setLimit(e.target.value)}
+                  onChange={(e) => setLimit(formatSeparatedNumber(e.target.value))}
                 />
                 <button
                   className="cta-confirm"
@@ -507,7 +512,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                 inputMode="numeric"
                 placeholder={`مبلغ هدف (${unitLabel})`}
                 value={goalTarget}
-                onChange={(e) => setGoalTarget(e.target.value)}
+                onChange={(e) => setGoalTarget(formatSeparatedNumber(e.target.value))}
               />
               <select
                 className="field-input"
@@ -642,7 +647,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                             placeholder={`مبلغ دلخواه (${unitLabel})`}
                             value={goalDepositAmount[goal.id] || ''}
                             onChange={(e) =>
-                              setGoalDepositAmount({ ...goalDepositAmount, [goal.id]: e.target.value })
+                              setGoalDepositAmount({ ...goalDepositAmount, [goal.id]: formatSeparatedNumber(e.target.value) })
                             }
                           />
                           <button
@@ -731,14 +736,14 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                     inputMode="numeric"
                     placeholder={`بهای خرید کل (${unitLabel})`}
                     value={invBuyPrice}
-                    onChange={(e) => setInvBuyPrice(e.target.value)}
+                    onChange={(e) => setInvBuyPrice(formatSeparatedNumber(e.target.value))}
                   />
                   <input
                     className="field-input"
                     inputMode="numeric"
                     placeholder={`ارزش روز کل (${unitLabel})`}
                     value={invCurrentValue}
-                    onChange={(e) => setInvCurrentValue(e.target.value)}
+                    onChange={(e) => setInvCurrentValue(formatSeparatedNumber(e.target.value))}
                   />
                 </div>
 
@@ -947,7 +952,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                             placeholder={`ارزش روز تازه (${unitLabel})`}
                             value={quickUpdateValue[asset.id] || ''}
                             onChange={(e) =>
-                              setQuickUpdateValue({ ...quickUpdateValue, [asset.id]: e.target.value })
+                              setQuickUpdateValue({ ...quickUpdateValue, [asset.id]: formatSeparatedNumber(e.target.value) })
                             }
                           />
                           <button
@@ -1010,19 +1015,71 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                         color: 'var(--hy-text)',
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: 4,
+                        gap: 6,
                       }}
                     >
-                      <span>👤 {m}</span>
-                      {dongMembers.length > 2 ? (
-                        <button
-                          type="button"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, opacity: 0.7 }}
-                          onClick={() => setDongMembers(dongMembers.filter((_, i) => i !== idx))}
-                        >
-                          ✕
-                        </button>
-                      ) : null}
+                      {editingMemberIdx === idx ? (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <input
+                            className="field-input"
+                            style={{ height: 24, fontSize: 11, padding: '2px 6px', width: 90 }}
+                            value={editingMemberName}
+                            autoFocus
+                            onChange={(e) => setEditingMemberName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && editingMemberName.trim()) {
+                                e.preventDefault()
+                                const updated = [...dongMembers]
+                                updated[idx] = editingMemberName.trim()
+                                setDongMembers(updated)
+                                setEditingMemberIdx(null)
+                              } else if (e.key === 'Escape') {
+                                setEditingMemberIdx(null)
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--hy-income)' }}
+                            title="ذخیره نام"
+                            onClick={() => {
+                              if (editingMemberName.trim()) {
+                                const updated = [...dongMembers]
+                                updated[idx] = editingMemberName.trim()
+                                setDongMembers(updated)
+                              }
+                              setEditingMemberIdx(null)
+                            }}
+                          >
+                            ✓
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <span>👤 {m}</span>
+                          <button
+                            type="button"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, opacity: 0.8 }}
+                            title="ویرایش نام"
+                            onClick={() => {
+                              setEditingMemberIdx(idx)
+                              setEditingMemberName(m)
+                            }}
+                          >
+                            ✏️
+                          </button>
+                          {dongMembers.length > 1 ? (
+                            <button
+                              type="button"
+                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, opacity: 0.7 }}
+                              title="حذف فرد"
+                              onClick={() => setDongMembers(dongMembers.filter((_, i) => i !== idx))}
+                            >
+                              ✕
+                            </button>
+                          ) : null}
+                        </>
+                      )}
                     </span>
                   ))}
                 </div>
@@ -1064,8 +1121,8 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                 type="button"
                 style={{ marginTop: 8 }}
                 onClick={() => {
-                  if (!dongTitle.trim() || dongMembers.length < 2) {
-                    notifyUser('عنوان و حداقل ۲ عضو الزامی است')
+                  if (!dongTitle.trim() || dongMembers.length === 0) {
+                    notifyUser('عنوان رویداد و حداقل یک عضو الزامی است')
                     return
                   }
                   const newEvent: Omit<DongEvent, 'id' | 'createdAt'> = {
@@ -1159,9 +1216,134 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <h2>{selectedDongEvent.title}</h2>
-                    <p className="sheet-sub">
-                      شرکت‌کنندگان: {selectedDongEvent.participants.map((p) => p.name).join('، ')}
-                    </p>
+                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>افراد حاضر:</span>
+                      {selectedDongEvent.participants.map((p) => (
+                        <span
+                          key={p.id}
+                          style={{
+                            fontSize: 11,
+                            padding: '3px 8px',
+                            borderRadius: 8,
+                            background: 'rgba(37, 99, 235, 0.2)',
+                            color: 'var(--hy-text)',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 4,
+                          }}
+                        >
+                          {editingParticipantId === p.id ? (
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                              <input
+                                className="field-input"
+                                style={{ height: 22, fontSize: 11, padding: '2px 4px', width: 80 }}
+                                value={editingParticipantName}
+                                autoFocus
+                                onChange={(e) => setEditingParticipantName(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && editingParticipantName.trim()) {
+                                    e.preventDefault()
+                                    const updatedParticipants = selectedDongEvent.participants.map((item) =>
+                                      item.id === p.id ? { ...item, name: editingParticipantName.trim() } : item,
+                                    )
+                                    void saveDongEvent({ ...selectedDongEvent, participants: updatedParticipants })
+                                    setEditingParticipantId(null)
+                                    notifyUser('نام فرد ویرایش شد')
+                                  } else if (e.key === 'Escape') {
+                                    setEditingParticipantId(null)
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--hy-income)' }}
+                                title="تأیید نام"
+                                onClick={() => {
+                                  if (editingParticipantName.trim()) {
+                                    const updatedParticipants = selectedDongEvent.participants.map((item) =>
+                                      item.id === p.id ? { ...item, name: editingParticipantName.trim() } : item,
+                                    )
+                                    void saveDongEvent({ ...selectedDongEvent, participants: updatedParticipants })
+                                    notifyUser('نام فرد ویرایش شد')
+                                  }
+                                  setEditingParticipantId(null)
+                                }}
+                              >
+                                ✓
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <span>👤 {p.name}</span>
+                              <button
+                                type="button"
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, opacity: 0.8 }}
+                                title="ویرایش نام فرد"
+                                onClick={() => {
+                                  setEditingParticipantId(p.id)
+                                  setEditingParticipantName(p.name)
+                                }}
+                              >
+                                ✏️
+                              </button>
+                              {selectedDongEvent.participants.length > 1 && !selectedDongEvent.expenses.some((e) => e.paidById === p.id || e.splitAmongIds.includes(p.id)) ? (
+                                <button
+                                  type="button"
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, opacity: 0.7 }}
+                                  title="حذف فرد از رویداد"
+                                  onClick={() => {
+                                    const updatedParticipants = selectedDongEvent.participants.filter((x) => x.id !== p.id)
+                                    void saveDongEvent({ ...selectedDongEvent, participants: updatedParticipants })
+                                    notifyUser('فرد از رویداد حذف شد')
+                                  }}
+                                >
+                                  ✕
+                                </button>
+                              ) : null}
+                            </>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Add new participant to ongoing event */}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 8, maxWidth: 280 }}>
+                      <input
+                        className="field-input"
+                        style={{ height: 28, fontSize: 11, flex: 1 }}
+                        placeholder="افزودن فرد جدید به رویداد…"
+                        value={eventNewMemberInput}
+                        onChange={(e) => setEventNewMemberInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && eventNewMemberInput.trim()) {
+                            e.preventDefault()
+                            const newName = eventNewMemberInput.trim()
+                            const newId = `p_${Date.now()}`
+                            const updatedParticipants = [...selectedDongEvent.participants, { id: newId, name: newName }]
+                            void saveDongEvent({ ...selectedDongEvent, participants: updatedParticipants })
+                            setEventNewMemberInput('')
+                            notifyUser(`${newName} به افراد حاضر اضافه شد`)
+                          }
+                        }}
+                      />
+                      <button
+                        className="cat-mini"
+                        type="button"
+                        style={{ fontSize: 11, padding: '2px 8px' }}
+                        onClick={() => {
+                          if (eventNewMemberInput.trim()) {
+                            const newName = eventNewMemberInput.trim()
+                            const newId = `p_${Date.now()}`
+                            const updatedParticipants = [...selectedDongEvent.participants, { id: newId, name: newName }]
+                            void saveDongEvent({ ...selectedDongEvent, participants: updatedParticipants })
+                            setEventNewMemberInput('')
+                            notifyUser(`${newName} به افراد حاضر اضافه شد`)
+                          }
+                        }}
+                      >
+                        + افزودن
+                      </button>
+                    </div>
                   </div>
                   <button
                     className="cat-mini"
@@ -1203,7 +1385,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                         inputMode="numeric"
                         placeholder={`مبلغ کل (${unitLabel})`}
                         value={newExpAmount}
-                        onChange={(e) => setNewExpAmount(e.target.value)}
+                        onChange={(e) => setNewExpAmount(formatSeparatedNumber(e.target.value))}
                       />
                       <select
                         className="field-input"
@@ -1315,7 +1497,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                                   const updatedAmounts: Record<string, string> = { ...newExpCustomAmounts }
                                   for (const id of effectiveSplits) {
                                     if (!updatedAmounts[id]) {
-                                      updatedAmounts[id] = String(perUserToman)
+                                      updatedAmounts[id] = formatSeparatedNumber(perUserToman)
                                     }
                                   }
                                   setNewExpCustomAmounts(updatedAmounts)
@@ -1365,13 +1547,13 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                                     <input
                                       className="field-input"
                                       inputMode="numeric"
-                                      style={{ height: 32, fontSize: 12, textAlign: 'left', direction: 'ltr' }}
+                                      style={{ height: 32, fontSize: 12, textAlign: 'left', direction: 'rtl' }}
                                       placeholder="مبلغ"
                                       value={newExpCustomAmounts[p.id] ?? ''}
                                       onChange={(e) => {
                                         setNewExpCustomAmounts({
                                           ...newExpCustomAmounts,
-                                          [p.id]: e.target.value,
+                                          [p.id]: formatSeparatedNumber(e.target.value),
                                         })
                                       }}
                                     />
