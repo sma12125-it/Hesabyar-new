@@ -46,14 +46,23 @@ function computeDongSettlement(event: DongEvent): SettlementTransfer[] {
 
   for (const exp of event.expenses) {
     if (exp.amount <= 0) continue
-    const splitCount = exp.splitAmongIds.length || participants.length
-    const share = Math.round(exp.amount / splitCount)
-    // Payer is credited
+    // Payer is credited the full amount
     balanceMap.set(exp.paidById, (balanceMap.get(exp.paidById) ?? 0) + exp.amount)
-    // Consumers are debited
+
     const splits = exp.splitAmongIds.length > 0 ? exp.splitAmongIds : participants.map((p) => p.id)
-    for (const id of splits) {
-      balanceMap.set(id, (balanceMap.get(id) ?? 0) - share)
+    if (exp.splitMode === 'custom' && exp.customShares) {
+      // Custom amounts specified per user
+      for (const id of splits) {
+        const customAmount = exp.customShares[id] ?? 0
+        balanceMap.set(id, (balanceMap.get(id) ?? 0) - customAmount)
+      }
+    } else {
+      // Equal split among chosen participants
+      const splitCount = splits.length || participants.length
+      const share = Math.round(exp.amount / splitCount)
+      for (const id of splits) {
+        balanceMap.set(id, (balanceMap.get(id) ?? 0) - share)
+      }
     }
   }
 
@@ -153,6 +162,8 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
   const [newExpAmount, setNewExpAmount] = useState('')
   const [newExpPayer, setNewExpPayer] = useState('')
   const [newExpSplits, setNewExpSplits] = useState<string[]>([])
+  const [newExpSplitMode, setNewExpSplitMode] = useState<'equal' | 'custom'>('equal')
+  const [newExpCustomAmounts, setNewExpCustomAmounts] = useState<Record<string, string>>({})
 
   // Parse Rial amount taking into account current currency unit (IRT is x10 Rial)
   const parseAmountToRials = (val: string): number => {
@@ -1190,7 +1201,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                       <input
                         className="field-input"
                         inputMode="numeric"
-                        placeholder={`مبلغ (${unitLabel})`}
+                        placeholder={`مبلغ کل (${unitLabel})`}
                         value={newExpAmount}
                         onChange={(e) => setNewExpAmount(e.target.value)}
                       />
@@ -1208,6 +1219,203 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                       </select>
                     </div>
 
+                    {/* Participant Selection (Checkboxes) - Request */}
+                    <div style={{ margin: '6px 0', padding: '10px 12px', borderRadius: 12, background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.07)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--hy-text)' }}>
+                          👥 این خرج مربوط به چه کسانی است؟ (انتخاب دونگ‌بگیران)
+                        </span>
+                        <button
+                          type="button"
+                          className="cat-mini"
+                          style={{ fontSize: 10, padding: '2px 8px' }}
+                          onClick={() => {
+                            const allIds = selectedDongEvent.participants.map((p) => p.id)
+                            const current = newExpSplits.length > 0 ? newExpSplits : allIds
+                            if (current.length === allIds.length) {
+                              setNewExpSplits([])
+                            } else {
+                              setNewExpSplits(allIds)
+                            }
+                          }}
+                        >
+                          {(newExpSplits.length === 0 || newExpSplits.length === selectedDongEvent.participants.length)
+                            ? 'لغو انتخاب همه'
+                            : 'انتخاب همه'}
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {selectedDongEvent.participants.map((p) => {
+                          const effectiveSplits = newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((x) => x.id)
+                          const isChecked = effectiveSplits.includes(p.id)
+                          return (
+                            <label
+                              key={p.id}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                padding: '5px 10px',
+                                borderRadius: 10,
+                                background: isChecked ? 'rgba(15, 118, 110, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                                border: isChecked ? '1px solid var(--hy-teal)' : '1px solid rgba(255, 255, 255, 0.1)',
+                                cursor: 'pointer',
+                                fontSize: 12,
+                                fontWeight: isChecked ? 700 : 500,
+                                transition: 'all 0.15s ease',
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  const allIds = selectedDongEvent.participants.map((x) => x.id)
+                                  const current = newExpSplits.length > 0 ? [...newExpSplits] : allIds
+                                  if (e.target.checked) {
+                                    if (!current.includes(p.id)) setNewExpSplits([...current, p.id])
+                                  } else {
+                                    const next = current.filter((id) => id !== p.id)
+                                    setNewExpSplits(next)
+                                  }
+                                }}
+                                style={{ cursor: 'pointer' }}
+                              />
+                              <span>{p.name}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+
+                      {/* Split Mode Toggle: Equal vs Custom Amounts */}
+                      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--hy-text-secondary)' }}>
+                            نحوه تقسیم سهم افراد:
+                          </span>
+                          <div className="seg" style={{ margin: 0, padding: 2 }}>
+                            <button
+                              type="button"
+                              className={`seg-btn${newExpSplitMode === 'equal' ? ' active' : ''}`}
+                              onClick={() => setNewExpSplitMode('equal')}
+                              style={{ fontSize: 11, padding: '3px 10px' }}
+                            >
+                              ⚖️ تقسیم مساوی
+                            </button>
+                            <button
+                              type="button"
+                              className={`seg-btn${newExpSplitMode === 'custom' ? ' active' : ''}`}
+                              onClick={() => {
+                                setNewExpSplitMode('custom')
+                                // Pre-fill custom amounts based on current total and selected count
+                                const effectiveSplits = newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((p) => p.id)
+                                const totalRials = parseAmountToRials(newExpAmount)
+                                if (totalRials > 0 && effectiveSplits.length > 0) {
+                                  const perUserToman = Math.round(totalRials / effectiveSplits.length / (currencyUnit === 'IRT' ? 10 : 1))
+                                  const updatedAmounts: Record<string, string> = { ...newExpCustomAmounts }
+                                  for (const id of effectiveSplits) {
+                                    if (!updatedAmounts[id]) {
+                                      updatedAmounts[id] = String(perUserToman)
+                                    }
+                                  }
+                                  setNewExpCustomAmounts(updatedAmounts)
+                                }
+                              }}
+                              style={{ fontSize: 11, padding: '3px 10px' }}
+                            >
+                              ✏️ تعیین مبلغ مشخص هر نفر
+                            </button>
+                          </div>
+                        </div>
+
+                        {newExpSplitMode === 'equal' ? (
+                          <div style={{ fontSize: 11, color: 'var(--hy-teal)', background: 'rgba(15, 118, 110, 0.1)', padding: '6px 10px', borderRadius: 8 }}>
+                            {(() => {
+                              const effectiveSplits = newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((p) => p.id)
+                              const totalRials = parseAmountToRials(newExpAmount)
+                              if (effectiveSplits.length === 0) return 'هیچ کاربری انتخاب نشده است.'
+                              if (totalRials <= 0) return `هزینه به صورت برابر بین ${toFaDigits(effectiveSplits.length)} نفر تقسیم می‌شود.`
+                              const perShare = Math.round(totalRials / effectiveSplits.length)
+                              return `سهم مساوی هر نفر: ${formatMoney(perShare)} (${toFaDigits(effectiveSplits.length)} نفر)`
+                            })()}
+                          </div>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+                            <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginBottom: 2 }}>
+                              مبلغ سهم هر فرد را به صورت دستی وارد کنید:
+                            </div>
+                            {selectedDongEvent.participants.map((p) => {
+                              const effectiveSplits = newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((x) => x.id)
+                              if (!effectiveSplits.includes(p.id)) return null
+                              return (
+                                <div
+                                  key={p.id}
+                                  style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    gap: 10,
+                                    padding: '4px 8px',
+                                    borderRadius: 8,
+                                    background: 'rgba(0, 0, 0, 0.2)',
+                                  }}
+                                >
+                                  <span style={{ fontSize: 12, fontWeight: 600 }}>{p.name}:</span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, maxWidth: 180 }}>
+                                    <input
+                                      className="field-input"
+                                      inputMode="numeric"
+                                      style={{ height: 32, fontSize: 12, textAlign: 'left', direction: 'ltr' }}
+                                      placeholder="مبلغ"
+                                      value={newExpCustomAmounts[p.id] ?? ''}
+                                      onChange={(e) => {
+                                        setNewExpCustomAmounts({
+                                          ...newExpCustomAmounts,
+                                          [p.id]: e.target.value,
+                                        })
+                                      }}
+                                    />
+                                    <span style={{ fontSize: 10, opacity: 0.7 }}>{unitLabel}</span>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                            {(() => {
+                              const effectiveSplits = newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((p) => p.id)
+                              const sumCustomRials = effectiveSplits.reduce((acc, id) => {
+                                return acc + parseAmountToRials(newExpCustomAmounts[id] ?? '0')
+                              }, 0)
+                              const totalRials = parseAmountToRials(newExpAmount)
+                              const diff = totalRials - sumCustomRials
+                              return (
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    marginTop: 4,
+                                    padding: '4px 8px',
+                                    borderRadius: 6,
+                                    background: Math.abs(diff) < 100 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                    color: Math.abs(diff) < 100 ? 'var(--hy-income)' : 'var(--hy-expense)',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                  }}
+                                >
+                                  <span>مجموع سهم‌ها: {formatMoney(sumCustomRials)}</span>
+                                  {diff !== 0 && totalRials > 0 ? (
+                                    <span>
+                                      {diff > 0 ? `باقی‌مانده: ${formatMoney(diff)}` : `اضافه بر مبلغ کل: ${formatMoney(-diff)}`}
+                                    </span>
+                                  ) : (
+                                    <span>✓ تراز با مبلغ کل</span>
+                                  )}
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     <button
                       className="cta-confirm"
                       type="button"
@@ -1218,13 +1426,30 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           return
                         }
                         const payerId = newExpPayer || selectedDongEvent.participants[0]?.id
+                        const targetSplits =
+                          newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((p) => p.id)
+
+                        if (targetSplits.length === 0) {
+                          notifyUser('حداقل یک نفر را برای پرداخت دونگ انتخاب کنید')
+                          return
+                        }
+
+                        let customShares: Record<string, number> | undefined
+                        if (newExpSplitMode === 'custom') {
+                          customShares = {}
+                          for (const id of targetSplits) {
+                            customShares[id] = parseAmountToRials(newExpCustomAmounts[id] ?? '0')
+                          }
+                        }
+
                         const newItem: DongExpenseItem = {
                           id: createId('dexp'),
                           title: newExpTitle.trim(),
                           amount,
                           paidById: payerId,
-                          splitAmongIds:
-                            newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((p) => p.id),
+                          splitAmongIds: targetSplits,
+                          splitMode: newExpSplitMode,
+                          customShares,
                           date: todayIso(),
                         }
                         const updated: DongEvent = {
@@ -1235,6 +1460,8 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                         setNewExpTitle('')
                         setNewExpAmount('')
                         setNewExpSplits([])
+                        setNewExpCustomAmounts({})
+                        setNewExpSplitMode('equal')
                         notifyUser('خرج ثبت شد و دونگ‌ها محاسبه شدند')
                       }}
                     >
@@ -1266,10 +1493,37 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           }}
                         >
                           <div>
-                            <span style={{ fontWeight: 700, fontSize: 13 }}>{exp.title}</span>
-                            <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginRight: 8 }}>
-                              پرداخت: {payer?.name || 'نامشخص'}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontWeight: 700, fontSize: 13 }}>{exp.title}</span>
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  padding: '1px 6px',
+                                  borderRadius: 6,
+                                  background: exp.splitMode === 'custom' ? 'rgba(56, 189, 248, 0.15)' : 'rgba(15, 118, 110, 0.15)',
+                                  color: exp.splitMode === 'custom' ? '#38bdf8' : 'var(--hy-teal)',
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {exp.splitMode === 'custom' ? 'سهم‌های مشخص' : 'تقسیم مساوی'}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
+                              <span>پرداخت: <b>{payer?.name || 'نامشخص'}</b></span>
+                              <span style={{ margin: '0 4px', opacity: 0.5 }}>·</span>
+                              <span>
+                                دونگ‌بگیران ({toFaDigits(exp.splitAmongIds.length)} نفر):{' '}
+                                {exp.splitAmongIds
+                                  .map((id) => {
+                                    const part = selectedDongEvent.participants.find((p) => p.id === id)
+                                    if (exp.splitMode === 'custom' && exp.customShares && exp.customShares[id] !== undefined) {
+                                      return `${part?.name ?? id} (${formatMoney(exp.customShares[id]!)})`
+                                    }
+                                    return part?.name ?? id
+                                  })
+                                  .join('، ')}
+                              </span>
+                            </div>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--hy-text)' }}>

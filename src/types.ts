@@ -232,6 +232,8 @@ export interface DongExpenseItem {
   amount: number
   paidById: string
   splitAmongIds: string[]
+  splitMode?: 'equal' | 'custom'
+  customShares?: Record<string, number>
   date?: string
 }
 
