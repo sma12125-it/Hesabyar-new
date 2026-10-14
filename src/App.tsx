@@ -239,23 +239,15 @@ function Shell() {
   )
 
   if (error) {
-    return (
-      <PhoneShell>
-        <div className="loading-center">{error}</div>
-      </PhoneShell>
-    )
+    return <div className="loading-center">{error}</div>
   }
 
   if (!ready) {
-    return (
-      <PhoneShell>
-        <div className="loading-center">در حال بارگذاری…</div>
-      </PhoneShell>
-    )
+    return <div className="loading-center">در حال بارگذاری…</div>
   }
 
   return (
-    <PhoneShell>
+    <>
       <LiveSync />
       <SharedSync />
       <SmsBridge />
@@ -580,7 +572,7 @@ function Shell() {
 
       {toast ? <Toast message={toast} onDone={() => setToast(null)} /> : null}
       </UiActionsContext.Provider>
-    </PhoneShell>
+    </>
   )
 }
 
@@ -631,7 +623,9 @@ export default function App() {
   return (
     <StoreProvider>
       <ExtrasProvider>
-        {open ? <Shell /> : <AuthGate onUnlock={() => setOpen(true)} />}
+        <PhoneShell>
+          {open ? <Shell /> : <AuthGate onUnlock={() => setOpen(true)} />}
+        </PhoneShell>
       </ExtrasProvider>
     </StoreProvider>
   )

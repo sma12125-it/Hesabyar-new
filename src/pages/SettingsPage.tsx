@@ -749,8 +749,8 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           <div className="settings-sub-screen">
             <SettingsSubHeader
               icon="ℹ️"
-              title="درباره حساب‌یار و نگارش ۰.۲.۰"
-              subtitle="مشخصات نسخه ۰.۲.۰، امکانات و گزارش به‌روزرسانی"
+              title="درباره حساب‌یار و نگارش ۰.۳.۰"
+              subtitle="مشخصات نسخه ۰.۳.۰، امکانات و گزارش به‌روزرسانی"
               onBack={() => setActiveSection(null)}
             />
 
@@ -855,9 +855,9 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
         {
           id: 'about' as const,
           icon: 'ℹ️',
-          title: 'درباره حساب‌یار و نگارش ۰.۲.۰',
-          subtitle: 'مشاهده مشخصات کامل برنامه، امکانات و گزارش تغییرات نسخه ۰.۲.۰',
-          badge: 'نسخه ۰.۲.۰',
+          title: 'درباره حساب‌یار و نگارش ۰.۳.۰',
+          subtitle: 'مشاهده مشخصات کامل برنامه، امکانات و گزارش تغییرات نسخه ۰.۳.۰',
+          badge: 'نسخه ۰.۳.۰',
           badgeClass: 'ok',
         },
       ],

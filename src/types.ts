@@ -165,7 +165,7 @@ export interface UpdateInstallmentItemInput {
   dueDate?: string
 }
 
-export type CardMarket = 'gold' | 'stock' | 'crypto' | 'fund' | 'bank' | 'cash'
+export type CardMarket = 'gold' | 'stock' | 'crypto' | 'fund' | 'bank' | 'cash' | (string & {})
 
 export interface BankCard {
   id: string
@@ -190,6 +190,7 @@ export interface Budget {
   id: string
   categoryId: string
   monthlyLimit: number
+  updatedAt?: number
 }
 
 export interface SavingsGoal {
@@ -201,15 +202,18 @@ export interface SavingsGoal {
   targetDate?: string
   icon?: string
   note?: string
+  archived?: boolean
   createdAt?: number
+  updatedAt?: number
 }
 
-export type InvestmentMarket = 'gold' | 'stock' | 'fund' | 'crypto' | 'bank' | 'property' | 'other'
+export type InvestmentMarket = 'gold' | 'stock' | 'fund' | 'crypto' | 'bank' | 'property' | 'other' | (string & {})
 
 export interface InvestmentAsset {
   id: string
   name: string
   market: InvestmentMarket
+  symbol?: string
   purchaseAmount: number
   currentValue: number
   quantity?: number
@@ -245,7 +249,9 @@ export interface DongEvent {
   expenses: DongExpenseItem[]
   note?: string
   settled?: boolean
+  settledTransfers?: string[]
   createdAt: number
+  updatedAt?: number
 }
 
 export interface ReminderSettings {
@@ -272,6 +278,7 @@ export interface Cheque {
   createdAt: number
   clearedAt?: string
   transactionId?: string
+  updatedAt?: number
 }
 
 export type DebtLoanDirection = 'borrowed' | 'lent'
@@ -289,6 +296,7 @@ export interface DebtLoan {
   createdAt: number
   settledAt?: string
   transactionId?: string
+  updatedAt?: number
 }
 
 

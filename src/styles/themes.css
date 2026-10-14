@@ -1337,3 +1337,85 @@ html[data-theme='glass'] .theme-item-card.is-selected .theme-radio-dot {
   border-color: #0d9488 !important;
   color: #ffffff !important;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   UNIVERSAL THEME INTEGRATION: SPLASH & LOCK SCREEN & PATTERN LOCK
+   ════════════════════════════════════════════════════════════════════════════ */
+.lock-screen {
+  background: var(--wall-base) !important;
+  color: var(--hy-text) !important;
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  width: min(440px, 100%);
+  margin: 0 auto;
+  box-sizing: border-box;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+.lock-screen h1 {
+  color: var(--hy-text) !important;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.lock-screen .sheet-sub {
+  color: var(--hy-text-secondary) !important;
+}
+
+.lock-screen .field-input {
+  background: var(--glass-chrome) !important;
+  color: var(--hy-text) !important;
+  border: var(--glass-border) !important;
+}
+
+.lock-screen .field-input:focus {
+  border-color: var(--hy-accent) !important;
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25) !important;
+}
+
+.pattern-grid {
+  background: var(--glass-chrome) !important;
+  border: 1px solid var(--glass-border) !important;
+  border-radius: 20px;
+}
+
+.pattern-dot {
+  background: var(--hy-text-tertiary) !important;
+  opacity: 0.45;
+  transition: all 0.2s ease;
+}
+
+.pattern-dot.on {
+  background: var(--hy-accent) !important;
+  opacity: 1 !important;
+  box-shadow: 0 0 14px var(--hy-accent) !important;
+  transform: scale(1.3) !important;
+}
+
+/* Ensure all buttons, pills and tags harmonize with active theme */
+button.cat-mini {
+  color: var(--hy-text) !important;
+  background: var(--glass-chrome) !important;
+  border: var(--glass-border) !important;
+  transition: all 0.2s ease;
+}
+
+button.cat-mini:hover {
+  filter: brightness(1.1);
+}
+
+button.cta-confirm {
+  transition: all 0.2s ease;
+}
+
+.seg-btn.active {
+  background: var(--hy-accent) !important;
+  color: #ffffff !important;
+}
+

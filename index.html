@@ -19,9 +19,15 @@
   <body>
     <script>
       (function () {
-        var viewport = window.visualViewport
-        var height = viewport ? viewport.height : window.innerHeight
-        document.documentElement.style.setProperty('--hy-vh', Math.round(height) + 'px')
+        try {
+          var viewport = window.visualViewport
+          var height = viewport ? viewport.height : window.innerHeight
+          document.documentElement.style.setProperty('--hy-vh', Math.round(height) + 'px')
+          var saved = localStorage.getItem('hy-theme') || 'dark-obsidian'
+          if (saved === 'dark') saved = 'dark-obsidian'
+          if (saved === 'light') saved = 'glass'
+          document.documentElement.dataset.theme = saved
+        } catch (e) {}
       })()
     </script>
     <div id="root"></div>

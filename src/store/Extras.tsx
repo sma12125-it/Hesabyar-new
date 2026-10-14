@@ -385,10 +385,12 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
   const saveCheque = useCallback(async (input: Omit<Cheque, 'id' | 'createdAt'> & { id?: string }): Promise<Cheque> => {
     const current = chequesRef.current
     const existing = input.id ? current.find((c) => c.id === input.id) : undefined
+    const now = Date.now()
     const cheque: Cheque = {
       ...input,
       id: existing?.id ?? createId('chq'),
-      createdAt: existing?.createdAt ?? Date.now(),
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
     }
     const next = existing ? current.map((c) => (c.id === cheque.id ? cheque : c)) : [cheque, ...current]
     chequesRef.current = next
@@ -411,7 +413,17 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
 
   const updateChequeStatus = useCallback(async (id: string, status: ChequeStatus, clearedDate?: string) => {
     const current = chequesRef.current
-    const next = current.map((c) => (c.id === id ? { ...c, status, clearedAt: status === 'cleared' ? clearedDate ?? new Date().toISOString().slice(0, 10) : undefined } : c))
+    const now = Date.now()
+    const next = current.map((c) =>
+      c.id === id
+        ? {
+            ...c,
+            status,
+            clearedAt: status === 'cleared' ? clearedDate ?? new Date(now).toISOString().slice(0, 10) : undefined,
+            updatedAt: now,
+          }
+        : c,
+    )
     chequesRef.current = next
     setCheques(next)
     await db.setKv('cheques', next)
@@ -422,11 +434,13 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
   const saveDebt = useCallback(async (input: Omit<DebtLoan, 'id' | 'createdAt'> & { id?: string }): Promise<DebtLoan> => {
     const current = debtsRef.current
     const existing = input.id ? current.find((d) => d.id === input.id) : undefined
+    const now = Date.now()
     const debt: DebtLoan = {
       ...input,
       id: existing?.id ?? createId('debt'),
-      createdAt: existing?.createdAt ?? Date.now(),
+      createdAt: existing?.createdAt ?? now,
       status: input.status ?? existing?.status ?? 'active',
+      updatedAt: now,
     }
     const next = existing ? current.map((d) => (d.id === debt.id ? debt : d)) : [debt, ...current]
     debtsRef.current = next
@@ -449,8 +463,13 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
 
   const settleDebt = useCallback(async (id: string, accountId?: string) => {
     const current = debtsRef.current
-    const today = new Date().toISOString().slice(0, 10)
-    const next = current.map((d) => (d.id === id ? { ...d, status: 'settled' as const, settledAt: today, accountId: accountId || d.accountId } : d))
+    const now = Date.now()
+    const today = new Date(now).toISOString().slice(0, 10)
+    const next = current.map((d) =>
+      d.id === id
+        ? { ...d, status: 'settled' as const, settledAt: today, accountId: accountId || d.accountId, updatedAt: now }
+        : d,
+    )
     debtsRef.current = next
     setDebts(next)
     await db.setKv('debts', next)
@@ -460,8 +479,9 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
 
   const unsettleDebt = useCallback(async (id: string) => {
     const current = debtsRef.current
+    const now = Date.now()
     const next = current.map((d) =>
-      d.id === id ? { ...d, status: 'active' as const, settledAt: undefined } : d,
+      d.id === id ? { ...d, status: 'active' as const, settledAt: undefined, updatedAt: now } : d,
     )
     debtsRef.current = next
     setDebts(next)
@@ -599,9 +619,11 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         await persistCards(current.filter((card) => card.id !== id), active)
       },
       saveBudget: async (budget) => {
-        const next = budgets.some((row) => row.id === budget.id)
-          ? budgets.map((row) => (row.id === budget.id ? budget : row))
-          : [...budgets, budget]
+        const now = Date.now()
+        const row: Budget = { ...budget, updatedAt: now }
+        const next = budgets.some((item) => item.id === row.id)
+          ? budgets.map((item) => (item.id === row.id ? row : item))
+          : [...budgets, row]
         setBudgets(next)
         await db.setKv('budgets', next)
         const { notifyLocalChange } = await import('../lib/sync')
@@ -615,7 +637,8 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         notifyLocalChange()
       },
       saveGoal: async (goal) => {
-        const row: SavingsGoal = { ...goal, id: goal.id ?? createId('goal') }
+        const now = Date.now()
+        const row: SavingsGoal = { ...goal, id: goal.id ?? createId('goal'), updatedAt: now }
         const next = goals.some((item) => item.id === row.id)
           ? goals.map((item) => (item.id === row.id ? row : item))
           : [...goals, row]
@@ -633,11 +656,12 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       },
       saveInvestment: async (asset) => {
         const existing = asset.id ? investmentsRef.current.find((item) => item.id === asset.id) : undefined
+        const now = Date.now()
         const row: InvestmentAsset = {
           ...asset,
           id: existing?.id ?? createId('inv'),
-          createdAt: existing?.createdAt ?? Date.now(),
-          updatedAt: Date.now(),
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
         }
         const next = investmentsRef.current.some((item) => item.id === row.id)
           ? investmentsRef.current.map((item) => (item.id === row.id ? row : item))
@@ -659,10 +683,12 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       },
       saveDongEvent: async (event) => {
         const existing = event.id ? dongEventsRef.current.find((item) => item.id === event.id) : undefined
+        const now = Date.now()
         const row: DongEvent = {
           ...event,
           id: existing?.id ?? createId('dong'),
-          createdAt: existing?.createdAt ?? Date.now(),
+          createdAt: existing?.createdAt ?? now,
+          updatedAt: now,
         }
         const next = dongEventsRef.current.some((item) => item.id === row.id)
           ? dongEventsRef.current.map((item) => (item.id === row.id ? row : item))

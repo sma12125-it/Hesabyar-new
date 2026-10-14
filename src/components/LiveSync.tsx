@@ -21,6 +21,8 @@ interface Payload {
   customCategories: unknown
   budgets: unknown
   goals: unknown
+  investments?: unknown
+  dongEvents?: unknown
   cheques: unknown
   debts: unknown
   reminders: unknown
@@ -29,40 +31,46 @@ interface Payload {
   origin?: string
 }
 
-function mergeCheques(local: unknown, remote: unknown): unknown[] {
-  const localList = Array.isArray(local) ? (local as any[]) : []
-  const remoteList = Array.isArray(remote) ? (remote as any[]) : []
-  const map = new Map<string, any>()
-  for (const c of localList) if (c && c.id) map.set(c.id, c)
-  for (const c of remoteList) {
-    if (!c || !c.id) continue
-    const existing = map.get(c.id)
-    if (!existing) {
-      map.set(c.id, c)
-    } else {
-      const pickRemote = (c.clearedAt && !existing.clearedAt) || (c.createdAt > existing.createdAt)
-      map.set(c.id, pickRemote ? c : existing)
-    }
+function mergeCollection<T extends { id: string; createdAt?: number; updatedAt?: number }>(
+  local: unknown,
+  remote: unknown,
+  remoteTime: number,
+): T[] {
+  if (!Array.isArray(remote)) {
+    return Array.isArray(local) ? (local as T[]) : []
   }
-  return Array.from(map.values())
-}
+  const remoteList = remote as T[]
+  const localList = Array.isArray(local) ? (local as T[]) : []
+  const remoteMap = new Map<string, T>()
+  for (const item of remoteList) {
+    if (item && item.id) remoteMap.set(item.id, item)
+  }
 
-function mergeDebts(local: unknown, remote: unknown): unknown[] {
-  const localList = Array.isArray(local) ? (local as any[]) : []
-  const remoteList = Array.isArray(remote) ? (remote as any[]) : []
-  const map = new Map<string, any>()
-  for (const d of localList) if (d && d.id) map.set(d.id, d)
-  for (const d of remoteList) {
-    if (!d || !d.id) continue
-    const existing = map.get(d.id)
-    if (!existing) {
-      map.set(d.id, d)
-    } else {
-      const pickRemote = (d.status === 'settled' && existing.status !== 'settled') || (d.createdAt > existing.createdAt)
-      map.set(d.id, pickRemote ? d : existing)
+  // Any local items that were updated or created strictly after remote snapshot was generated
+  const localMap = new Map<string, T>()
+  for (const item of localList) {
+    if (!item || !item.id) continue
+    const itemTime = item.updatedAt ?? item.createdAt ?? 0
+    if (itemTime > remoteTime) {
+      localMap.set(item.id, item)
     }
   }
-  return Array.from(map.values())
+
+  const result: T[] = []
+  for (const [id, rItem] of remoteMap.entries()) {
+    const lItem = localMap.get(id)
+    if (lItem && (lItem.updatedAt ?? lItem.createdAt ?? 0) > (rItem.updatedAt ?? rItem.createdAt ?? 0)) {
+      result.push(lItem)
+      localMap.delete(id)
+    } else {
+      result.push(rItem)
+      localMap.delete(id)
+    }
+  }
+  for (const lItem of localMap.values()) {
+    result.push(lItem)
+  }
+  return result
 }
 
 export function LiveSync() {
@@ -95,6 +103,8 @@ export function LiveSync() {
           customCategories: current.customCategories,
           budgets: local.budgets,
           goals: local.goals,
+          investments: local.investments,
+          dongEvents: local.dongEvents,
           cheques: local.cheques,
           debts: local.debts,
           reminders: local.reminders,
@@ -129,21 +139,30 @@ export function LiveSync() {
       notifyUser('روی ابر ذخیره شد')
     }
 
-    async function applyRemote() {
+    async function applyRemote(force = false) {
       const session = await ensureSession()
       if (!session || closed) return
       const remote = await pullSnapshot<Payload>(session)
-      if (!remote) return
+      if (!remote) {
+        if (cloudDirty() || force) {
+          await pushNow()
+        }
+        return
+      }
 
       const remoteTime = remote.updatedAt
       const data = remote.data
       if (!data) return
 
-      // If remote is newer than what we've processed from cloud, apply it
-      if (remoteTime > lastSent && data.origin !== deviceId) {
+      // If remote has newer data, or force pull on start/focus
+      if ((remoteTime > lastSent || force) && (data.origin !== deviceId || force)) {
         const local = await extrasRef.current.exportLocal()
-        const mergedCheques = mergeCheques(local.cheques, data.cheques)
-        const mergedDebts = mergeDebts(local.debts, data.debts)
+        const mergedCheques = mergeCollection(local.cheques, data.cheques, remoteTime)
+        const mergedDebts = mergeCollection(local.debts, data.debts, remoteTime)
+        const mergedBudgets = mergeCollection(local.budgets, data.budgets, remoteTime)
+        const mergedGoals = mergeCollection(local.goals, data.goals, remoteTime)
+        const mergedInvestments = mergeCollection(local.investments, data.investments, remoteTime)
+        const mergedDongEvents = mergeCollection(local.dongEvents, data.dongEvents, remoteTime)
 
         await withoutSync(async () => {
           await storeRef.current.importCloud({
@@ -157,12 +176,16 @@ export function LiveSync() {
             ...(data as unknown as Record<string, unknown>),
             cheques: mergedCheques,
             debts: mergedDebts,
+            budgets: mergedBudgets,
+            goals: mergedGoals,
+            investments: mergedInvestments,
+            dongEvents: mergedDongEvents,
           })
         })
         lastSent = remoteTime
         localStorage.setItem('hy-cloud-seen', String(lastSent))
         clearCloudDirty()
-        notifyUser('از دستگاه دیگر به‌روز شد')
+        notifyUser('همگام‌سازی با ابر انجام شد')
         return
       }
 
@@ -221,8 +244,7 @@ export function LiveSync() {
       if (!navigator.onLine || closed) return
       const session = await ensureSession()
       if (!session || closed) return
-      if (cloudDirty()) await pushNow()
-      else await applyRemote()
+      await applyRemote(true)
       socket?.close()
       connect(session)
     }
@@ -231,6 +253,17 @@ export function LiveSync() {
       if (!navigator.onLine) return
       void applyRemote().catch(fail)
     }, 2500)
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        void applyRemote().catch(fail)
+      }
+    }
+    const onFocus = () => {
+      if (navigator.onLine) {
+        void applyRemote().catch(fail)
+      }
+    }
 
     const stopListen = onLocalChange(schedulePush)
     const onSession = () => {
@@ -242,7 +275,10 @@ export function LiveSync() {
     }
     window.addEventListener('hy-cloud-session', onSession)
     window.addEventListener('online', onOnline)
+    window.addEventListener('visibilitychange', onVisibility)
+    window.addEventListener('focus', onFocus)
     void start().catch(fail)
+
     return () => {
       closed = true
       window.clearInterval(poll)
@@ -250,6 +286,8 @@ export function LiveSync() {
       stopListen()
       window.removeEventListener('hy-cloud-session', onSession)
       window.removeEventListener('online', onOnline)
+      window.removeEventListener('visibilitychange', onVisibility)
+      window.removeEventListener('focus', onFocus)
       socket?.close()
     }
   }, [])

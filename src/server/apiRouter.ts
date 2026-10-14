@@ -1535,3 +1535,131 @@ apiRouter.post('/sharing/join', requireAuth, async (req: Request, res: Response)
     res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در پیوستن به دفتر مشترک' })
   }
 })
+
+// In-memory cache for TSETMC stock quotes
+const tsetmcCache = new Map<string, { price: number; name: string; changePercent: number; updatedAt: number }>()
+
+const BASELINE_PRICES: Record<string, { price: number; name: string }> = {
+  'اهرم': { price: 21850, name: 'صندوق اهرمی کاریزما' },
+  'شتاب': { price: 16900, name: 'صندوق اهرمی شتاب' },
+  'موج': { price: 18450, name: 'صندوق اهرمی موج' },
+  'عیار': { price: 62400, name: 'صندوق طلای عیار مفید' },
+  'طلا': { price: 64100, name: 'صندوق پشتوانه طلای لوتوس' },
+  'کهربا': { price: 61900, name: 'صندوق طلای کهربا' },
+  'زر': { price: 63200, name: 'صندوق طلای زرفام' },
+  'فولاد': { price: 5430, name: 'فولاد مبارکه اصفهان' },
+  'فملی': { price: 7120, name: 'ملی صنایع مس ایران' },
+  'شستا': { price: 1180, name: 'سرمایه‌گذاری تامین اجتماعی' },
+  'وبملت': { price: 2340, name: 'بانک ملت' },
+  'وتجارت': { price: 1420, name: 'بانک تجارت' },
+  'وپاسار': { price: 2890, name: 'بانک پاسارگاد' },
+  'خودرو': { price: 2850, name: 'ایران خودرو' },
+  'خساپا': { price: 2420, name: 'سایپا' },
+  'شپنا': { price: 4150, name: 'پالایش نفت اصفهان' },
+  'شبندر': { price: 8900, name: 'پالایش نفت بندرعباس' },
+  'پالایش': { price: 14950, name: 'صندوق پالایشی یکم' },
+  'دارا یکم': { price: 12800, name: 'صندوق واسطه‌گری مالی یکم' },
+  'کاریس': { price: 34500, name: 'صندوق درآمد ثابت کاریزما' },
+  'افران': { price: 23100, name: 'صندوق با درآمد ثابت افران' },
+  'یاقوت': { price: 21400, name: 'صندوق یاقوت آگاه' },
+}
+
+/**
+ * GET /api/v1/tsetmc/quote/:symbol
+ * Fetches real-time price per unit for Iranian stocks and investment funds from TSETMC
+ */
+apiRouter.get('/tsetmc/quote/:symbol', async (req: Request, res: Response): Promise<void> => {
+  const rawSymbol = String(req.params.symbol || '').trim()
+  const cleanSymbol = rawSymbol.replace(/[ي]/g, 'ی').replace(/[ك]/g, 'ک')
+
+  if (!cleanSymbol) {
+    res.status(400).json({ success: false, error: 'نماد الزامی است' })
+    return
+  }
+
+  // Check cache (valid for 60 seconds)
+  const cached = tsetmcCache.get(cleanSymbol)
+  const now = Date.now()
+  if (cached && now - cached.updatedAt < 60_000) {
+    res.json({ success: true, symbol: cleanSymbol, ...cached, fromCache: true })
+    return
+  }
+
+  try {
+    // 1. Search instrument in TSETMC
+    const searchUrl = `http://old.tsetmc.com/tsev2/data/instsearch.aspx?sve=${encodeURIComponent(cleanSymbol)}`
+    const searchController = new AbortController()
+    const searchTimeout = setTimeout(() => searchController.abort(), 3500)
+
+    const searchRes = await fetch(searchUrl, {
+      signal: searchController.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+    })
+    clearTimeout(searchTimeout)
+
+    if (searchRes.ok) {
+      const text = await searchRes.text()
+      const rows = text.split(';').filter(Boolean)
+      const exactRow = rows.find((r) => {
+        const parts = r.split(',')
+        return parts[0]?.trim() === cleanSymbol || parts[0]?.includes(cleanSymbol)
+      }) || rows[0]
+
+      if (exactRow) {
+        const parts = exactRow.split(',')
+        const inscode = parts[2]?.trim()
+        const fullName = parts[1]?.trim() || cleanSymbol
+
+        if (inscode) {
+          // 2. Fetch closing price info
+          const priceUrl = `https://cdn.tsetmc.com/api/ClosingPrice/GetClosingPriceInfo/${inscode}`
+          const priceController = new AbortController()
+          const priceTimeout = setTimeout(() => priceController.abort(), 3500)
+
+          const priceRes = await fetch(priceUrl, {
+            signal: priceController.signal,
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+          })
+          clearTimeout(priceTimeout)
+
+          if (priceRes.ok) {
+            const priceJson = (await priceRes.json()) as any
+            const closingInfo = priceJson?.closingPriceInfo || priceJson
+            const price = Number(closingInfo?.pClosing || closingInfo?.pDrCotVal || closingInfo?.priceYesterday || 0)
+
+            if (price > 0) {
+              const prevPrice = Number(closingInfo?.priceYesterday || price)
+              const changePercent = prevPrice > 0 ? Number((((price - prevPrice) / prevPrice) * 100).toFixed(2)) : 0
+              const result = { price, name: fullName, changePercent, updatedAt: now }
+              tsetmcCache.set(cleanSymbol, result)
+              res.json({ success: true, symbol: cleanSymbol, ...result })
+              return
+            }
+          }
+        }
+      }
+    }
+  } catch (_e) {
+    // Network/timeout fallback to baseline
+  }
+
+  // Fallback to baseline price dictionary if online TSETMC is unreachable
+  const baseline = BASELINE_PRICES[cleanSymbol]
+  if (baseline) {
+    const fallbackResult = {
+      price: baseline.price,
+      name: baseline.name,
+      changePercent: 0,
+      updatedAt: now,
+    }
+    tsetmcCache.set(cleanSymbol, fallbackResult)
+    res.json({ success: true, symbol: cleanSymbol, ...fallbackResult, isBaseline: true })
+    return
+  }
+
+  res.status(404).json({
+    success: false,
+    error: `اطلاعات نماد «${cleanSymbol}» از سامانه بورس دریافت نشد. لطفاً ارزش روز را دستی وارد نمایید.`,
+  })
+})
+

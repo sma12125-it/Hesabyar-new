@@ -14,6 +14,8 @@ interface Payload {
   customCategories: unknown
   budgets: unknown
   goals: unknown
+  investments?: unknown
+  dongEvents?: unknown
   cheques: unknown
   debts: unknown
   reminders: unknown
@@ -46,6 +48,8 @@ export function SyncSheet({
       customCategories: store.customCategories,
       budgets: local.budgets,
       goals: local.goals,
+      investments: local.investments,
+      dongEvents: local.dongEvents,
       cheques: local.cheques,
       debts: local.debts,
       reminders: local.reminders,
