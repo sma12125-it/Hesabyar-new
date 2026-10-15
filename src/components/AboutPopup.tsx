@@ -2,8 +2,8 @@ import { WindowPopup } from './WindowPopup'
 import { toFaDigits } from '../lib/money'
 
 export function AboutContent({ onClose }: { onClose?: () => void }) {
-  const version = '0.3.0'
-  const updateDate = '۲۳ مهر ۱۴۰۵ (۱۴ اکتبر ۲۰۲۶)'
+  const version = '0.3.1'
+  const updateDate = '۲۴ مهر ۱۴۰۵ (۱۵ اکتبر ۲۰۲۶)'
 
   const features = [
     {
@@ -29,7 +29,7 @@ export function AboutContent({ onClose }: { onClose?: () => void }) {
     {
       icon: '📈',
       title: 'سبد سرمایه‌گذاری و اتصال لحظه‌ای به بورس (TSETMC)',
-      desc: 'دریافت برخط قیمت لحظه‌ای سهام و صندوق‌های مالی از سامانه بورس، محاسبه خودکار ارزش کل پرتفوی و سود/زیان.',
+      desc: 'سرویس بک‌اند استعلام برخط بر اساس کد نماد (inscode)، دریافت آخرین قیمت معاملاتی، و انتخاب از فهرست رسمی بدون غلط تایپی.',
     },
     {
       icon: '👥',
@@ -56,6 +56,13 @@ export function AboutContent({ onClose }: { onClose?: () => void }) {
       title: 'پشتیبان‌گیری و همگام‌سازی ابری زنده',
       desc: 'همگام‌سازی بلادرنگ اطلاعات، بدهی‌ها، دونگ‌ها و دارایی‌ها بین تمام دیوایس‌های کاربر با Supabase.',
     },
+  ]
+
+  const changes031 = [
+    'سرویس بک‌اند TSETMC: تعریف تابع اختصاصی fetchTsetmcPriceByInscode که با دریافت کد نماد (inscode)، آخرین قیمت معامله (pDrCotVal) و پایانی (pClosing) را از وب‌سرویس بورس دریافت و در سیستم بروزرسانی می‌کند.',
+    'فهرست رسمی نمادهای بورس: افزوده شدن پنجره هوشمند انتخاب نماد از بین تمامی نمادهای رسمی بورس و فرابورس با دسته‌بندی (صندوق‌های طلا، اهرمی، سهام شاخص، درآمد ثابت) برای رفع قطعی خطاهای تایپی.',
+    'درج خودکار قیمت روز: با کلیک روی هر نماد از فهرست، آخرین قیمت روز به صورت آنی دریافت و در بهای روز هر واحد درج و با تغییر تعداد، ارزش کل دارایی خودکار محاسبه می‌شود.',
+    'چیپ‌های دسترسی سریع: اضافه شدن دکمه‌های سریع برای پربیننده‌ترین نمادهای طلا، اهرمی و سهام (اهرم، عیار، طلا، کهربا، فولاد، فملی، شستا و...) در فرم دارایی.',
   ]
 
   const changes030 = [
@@ -108,7 +115,29 @@ export function AboutContent({ onClose }: { onClose?: () => void }) {
         </div>
       </div>
 
-      {/* Changelog v0.2.0 */}
+      {/* Changelog v0.3.1 */}
+      <div
+        style={{
+          padding: '14px 16px',
+          borderRadius: 16,
+          background: 'rgba(37, 99, 235, 0.12)',
+          border: '1.5px solid rgba(37, 99, 235, 0.35)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+          <span style={{ fontSize: 16 }}>⚡</span>
+          <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--hy-accent)' }}>
+            تغییرات و قابلیت‌های تازه در نسخه {toFaDigits('0.3.1')}
+          </span>
+        </div>
+        <ul style={{ margin: 0, paddingRight: 20, fontSize: 12, color: 'var(--hy-text)', lineHeight: 1.8 }}>
+          {changes031.map((c, i) => (
+            <li key={i}>{c}</li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Changelog v0.3.0 */}
       <div
         style={{
           padding: '14px 16px',
@@ -120,7 +149,7 @@ export function AboutContent({ onClose }: { onClose?: () => void }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
           <span style={{ fontSize: 16 }}>🚀</span>
           <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--hy-income)' }}>
-            تغییرات و قابلیت‌های تازه در نسخه {toFaDigits('0.3.0')}
+            تغییرات پیشین در نسخه {toFaDigits('0.3.0')}
           </span>
         </div>
         <ul style={{ margin: 0, paddingRight: 20, fontSize: 12, color: 'var(--hy-text)', lineHeight: 1.8 }}>

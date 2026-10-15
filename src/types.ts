@@ -214,6 +214,7 @@ export interface InvestmentAsset {
   name: string
   market: InvestmentMarket
   symbol?: string
+  inscode?: string
   purchaseAmount: number
   currentValue: number
   quantity?: number

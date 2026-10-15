@@ -194,6 +194,43 @@ const DONUT_COLORS = [
   '#14b8a6',
 ]
 
+export interface TseInstrumentSummary {
+  symbol: string
+  name: string
+  inscode: string
+  type?: string
+  category?: string
+  categoryName?: string
+  lastPrice?: number
+  closingPrice?: number
+  changePercent?: number
+}
+
+const DEFAULT_POPULAR_SYMBOLS: TseInstrumentSummary[] = [
+  { symbol: 'اهرم', name: 'صندوق س. اهرمی کاریزما', inscode: '55263175855079634', category: 'صندوق اهرمی', lastPrice: 21950 },
+  { symbol: 'عیار', name: 'صندوق طلای عیار مفید', inscode: '48449429711961520', category: 'صندوق طلا', lastPrice: 62450 },
+  { symbol: 'طلا', name: 'صندوق پشتوانه طلای لوتوس', inscode: '20915247313278296', category: 'صندوق طلا', lastPrice: 64200 },
+  { symbol: 'کهربا', name: 'صندوق طلای کهربا', inscode: '24959146199622558', category: 'صندوق طلا', lastPrice: 62050 },
+  { symbol: 'زر', name: 'صندوق طلای زرفام', inscode: '70808810243177651', category: 'صندوق طلا', lastPrice: 63300 },
+  { symbol: 'شتاب', name: 'صندوق اهرمی شتاب آگاه', inscode: '23062821213459632', category: 'صندوق اهرمی', lastPrice: 17100 },
+  { symbol: 'موج', name: 'صندوق اهرمی موج فیروزه', inscode: '60155250495818967', category: 'صندوق اهرمی', lastPrice: 18550 },
+  { symbol: 'فولاد', name: 'فولاد مبارکه اصفهان', inscode: '35700344742885862', category: 'فلزات اساسی', lastPrice: 5460 },
+  { symbol: 'فملی', name: 'ملی صنایع مس ایران', inscode: '35425587644337450', category: 'فلزات اساسی', lastPrice: 7180 },
+  { symbol: 'شستا', name: 'سرمایه‌گذاری تامین اجتماعی', inscode: '2400322364771558', category: 'سرمایه‌گذاری', lastPrice: 1200 },
+  { symbol: 'خودرو', name: 'ایران خودرو', inscode: '65883838195688438', category: 'خودرو', lastPrice: 2890 },
+  { symbol: 'خساپا', name: 'سایپا', inscode: '44891419777264879', category: 'خودرو', lastPrice: 2450 },
+  { symbol: 'خگستر', name: 'گسترش سرمایه‌گذاری ایران خودرو', inscode: '49042562479529340', category: 'سرمایه‌گذاری', lastPrice: 4010 },
+  { symbol: 'برکت', name: 'گروه دارویی برکت', inscode: '21617253503287042', category: 'دارویی', lastPrice: 4890 },
+  { symbol: 'پالایش', name: 'صندوق پالایشی یکم', inscode: '28107936665796340', category: 'صندوق سهامی', lastPrice: 15100 },
+  { symbol: 'دارا یکم', name: 'صندوق واسطه‌گری مالی یکم', inscode: '18320491910245084', category: 'صندوق سهامی', lastPrice: 12900 },
+  { symbol: 'افران', name: 'صندوق با درآمد ثابت افران', inscode: '61730030232532729', category: 'درآمد ثابت', lastPrice: 23150 },
+  { symbol: 'کاریس', name: 'صندوق کاریزما سهامی', inscode: '39493922831818295', category: 'صندوق سهامی', lastPrice: 34700 },
+  { symbol: 'شپنا', name: 'پالایش نفت اصفهان', inscode: '48000010188506899', category: 'پالایشی', lastPrice: 4190 },
+  { symbol: 'شبندر', name: 'پالایش نفت بندرعباس', inscode: '19614760882672728', category: 'پالایشی', lastPrice: 8980 },
+  { symbol: 'وبملت', name: 'بانک ملت', inscode: '7745894403636165', category: 'بانک', lastPrice: 2370 },
+  { symbol: 'وتجارت', name: 'بانک تجارت', inscode: '17960768898043740', category: 'بانک', lastPrice: 1440 },
+]
+
 type ActiveTab = 'budget' | 'goals' | 'investments' | 'dong'
 
 export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void }) {
@@ -297,6 +334,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
   const [invName, setInvName] = useState('')
   const [invMarket, setInvMarket] = useState<InvestmentMarket | string>('gold')
   const [invSymbol, setInvSymbol] = useState('')
+  const [invInscode, setInvInscode] = useState('')
   const [invQuantity, setInvQuantity] = useState('')
   const [invUnitPrice, setInvUnitPrice] = useState('')
   const [invCurrentUnitPrice, setInvCurrentUnitPrice] = useState('')
@@ -306,6 +344,16 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
   const [tseLoading, setTseLoading] = useState(false)
   const [tseInfo, setTseInfo] = useState<string | null>(null)
   const [isRefreshingTse, setIsRefreshingTse] = useState(false)
+  const [tseSearchQuery, setTseSearchQuery] = useState('')
+  const [isTsePickerOpen, setIsTsePickerOpen] = useState(false)
+  const [tseCategoryFilter, setTseCategoryFilter] = useState<string>('all')
+  const [tseInstrumentsList, setTseInstrumentsList] = useState<TseInstrumentSummary[]>([])
+  const [tseDetails, setTseDetails] = useState<{
+    lastPrice: number
+    closingPrice: number
+    changePercent: number
+    source: string
+  } | null>(null)
 
   const [invMarkets, setInvMarkets] = useState<{ id: string; label: string; icon: string }[]>(() => {
     try {
@@ -335,6 +383,18 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
     return investments.filter((i) => i.market === invMarketFilter)
   }, [investments, invMarketFilter])
 
+  // Load TSE instruments catalog on component mount
+  useEffect(() => {
+    fetch('/api/v1/tsetmc/instruments?limit=100')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && Array.isArray(data.instruments)) {
+          setTseInstrumentsList(data.instruments)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
   // Auto-fetch stock and fund quotes from TSETMC when opening page/tab
   useEffect(() => {
     if (activeTab === 'investments' || activeTab === 'budget') {
@@ -342,15 +402,82 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
     }
   }, [activeTab])
 
-  async function fetchTseQuote(symbol: string): Promise<{ price: number; name: string } | null> {
+  // Filtered TSE instruments based on search input and category filter
+  const filteredTseInstruments = useMemo(() => {
+    let list = tseInstrumentsList.length > 0 ? tseInstrumentsList : DEFAULT_POPULAR_SYMBOLS
+    if (tseCategoryFilter !== 'all') {
+      list = list.filter((item) => {
+        const t = (item.type || '').toLowerCase()
+        const cat = (item.category || item.categoryName || '').toLowerCase()
+        if (tseCategoryFilter === 'gold') return t === 'gold' || cat.includes('طلا')
+        if (tseCategoryFilter === 'leveraged') return t === 'leveraged' || cat.includes('اهرم')
+        if (tseCategoryFilter === 'stock') return t === 'stock' || (!cat.includes('صندوق') && !cat.includes('طلا'))
+        if (tseCategoryFilter === 'fixed_income') return t === 'fixed_income' || cat.includes('درآمد ثابت')
+        if (tseCategoryFilter === 'fund') return t.includes('fund') || cat.includes('صندوق')
+        return true
+      })
+    }
+    const q = tseSearchQuery.trim().toLowerCase()
+    if (!q) return list
+    return list.filter(
+      (item) =>
+        item.symbol.toLowerCase().includes(q) ||
+        item.name.toLowerCase().includes(q) ||
+        item.inscode.includes(q) ||
+        (item.category && item.category.toLowerCase().includes(q)) ||
+        (item.categoryName && item.categoryName.toLowerCase().includes(q))
+    )
+  }, [tseInstrumentsList, tseSearchQuery, tseCategoryFilter])
+
+  /**
+   * انتخاب نماد از لیست رسمی بورس و دریافت فوری آخرین قیمت معاملاتی
+   */
+  function selectTseInstrument(item: TseInstrumentSummary) {
+    setInvSymbol(item.symbol)
+    setInvInscode(item.inscode)
+    setInvName(item.name)
+    setIsTsePickerOpen(false)
+    void handleTseLookup(item.symbol, item.inscode)
+  }
+
+  /**
+   * استعلام آخرین قیمت معاملاتی از وب‌سرویس بک‌اند با استفاده از کد نماد یا نماد
+   */
+  async function fetchTseQuote(
+    symbol: string,
+    inscode?: string
+  ): Promise<{
+    price: number
+    lastPrice: number
+    closingPrice: number
+    name: string
+    symbol: string
+    inscode: string
+    changePercent: number
+    source?: string
+  } | null> {
     const clean = symbol.trim()
-    if (!clean) return null
+    const cleanCode = (inscode || '').trim()
+    if (!clean && !cleanCode) return null
     try {
-      const res = await fetch(`/api/v1/tsetmc/quote/${encodeURIComponent(clean)}`)
+      // اگر کد نماد وجود دارد، مستقیماً از وب‌سرویس اختصاصی بر اساس کد نماد استعلام می‌شود
+      const qUrl = cleanCode
+        ? `/api/v1/tsetmc/quote-by-inscode/${encodeURIComponent(cleanCode)}?symbol=${encodeURIComponent(clean)}`
+        : `/api/v1/tsetmc/quote/${encodeURIComponent(clean)}`
+      const res = await fetch(qUrl)
       if (!res.ok) return null
       const json = await res.json()
       if (json.success && typeof json.price === 'number') {
-        return { price: json.price, name: json.name }
+        return {
+          price: json.price,
+          lastPrice: json.lastPrice || json.price,
+          closingPrice: json.closingPrice || json.price,
+          name: json.name || clean,
+          symbol: json.symbol || clean,
+          inscode: json.inscode || cleanCode || '',
+          changePercent: json.changePercent || 0,
+          source: json.source || 'tsetmc',
+        }
       }
       return null
     } catch {
@@ -358,23 +485,41 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
     }
   }
 
-  async function handleTseLookup(symbolToLookup?: string) {
+  /**
+   * Looks up latest quote for a selected symbol or inscode and updates form fields
+   */
+  async function handleTseLookup(symbolToLookup?: string, inscodeToLookup?: string) {
     const sym = (symbolToLookup || invSymbol || invName).trim()
-    if (!sym) {
-      notifyUser('لطفاً نماد بورسی را وارد کنید')
+    const code = inscodeToLookup || invInscode
+    if (!sym && !code) {
+      notifyUser('لطفاً یک نماد را از لیست نمادهای بورس انتخاب کنید')
       return
     }
     setTseLoading(true)
     setTseInfo(null)
+    setTseDetails(null)
     try {
-      const quote = await fetchTseQuote(sym)
+      const quote = await fetchTseQuote(sym, code)
       if (quote) {
         // TSETMC returns prices in Rials
-        const pricePerUnit = quote.price
+        const pricePerUnit = quote.lastPrice || quote.price
         const displayPrice = currencyUnit === 'IRT' ? Math.round(pricePerUnit / 10) : pricePerUnit
         setInvCurrentUnitPrice(formatSeparatedNumber(displayPrice))
-        setTseInfo(`قیمت روز نماد «${quote.name}»: ${formatMoney(pricePerUnit)}`)
-        notifyUser(`قیمت نماد ${quote.name} دریافت شد`)
+        if (!invName.trim() || invName === invSymbol) {
+          setInvName(quote.name)
+        }
+        if (quote.inscode) {
+          setInvInscode(quote.inscode)
+        }
+        setTseDetails({
+          lastPrice: quote.lastPrice || quote.price,
+          closingPrice: quote.closingPrice,
+          changePercent: quote.changePercent,
+          source: quote.source || 'tsetmc',
+        })
+        const sign = quote.changePercent > 0 ? '+' : ''
+        setTseInfo(`✓ آخرین قیمت معاملاتی «${quote.name}»: ${formatMoney(pricePerUnit)} (${sign}${toFaDigits(quote.changePercent)}٪)`)
+        notifyUser(`قیمت روز نماد «${quote.symbol || quote.name}» با موفقیت دریافت شد`)
 
         // If quantity is filled, auto-calculate total current value
         const q = Number(digitsOnly(invQuantity))
@@ -383,7 +528,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
           setInvCurrentValue(formatSeparatedNumber(totalCurr))
         }
       } else {
-        setTseInfo('نماد در بورس پیدا نشد؛ لطفاً قیمت را دستی وارد کنید.')
+        setTseInfo('نماد در سامانه بورس دریافت نشد؛ لطفاً قیمت را دستی وارد کنید.')
         notifyUser('اطلاعات نماد دریافت نشد')
       }
     } catch {
@@ -393,33 +538,47 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
     }
   }
 
+  /**
+   * Batch refresh all stock and fund assets in portfolio from TSETMC
+   */
   async function refreshTseQuotes(silent = false) {
     const tseAssets = investments.filter((i) => i.market === 'stock' || i.market === 'fund' || i.symbol)
     if (tseAssets.length === 0) return
     setIsRefreshingTse(true)
     let updatedCount = 0
     try {
-      for (const asset of tseAssets) {
-        const sym = asset.symbol || asset.name
-        const quote = await fetchTseQuote(sym)
-        if (quote && quote.price > 0) {
-          const newUnitPrice = quote.price
-          const q = asset.quantity || 1
-          const newTotalValue = Math.round(q * newUnitPrice)
-          if (newTotalValue !== asset.currentValue || newUnitPrice !== asset.currentUnitPrice) {
-            await saveInvestment({
-              ...asset,
-              currentUnitPrice: newUnitPrice,
-              currentValue: newTotalValue,
-            })
-            updatedCount++
+      const batchPayload = tseAssets.map((a) => ({ symbol: a.symbol || a.name, inscode: a.inscode }))
+      const res = await fetch('/api/v1/tsetmc/batch-quotes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbols: batchPayload }),
+      })
+      if (res.ok) {
+        const json = await res.json()
+        const quotes = json.quotes || {}
+        for (const asset of tseAssets) {
+          const key = asset.symbol || asset.name
+          const quote = quotes[key]
+          if (quote && typeof quote.price === 'number' && quote.price > 0) {
+            const newUnitPrice = quote.lastPrice || quote.price
+            const q = asset.quantity || 1
+            const newTotalValue = Math.round(q * newUnitPrice)
+            if (newTotalValue !== asset.currentValue || newUnitPrice !== asset.currentUnitPrice) {
+              await saveInvestment({
+                ...asset,
+                currentUnitPrice: newUnitPrice,
+                currentValue: newTotalValue,
+                inscode: quote.inscode || asset.inscode,
+              })
+              updatedCount++
+            }
           }
         }
       }
       if (!silent) {
         notifyUser(
           updatedCount > 0
-            ? `${toFaDigits(updatedCount)} دارایی با قیمت لحظه‌ای TSETMC بروزرسانی شدند.`
+            ? `${toFaDigits(updatedCount)} دارایی با آخرین قیمت‌های بورس TSETMC بروزرسانی شدند.`
             : 'قیمت دارایی‌های بورس به روز است.'
         )
       }
@@ -1451,6 +1610,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                   setEditingInv(null)
                   setInvName('')
                   setInvSymbol('')
+                  setInvInscode('')
                   setInvMarket('stock')
                   setInvQuantity('')
                   setInvUnitPrice('')
@@ -1459,6 +1619,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                   setInvCurrentValue('')
                   setInvNote('')
                   setTseInfo(null)
+                  setTseDetails(null)
                   setIsCreateInvOpen(true)
                 }}
               >
@@ -1560,6 +1721,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                               setEditingInv(asset)
                               setInvName(asset.name)
                               setInvSymbol(asset.symbol || '')
+                              setInvInscode(asset.inscode || '')
                               setInvMarket(asset.market)
                               setInvQuantity(asset.quantity ? String(asset.quantity) : '')
                               setInvUnitPrice(
@@ -1783,25 +1945,74 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                     </div>
                   </div>
 
-                  {/* Stock / Fund TSETMC Symbol Input */}
-                  {(invMarket === 'stock' || invMarket === 'fund') && (
+                  {/* TSETMC Symbol Picker & Live Price Section */}
+                  {(invMarket === 'stock' || invMarket === 'fund' || invMarket === 'gold') && (
                     <div
                       style={{
-                        padding: '10px 12px',
-                        borderRadius: 12,
-                        background: 'rgba(37, 99, 235, 0.1)',
-                        border: '1px solid rgba(37, 99, 235, 0.25)',
+                        padding: '12px 14px',
+                        borderRadius: 14,
+                        background: 'rgba(37, 99, 235, 0.08)',
+                        border: '1.5px solid rgba(37, 99, 235, 0.28)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10,
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--hy-accent)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--hy-accent)' }}>
                           استعلام برخط قیمت از بورس تهران (TSETMC):
                         </span>
+                        {invInscode ? (
+                          <span
+                            style={{
+                              fontSize: 10,
+                              padding: '2px 8px',
+                              borderRadius: 10,
+                              background: 'rgba(37, 99, 235, 0.15)',
+                              color: 'var(--hy-accent)',
+                              direction: 'ltr',
+                              fontWeight: 600,
+                            }}
+                          >
+                            کد نماد: {invInscode}
+                          </span>
+                        ) : null}
                       </div>
+
+                      {/* Primary Button to Open TSE Instruments List */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTseCategoryFilter(
+                            invMarket === 'gold' ? 'gold' : invMarket === 'fund' ? 'leveraged' : 'all'
+                          )
+                          setIsTsePickerOpen(true)
+                        }}
+                        style={{
+                          width: '100%',
+                          padding: '10px 12px',
+                          borderRadius: 10,
+                          background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.2) 0%, rgba(15, 118, 110, 0.2) 100%)',
+                          border: '1.5px dashed var(--hy-accent)',
+                          color: 'var(--hy-text)',
+                          fontSize: 12,
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 8,
+                        }}
+                      >
+                        <span>📋</span>
+                        <span>انتخاب نماد از فهرست رسمی سهام و صندوق‌های بورس</span>
+                      </button>
+
+                      {/* Manual/Search Input & Action Button */}
                       <div style={{ display: 'flex', gap: 6 }}>
                         <input
                           className="field-input"
-                          placeholder="نماد بورسی (مثلاً: اهرم، فملی، فولاد، وبملت، دارا یکم)"
+                          placeholder="نام یا نماد (مثلاً: اهرم، فملی، فولاد، عیار، طلا)"
                           value={invSymbol}
                           onChange={(e) => setInvSymbol(e.target.value)}
                         />
@@ -1810,16 +2021,92 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           type="button"
                           disabled={tseLoading}
                           onClick={() => void handleTseLookup()}
-                          style={{ whiteSpace: 'nowrap', background: 'var(--hy-accent)', color: '#fff', border: 'none' }}
+                          style={{
+                            whiteSpace: 'nowrap',
+                            background: 'var(--hy-accent)',
+                            color: '#fff',
+                            border: 'none',
+                            padding: '0 12px',
+                            fontWeight: 700,
+                          }}
                         >
-                          {tseLoading ? 'در حال استعلام...' : '🔍 دریافت قیمت'}
+                          {tseLoading ? 'در حال دریافت...' : '🔍 استعلام قیمت'}
                         </button>
                       </div>
-                      {tseInfo ? (
-                        <div style={{ fontSize: 11, color: 'var(--hy-income)', marginTop: 6, fontWeight: 600 }}>
+
+                      {/* Quick Chips for Immediate Pick */}
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
+                        <span style={{ fontSize: 10, color: 'var(--hy-text-secondary)', fontWeight: 600 }}>
+                          نمادهای پرکاربرد:
+                        </span>
+                        {(invMarket === 'gold'
+                          ? [
+                              { symbol: 'عیار', inscode: '48449429711961520' },
+                              { symbol: 'طلا', inscode: '20915247313278296' },
+                              { symbol: 'کهربا', inscode: '24959146199622558' },
+                              { symbol: 'زر', inscode: '70808810243177651' },
+                              { symbol: 'ناب', inscode: '65668614488347895' },
+                            ]
+                          : invMarket === 'fund'
+                          ? [
+                              { symbol: 'اهرم', inscode: '55263175855079634' },
+                              { symbol: 'شتاب', inscode: '23062821213459632' },
+                              { symbol: 'موج', inscode: '60155250495818967' },
+                              { symbol: 'پالایش', inscode: '28107936665796340' },
+                              { symbol: 'دارا یکم', inscode: '18320491910245084' },
+                              { symbol: 'افران', inscode: '61730030232532729' },
+                            ]
+                          : [
+                              { symbol: 'فولاد', inscode: '35700344742885862' },
+                              { symbol: 'فملی', inscode: '35425587644337450' },
+                              { symbol: 'شستا', inscode: '2400322364771558' },
+                              { symbol: 'خودرو', inscode: '65883838195688438' },
+                              { symbol: 'خساپا', inscode: '44891419777264879' },
+                              { symbol: 'وبملت', inscode: '7745894403636165' },
+                              { symbol: 'شپنا', inscode: '48000010188506899' },
+                            ]
+                        ).map((chip) => (
+                          <button
+                            key={chip.symbol}
+                            type="button"
+                            onClick={() => {
+                              setInvSymbol(chip.symbol)
+                              setInvInscode(chip.inscode)
+                              void handleTseLookup(chip.symbol, chip.inscode)
+                            }}
+                            style={{
+                              fontSize: 10,
+                              padding: '2px 8px',
+                              borderRadius: 8,
+                              background:
+                                invSymbol === chip.symbol ? 'var(--hy-accent)' : 'rgba(255, 255, 255, 0.08)',
+                              color: invSymbol === chip.symbol ? '#fff' : 'var(--hy-text)',
+                              border: '1px solid rgba(255, 255, 255, 0.1)',
+                              cursor: 'pointer',
+                              fontWeight: invSymbol === chip.symbol ? 800 : 500,
+                            }}
+                          >
+                            {chip.symbol}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* TSE Live Info or Error */}
+                      {tseInfo && (
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: tseDetails ? 'var(--hy-income)' : 'var(--hy-text-secondary)',
+                            fontWeight: 600,
+                            padding: '6px 10px',
+                            borderRadius: 8,
+                            background: tseDetails ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                            border: `1px solid ${tseDetails ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)'}`,
+                          }}
+                        >
                           {tseInfo}
                         </div>
-                      ) : null}
+                      )}
                     </div>
                   )}
 
@@ -1917,6 +2204,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                         name,
                         market: invMarket,
                         symbol: invSymbol.trim() || undefined,
+                        inscode: invInscode.trim() || undefined,
                         purchaseAmount,
                         currentValue,
                         quantity: q,
@@ -1932,6 +2220,191 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                   >
                     {editingInv ? 'ذخیره تغییرات دارایی' : 'افزودن دارایی به سبد'}
                   </button>
+                </div>
+              </div>
+            </WindowPopup>
+          )}
+
+          {/* Modal: فهرست رسمی نمادهای بورس و فرابورس (TSETMC) */}
+          {isTsePickerOpen && (
+            <WindowPopup
+              isOpen={isTsePickerOpen}
+              title="فهرست رسمی نمادهای بورس تهران (TSETMC)"
+              onClose={() => setIsTsePickerOpen(false)}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '72vh' }}>
+                <p style={{ fontSize: 12, color: 'var(--hy-text-secondary)', margin: 0 }}>
+                  نماد مورد نظر را جستجو یا انتخاب کنید تا آخرین قیمت معامله مستقیماً از TSETMC استعلام و درج شود:
+                </p>
+
+                {/* Search Bar */}
+                <div style={{ position: 'relative' }}>
+                  <input
+                    className="field-input"
+                    placeholder="🔍 جستجوی نماد، نام شرکت یا صنعت (مثلاً: فولاد، اهرم، عیار، مس)..."
+                    value={tseSearchQuery}
+                    onChange={(e) => setTseSearchQuery(e.target.value)}
+                    autoFocus
+                  />
+                  {tseSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setTseSearchQuery('')}
+                      style={{
+                        position: 'absolute',
+                        left: 10,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        color: 'var(--hy-text-secondary)',
+                      }}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* Category Filters */}
+                <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+                  {[
+                    { id: 'all', label: 'همه نمادها' },
+                    { id: 'gold', label: '🪙 صندوق‌های طلا' },
+                    { id: 'leveraged', label: '⚡ اهرمی' },
+                    { id: 'stock', label: '🏢 سهام شاخص' },
+                    { id: 'fund', label: '📈 صندوق‌های سهامی' },
+                    { id: 'fixed_income', label: '💰 درآمد ثابت' },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setTseCategoryFilter(tab.id)}
+                      className={`cat-mini${tseCategoryFilter === tab.id ? ' active' : ''}`}
+                      style={{
+                        whiteSpace: 'nowrap',
+                        fontSize: 11,
+                        padding: '5px 10px',
+                        borderRadius: 14,
+                        background: tseCategoryFilter === tab.id ? 'var(--hy-accent)' : 'rgba(255,255,255,0.06)',
+                        color: tseCategoryFilter === tab.id ? '#fff' : 'var(--hy-text)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Instruments List */}
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                    overflowY: 'auto',
+                    maxHeight: '48vh',
+                    paddingRight: 2,
+                  }}
+                >
+                  {filteredTseInstruments.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '24px 12px', color: 'var(--hy-text-secondary)', fontSize: 13 }}>
+                      نمادی با این مشخصات در فهرست پیدا نشد.
+                    </div>
+                  ) : (
+                    filteredTseInstruments.map((item) => {
+                      const isSelected = invSymbol === item.symbol || invInscode === item.inscode
+                      const price = item.lastPrice || item.closingPrice || 0
+                      const change = item.changePercent ?? 0
+                      const isPositive = change > 0
+                      const isZero = change === 0
+
+                      return (
+                        <div
+                          key={item.inscode || item.symbol}
+                          onClick={() => selectTseInstrument(item)}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '10px 12px',
+                            borderRadius: 12,
+                            background: isSelected
+                              ? 'rgba(37, 99, 235, 0.2)'
+                              : 'rgba(255, 255, 255, 0.04)',
+                            border: isSelected
+                              ? '1.5px solid var(--hy-accent)'
+                              : '1px solid rgba(255, 255, 255, 0.08)',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                            <div
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: 8,
+                                background: 'rgba(37, 99, 235, 0.18)',
+                                color: 'var(--hy-accent)',
+                                fontWeight: 800,
+                                fontSize: 13,
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {item.symbol}
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div
+                                style={{
+                                  fontSize: 12,
+                                  fontWeight: 700,
+                                  color: 'var(--hy-text)',
+                                  whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                }}
+                              >
+                                {item.name}
+                              </div>
+                              <div
+                                style={{
+                                  fontSize: 10,
+                                  color: 'var(--hy-text-secondary)',
+                                  display: 'flex',
+                                  gap: 6,
+                                  marginTop: 2,
+                                }}
+                              >
+                                <span>{item.category || item.categoryName || 'بورس تهران'}</span>
+                                <span>·</span>
+                                <span>کد: {item.inscode}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div style={{ textAlign: 'left', flexShrink: 0, marginLeft: 6 }}>
+                            {price > 0 && (
+                              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--hy-text)' }}>
+                                {formatMoney(price)}
+                              </div>
+                            )}
+                            {change !== 0 && (
+                              <div
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  color: isPositive ? 'var(--hy-income)' : isZero ? 'var(--hy-text-secondary)' : 'var(--hy-expense)',
+                                  direction: 'ltr',
+                                }}
+                              >
+                                {isPositive ? '+' : ''}{toFaDigits(change)}%
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
                 </div>
               </div>
             </WindowPopup>
