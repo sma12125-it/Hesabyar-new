@@ -1,0 +1,13 @@
+{
+  "userId": "test-user",
+  "updatedAt": 123456789,
+  "data": {
+    "accounts": [],
+    "transactions": [
+      {
+        "id": "tx_1",
+        "amount": 50000
+      }
+    ]
+  }
+}

@@ -34,24 +34,32 @@ interface Payload {
 function mergeCollection<T extends { id: string; createdAt?: number; updatedAt?: number }>(
   local: unknown,
   remote: unknown,
-  remoteTime: number,
+  _remoteTime?: number,
 ): T[] {
-  if (!Array.isArray(remote)) {
-    return Array.isArray(local) ? (local as T[]) : []
-  }
-  const remoteList = remote as T[]
+  const remoteList = Array.isArray(remote) ? (remote as T[]) : []
   const localList = Array.isArray(local) ? (local as T[]) : []
+
+  if (remoteList.length === 0) return localList
+  if (localList.length === 0) return remoteList
+
   const remoteMap = new Map<string, T>()
   for (const item of remoteList) {
     if (item && item.id) remoteMap.set(item.id, item)
   }
 
-  // Any local items that were updated or created strictly after remote snapshot was generated
+  // Any local items that are newer or do not exist on remote yet
   const localMap = new Map<string, T>()
   for (const item of localList) {
     if (!item || !item.id) continue
+    // If remote does not have this item at all, IT MUST BE PRESERVED!
+    if (!remoteMap.has(item.id)) {
+      localMap.set(item.id, item)
+      continue
+    }
     const itemTime = item.updatedAt ?? item.createdAt ?? 0
-    if (itemTime > remoteTime) {
+    const rItem = remoteMap.get(item.id)!
+    const rTime = rItem.updatedAt ?? rItem.createdAt ?? 0
+    if (itemTime > rTime) {
       localMap.set(item.id, item)
     }
   }
@@ -59,12 +67,11 @@ function mergeCollection<T extends { id: string; createdAt?: number; updatedAt?:
   const result: T[] = []
   for (const [id, rItem] of remoteMap.entries()) {
     const lItem = localMap.get(id)
-    if (lItem && (lItem.updatedAt ?? lItem.createdAt ?? 0) > (rItem.updatedAt ?? rItem.createdAt ?? 0)) {
+    if (lItem) {
       result.push(lItem)
       localMap.delete(id)
     } else {
       result.push(rItem)
-      localMap.delete(id)
     }
   }
   for (const lItem of localMap.values()) {
@@ -156,7 +163,16 @@ export function LiveSync() {
 
       // If remote has newer data, or force pull on start/focus
       if ((remoteTime > lastSent || force) && (data.origin !== deviceId || force)) {
+        const currentStore = storeRef.current
         const local = await extrasRef.current.exportLocal()
+
+        // ادغام هوشمند و امن داده‌ها تا هیچ تراکنش یا حسابی حذف نشود
+        const mergedAccounts = mergeCollection(currentStore.accounts, data.accounts, remoteTime)
+        const mergedTransactions = mergeCollection(currentStore.transactions, data.transactions, remoteTime)
+        const mergedPlans = mergeCollection(currentStore.plans, data.plans, remoteTime)
+        const mergedItems = mergeCollection(currentStore.items, data.items, remoteTime)
+        const mergedCategories = mergeCollection(currentStore.customCategories, data.customCategories, remoteTime)
+
         const mergedCheques = mergeCollection(local.cheques, data.cheques, remoteTime)
         const mergedDebts = mergeCollection(local.debts, data.debts, remoteTime)
         const mergedBudgets = mergeCollection(local.budgets, data.budgets, remoteTime)
@@ -164,13 +180,17 @@ export function LiveSync() {
         const mergedInvestments = mergeCollection(local.investments, data.investments, remoteTime)
         const mergedDongEvents = mergeCollection(local.dongEvents, data.dongEvents, remoteTime)
 
+        const hadLocalAdditions =
+          mergedTransactions.length > (data.transactions?.length ?? 0) ||
+          mergedAccounts.length > (data.accounts?.length ?? 0)
+
         await withoutSync(async () => {
           await storeRef.current.importCloud({
-            accounts: data.accounts ?? [],
-            transactions: data.transactions ?? [],
-            plans: data.plans ?? [],
-            items: data.items ?? [],
-            customCategories: (data.customCategories as never) ?? [],
+            accounts: mergedAccounts as any,
+            transactions: mergedTransactions as any,
+            plans: mergedPlans as any,
+            items: mergedItems as any,
+            customCategories: mergedCategories as any,
           })
           await extrasRef.current.importLocal({
             ...(data as unknown as Record<string, unknown>),
@@ -185,6 +205,12 @@ export function LiveSync() {
         lastSent = remoteTime
         localStorage.setItem('hy-cloud-seen', String(lastSent))
         clearCloudDirty()
+
+        // اگر تغییرات محلی ادغام شده بود، وضعیت جدید را به ابر ارسال کنیم
+        if (hadLocalAdditions) {
+          schedulePush()
+        }
+
         notifyUser('همگام‌سازی با ابر انجام شد')
         return
       }

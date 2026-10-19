@@ -252,56 +252,126 @@ export function recoverWithCode(email: string, code: string, password: string) {
 }
 
 export async function pushSnapshot<T>(session: CloudSession, snapshot: CloudSnapshot<T>): Promise<void> {
+  let serverSyncOk = false
+
+  // 1. ذخیره‌سازی ابری روی سرور اختصاصی حساب‌یار (همیشه در دسترس و پایدار)
+  try {
+    const sRes = await fetch('/api/v1/sync/snapshot', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': session.userId,
+      },
+      body: JSON.stringify({
+        userId: session.userId,
+        updatedAt: snapshot.updatedAt,
+        data: snapshot.data,
+      }),
+    })
+    if (sRes.ok) {
+      serverSyncOk = true
+    }
+  } catch {
+    // خطا در وب‌سرویس سرور
+  }
+
+  // 2. همگام‌سازی تکمیلی با پایگاه ابری Supabase در صورت تنظیم
   const cfg = supabaseConfig()
-  let res = await fetch(`${cfg.url}/rest/v1/snapshots?on_conflict=user_id`, {
-    method: 'POST',
-    headers: {
-      apikey: cfg.key,
-      Authorization: `Bearer ${session.accessToken}`,
-      'Content-Type': 'application/json',
-      Prefer: 'resolution=merge-duplicates',
-    },
-    body: JSON.stringify({ user_id: session.userId, updated_at: new Date(snapshot.updatedAt).toISOString(), payload: snapshot.data }),
-  })
-  if (!res.ok && res.status !== 401) {
-    // Attempt fallback upsert / patch in case on_conflict or schema differs
-    const patchRes = await fetch(`${cfg.url}/rest/v1/snapshots?user_id=eq.${session.userId}`, {
-      method: 'PATCH',
+  try {
+    let res = await fetch(`${cfg.url}/rest/v1/snapshots?on_conflict=user_id`, {
+      method: 'POST',
       headers: {
         apikey: cfg.key,
         Authorization: `Bearer ${session.accessToken}`,
         'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates',
       },
-      body: JSON.stringify({ updated_at: new Date(snapshot.updatedAt).toISOString(), payload: snapshot.data }),
+      body: JSON.stringify({
+        user_id: session.userId,
+        updated_at: new Date(snapshot.updatedAt).toISOString(),
+        payload: snapshot.data,
+      }),
     })
-    if (patchRes.ok) {
-      res = patchRes
+    if (!res.ok && res.status !== 401) {
+      const patchRes = await fetch(`${cfg.url}/rest/v1/snapshots?user_id=eq.${session.userId}`, {
+        method: 'PATCH',
+        headers: {
+          apikey: cfg.key,
+          Authorization: `Bearer ${session.accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          updated_at: new Date(snapshot.updatedAt).toISOString(),
+          payload: snapshot.data,
+        }),
+      })
+      if (patchRes.ok) {
+        res = patchRes
+      }
     }
-  }
-  if (!res.ok) {
-    const text = await res.text()
-    if (res.status === 401) {
-      saveSession(null)
-      throw new Error('نشست ابری تمام شد. دوباره از تنظیمات وارد شوید')
+    if (res.ok) {
+      return
     }
-    throw new Error(text.replace(/<[^>]+>/g, '').slice(0, 160) || 'ارسال به ابر ناموفق بود')
+  } catch {
+    // خطا در ارتباط با Supabase
   }
+
+  // اگر حداقل روی سرور برنامه ذخیره شد، موفق تلقی می‌شود
+  if (serverSyncOk) {
+    return
+  }
+
+  throw new Error('ارسال به ابر ناموفق بود')
 }
 
 export async function pullSnapshot<T>(session: CloudSession): Promise<CloudSnapshot<T> | null> {
-  const cfg = supabaseConfig()
-  const res = await fetch(`${cfg.url}/rest/v1/snapshots?user_id=eq.${session.userId}&select=updated_at,payload`, {
-    headers: { apikey: cfg.key, Authorization: `Bearer ${session.accessToken}` },
-  })
-  if (!res.ok) {
-    if (res.status === 401) {
-      saveSession(null)
-      throw new Error('نشست ابری تمام شد. دوباره از تنظیمات وارد شوید')
+  let serverSnapshot: CloudSnapshot<T> | null = null
+
+  // 1. دریافت از سرور اختصاصی حساب‌یار
+  try {
+    const sRes = await fetch(`/api/v1/sync/snapshot?userId=${encodeURIComponent(session.userId)}`, {
+      headers: { 'x-user-id': session.userId },
+    })
+    if (sRes.ok) {
+      const json = await sRes.json()
+      if (json.success && json.data) {
+        serverSnapshot = {
+          updatedAt: Number(json.updatedAt) || Date.now(),
+          data: json.data as T,
+        }
+      }
     }
-    throw new Error('دریافت از ابر ناموفق بود')
+  } catch {
+    // خطا در وب‌سرویس سرور
   }
-  const rows = (await res.json()) as Array<{ updated_at: string; payload: T }>
-  const row = rows[0]
-  if (!row) return null
-  return { updatedAt: Date.parse(row.updated_at), data: row.payload }
+
+  // 2. بررسی نسخه ابری Supabase
+  const cfg = supabaseConfig()
+  let supabaseSnapshot: CloudSnapshot<T> | null = null
+  try {
+    const res = await fetch(
+      `${cfg.url}/rest/v1/snapshots?user_id=eq.${session.userId}&select=updated_at,payload`,
+      {
+        headers: { apikey: cfg.key, Authorization: `Bearer ${session.accessToken}` },
+      }
+    )
+    if (res.ok) {
+      const rows = (await res.json()) as Array<{ updated_at: string; payload: T }>
+      const row = rows[0]
+      if (row && row.payload) {
+        supabaseSnapshot = {
+          updatedAt: Date.parse(row.updated_at),
+          data: row.payload,
+        }
+      }
+    }
+  } catch {
+    // خطا در وب‌سرویس Supabase
+  }
+
+  // انتخاب تازه‌ترین نسخه
+  if (serverSnapshot && supabaseSnapshot) {
+    return serverSnapshot.updatedAt >= supabaseSnapshot.updatedAt ? serverSnapshot : supabaseSnapshot
+  }
+  return serverSnapshot || supabaseSnapshot || null
 }

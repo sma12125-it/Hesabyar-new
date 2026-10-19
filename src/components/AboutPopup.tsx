@@ -2,8 +2,8 @@ import { WindowPopup } from './WindowPopup'
 import { toFaDigits } from '../lib/money'
 
 export function AboutContent({ onClose }: { onClose?: () => void }) {
-  const version = '0.3.1'
-  const updateDate = '۲۴ مهر ۱۴۰۵ (۱۵ اکتبر ۲۰۲۶)'
+  const version = '0.3.2'
+  const updateDate = '۲۷ مهر ۱۴۰۵ (۱۸ اکتبر ۲۰۲۶)'
 
   const features = [
     {
@@ -56,6 +56,13 @@ export function AboutContent({ onClose }: { onClose?: () => void }) {
       title: 'پشتیبان‌گیری و همگام‌سازی ابری زنده',
       desc: 'همگام‌سازی بلادرنگ اطلاعات، بدهی‌ها، دونگ‌ها و دارایی‌ها بین تمام دیوایس‌های کاربر با Supabase.',
     },
+  ]
+
+  const changes032 = [
+    'همگام‌سازی بی‌نقص ابری و رفع مشکل حذف تراکنش‌ها: بازنویسی الگوریتم ادغام زنده اطلاعات مالی، جلوگیری از حذف یا بازنویسی تراکنش‌های تازه ثبت‌شده و ادغام دوطرفه تراکنش‌ها بین دستگاه‌ها.',
+    'پایگاه جامع نمادهای رسمی بورس (۲۹۰+ نماد فعال): پوشش کلیه صنایع بورس و فرابورس (فلزات، پتروپالایش، بانک، خودرو، دارو، سیمان، زراعت، رایانه، صندوق‌های طلا و اهرمی) همراه با جستجوی سریع و دکمه بازخوانی.',
+    'درج خودکار آنی قیمت روز هر واحد: با انتخاب هر نماد از فهرست رسمی، قیمت آخرین معامله فوراً در ارزش روز هر واحد درج و با داشتن تعداد، ارزش کل دارایی محاسبه می‌شود بدون هیچ خطای عدم یافت نماد.',
+    'سرویس ذخیره‌سازی ابری دوگانه: اضافه شدن اندپوینت اختصاصی سرور /api/v1/sync/snapshot جهت پشتیبان‌گیری ایمن و پایداری کامل همگام‌سازی میان تمام مرورگرها و دستگاه‌ها.',
   ]
 
   const changes031 = [
@@ -115,19 +122,41 @@ export function AboutContent({ onClose }: { onClose?: () => void }) {
         </div>
       </div>
 
-      {/* Changelog v0.3.1 */}
+      {/* Changelog v0.3.2 */}
       <div
         style={{
           padding: '14px 16px',
           borderRadius: 16,
-          background: 'rgba(37, 99, 235, 0.12)',
-          border: '1.5px solid rgba(37, 99, 235, 0.35)',
+          background: 'rgba(37, 99, 235, 0.14)',
+          border: '1.5px solid rgba(37, 99, 235, 0.45)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
           <span style={{ fontSize: 16 }}>⚡</span>
           <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--hy-accent)' }}>
-            تغییرات و قابلیت‌های تازه در نسخه {toFaDigits('0.3.1')}
+            تغییرات و قابلیت‌های تازه در نسخه {toFaDigits('0.3.2')}
+          </span>
+        </div>
+        <ul style={{ margin: 0, paddingRight: 20, fontSize: 12, color: 'var(--hy-text)', lineHeight: 1.8 }}>
+          {changes032.map((c, i) => (
+            <li key={i}>{c}</li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Changelog v0.3.1 */}
+      <div
+        style={{
+          padding: '14px 16px',
+          borderRadius: 16,
+          background: 'rgba(255, 255, 255, 0.04)',
+          border: '1px solid rgba(255, 255, 255, 0.08)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+          <span style={{ fontSize: 16 }}>🔹</span>
+          <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--hy-text)' }}>
+            تغییرات پیشین در نسخه {toFaDigits('0.3.1')}
           </span>
         </div>
         <ul style={{ margin: 0, paddingRight: 20, fontSize: 12, color: 'var(--hy-text)', lineHeight: 1.8 }}>

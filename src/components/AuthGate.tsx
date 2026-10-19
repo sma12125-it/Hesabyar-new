@@ -58,15 +58,27 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
   const [busy, setBusy] = useState(false)
   const lock = loadLock()
 
-  async function adopt(session: CloudSession, kind: 'in' | 'up') {
+  async function adopt(session: CloudSession, _kind: 'in' | 'up') {
     const remote = await pullSnapshot<Payload>(session)
     if (remote?.data) {
       const data = remote.data
       await withoutSync(async () => {
-        await extras.clearLocal()
+        // اگر سرور داده دارد، تراکنش‌های محلی که هنوز در سرور نیستند را با سرور ادغام می‌کنیم
+        const localTxs = store.transactions || []
+        const remoteTxs = (data.transactions || []) as any[]
+        const remoteTxIds = new Set(remoteTxs.map((t: any) => t.id))
+        const preservedLocal = localTxs.filter((t) => !remoteTxIds.has(t.id))
+        const mergedTxs = [...remoteTxs, ...preservedLocal]
+
+        const localAccs = store.accounts || []
+        const remoteAccs = (data.accounts || []) as any[]
+        const remoteAccIds = new Set(remoteAccs.map((a: any) => a.id))
+        const preservedAccs = localAccs.filter((a) => !remoteAccIds.has(a.id))
+        const mergedAccs = [...remoteAccs, ...preservedAccs]
+
         await store.importCloud({
-          accounts: data.accounts ?? [],
-          transactions: data.transactions ?? [],
+          accounts: (mergedAccs.length > 0 ? mergedAccs : data.accounts) ?? [],
+          transactions: (mergedTxs.length > 0 ? mergedTxs : data.transactions) ?? [],
           plans: data.plans ?? [],
           items: data.items ?? [],
           customCategories: (data.customCategories as never) ?? [],
@@ -77,14 +89,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
       localStorage.setItem('hy-cloud-seen', String(remote.updatedAt))
       return
     }
-    if (kind === 'in') {
-      await withoutSync(async () => {
-        await store.importCloud({ accounts: [], transactions: [], plans: [], items: [], customCategories: [] })
-        await extras.clearLocal()
-      })
-      clearCloudDirty()
-      return
-    }
+    // اگر ابری خالی بود، هرگز داده‌های دستگاه کاربر را پاک نکن، بلکه آن را برای ارسال به ابر آماده کن
     localStorage.setItem('hy-cloud-dirty', '1')
   }
 

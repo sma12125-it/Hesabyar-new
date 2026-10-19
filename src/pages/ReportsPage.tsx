@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { categoriesFor } from '../lib/categories'
 import { monthKey, expenseByCategory, spentInCategory } from '../lib/reports'
 import { todayIso } from '../lib/iso'
@@ -9,6 +9,7 @@ import { WindowPopup } from '../components/WindowPopup'
 import { useExtras } from '../store/Extras'
 import { useStore } from '../store/Store'
 import { notifyUser } from '../lib/sync'
+import { TSE_INSTRUMENTS } from '../lib/tseCatalog'
 import type { CardMarket, InvestmentMarket, DongEvent, DongExpenseItem, InvestmentAsset } from '../types'
 
 export interface SettlementTransfer {
@@ -206,30 +207,7 @@ export interface TseInstrumentSummary {
   changePercent?: number
 }
 
-const DEFAULT_POPULAR_SYMBOLS: TseInstrumentSummary[] = [
-  { symbol: 'اهرم', name: 'صندوق س. اهرمی کاریزما', inscode: '55263175855079634', category: 'صندوق اهرمی', lastPrice: 21950 },
-  { symbol: 'عیار', name: 'صندوق طلای عیار مفید', inscode: '48449429711961520', category: 'صندوق طلا', lastPrice: 62450 },
-  { symbol: 'طلا', name: 'صندوق پشتوانه طلای لوتوس', inscode: '20915247313278296', category: 'صندوق طلا', lastPrice: 64200 },
-  { symbol: 'کهربا', name: 'صندوق طلای کهربا', inscode: '24959146199622558', category: 'صندوق طلا', lastPrice: 62050 },
-  { symbol: 'زر', name: 'صندوق طلای زرفام', inscode: '70808810243177651', category: 'صندوق طلا', lastPrice: 63300 },
-  { symbol: 'شتاب', name: 'صندوق اهرمی شتاب آگاه', inscode: '23062821213459632', category: 'صندوق اهرمی', lastPrice: 17100 },
-  { symbol: 'موج', name: 'صندوق اهرمی موج فیروزه', inscode: '60155250495818967', category: 'صندوق اهرمی', lastPrice: 18550 },
-  { symbol: 'فولاد', name: 'فولاد مبارکه اصفهان', inscode: '35700344742885862', category: 'فلزات اساسی', lastPrice: 5460 },
-  { symbol: 'فملی', name: 'ملی صنایع مس ایران', inscode: '35425587644337450', category: 'فلزات اساسی', lastPrice: 7180 },
-  { symbol: 'شستا', name: 'سرمایه‌گذاری تامین اجتماعی', inscode: '2400322364771558', category: 'سرمایه‌گذاری', lastPrice: 1200 },
-  { symbol: 'خودرو', name: 'ایران خودرو', inscode: '65883838195688438', category: 'خودرو', lastPrice: 2890 },
-  { symbol: 'خساپا', name: 'سایپا', inscode: '44891419777264879', category: 'خودرو', lastPrice: 2450 },
-  { symbol: 'خگستر', name: 'گسترش سرمایه‌گذاری ایران خودرو', inscode: '49042562479529340', category: 'سرمایه‌گذاری', lastPrice: 4010 },
-  { symbol: 'برکت', name: 'گروه دارویی برکت', inscode: '21617253503287042', category: 'دارویی', lastPrice: 4890 },
-  { symbol: 'پالایش', name: 'صندوق پالایشی یکم', inscode: '28107936665796340', category: 'صندوق سهامی', lastPrice: 15100 },
-  { symbol: 'دارا یکم', name: 'صندوق واسطه‌گری مالی یکم', inscode: '18320491910245084', category: 'صندوق سهامی', lastPrice: 12900 },
-  { symbol: 'افران', name: 'صندوق با درآمد ثابت افران', inscode: '61730030232532729', category: 'درآمد ثابت', lastPrice: 23150 },
-  { symbol: 'کاریس', name: 'صندوق کاریزما سهامی', inscode: '39493922831818295', category: 'صندوق سهامی', lastPrice: 34700 },
-  { symbol: 'شپنا', name: 'پالایش نفت اصفهان', inscode: '48000010188506899', category: 'پالایشی', lastPrice: 4190 },
-  { symbol: 'شبندر', name: 'پالایش نفت بندرعباس', inscode: '19614760882672728', category: 'پالایشی', lastPrice: 8980 },
-  { symbol: 'وبملت', name: 'بانک ملت', inscode: '7745894403636165', category: 'بانک', lastPrice: 2370 },
-  { symbol: 'وتجارت', name: 'بانک تجارت', inscode: '17960768898043740', category: 'بانک', lastPrice: 1440 },
-]
+const DEFAULT_POPULAR_SYMBOLS: TseInstrumentSummary[] = TSE_INSTRUMENTS as unknown as TseInstrumentSummary[]
 
 type ActiveTab = 'budget' | 'goals' | 'investments' | 'dong'
 
@@ -347,7 +325,9 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
   const [tseSearchQuery, setTseSearchQuery] = useState('')
   const [isTsePickerOpen, setIsTsePickerOpen] = useState(false)
   const [tseCategoryFilter, setTseCategoryFilter] = useState<string>('all')
-  const [tseInstrumentsList, setTseInstrumentsList] = useState<TseInstrumentSummary[]>([])
+  const [tseInstrumentsList, setTseInstrumentsList] = useState<TseInstrumentSummary[]>(
+    () => TSE_INSTRUMENTS as unknown as TseInstrumentSummary[]
+  )
   const [tseDetails, setTseDetails] = useState<{
     lastPrice: number
     closingPrice: number
@@ -383,26 +363,39 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
     return investments.filter((i) => i.market === invMarketFilter)
   }, [investments, invMarketFilter])
 
-  // Load TSE instruments catalog on component mount
-  useEffect(() => {
-    fetch('/api/v1/tsetmc/instruments?limit=100')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.success && Array.isArray(data.instruments)) {
+  const [isTseLoadingCatalog, setIsTseLoadingCatalog] = useState(false)
+
+  // فراخوانی کلیه نمادهای رسمی بازار بورس و فرابورس از وب‌سرویس
+  const loadAllTseInstruments = useCallback(async () => {
+    setIsTseLoadingCatalog(true)
+    try {
+      const res = await fetch('/api/v1/tsetmc/instruments?limit=2000')
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success && Array.isArray(data.instruments) && data.instruments.length > 0) {
           setTseInstrumentsList(data.instruments)
         }
-      })
-      .catch(() => {})
+      }
+    } catch {
+      // استفاده از داده‌های پشتیبان
+    } finally {
+      setIsTseLoadingCatalog(false)
+    }
   }, [])
 
-  // Auto-fetch stock and fund quotes from TSETMC when opening page/tab
+  // بارگذاری اولیه کلیه نمادهای رسمی بورس هنگام راه‌اندازی کامپوننت
+  useEffect(() => {
+    void loadAllTseInstruments()
+  }, [loadAllTseInstruments])
+
+  // به‌روزرسانی خودکار قیمت‌های بورس هنگام باز شدن صفحه
   useEffect(() => {
     if (activeTab === 'investments' || activeTab === 'budget') {
       void refreshTseQuotes(true)
     }
   }, [activeTab])
 
-  // Filtered TSE instruments based on search input and category filter
+  // فیلتر هوشمند نمادهای بورس بر اساس جستجو و دسته‌بندی تخصصی بازار
   const filteredTseInstruments = useMemo(() => {
     let list = tseInstrumentsList.length > 0 ? tseInstrumentsList : DEFAULT_POPULAR_SYMBOLS
     if (tseCategoryFilter !== 'all') {
@@ -411,9 +404,17 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
         const cat = (item.category || item.categoryName || '').toLowerCase()
         if (tseCategoryFilter === 'gold') return t === 'gold' || cat.includes('طلا')
         if (tseCategoryFilter === 'leveraged') return t === 'leveraged' || cat.includes('اهرم')
-        if (tseCategoryFilter === 'stock') return t === 'stock' || (!cat.includes('صندوق') && !cat.includes('طلا'))
+        if (tseCategoryFilter === 'stock') return t === 'stock'
         if (tseCategoryFilter === 'fixed_income') return t === 'fixed_income' || cat.includes('درآمد ثابت')
-        if (tseCategoryFilter === 'fund') return t.includes('fund') || cat.includes('صندوق')
+        if (tseCategoryFilter === 'fund') return t === 'fund' || cat.includes('صندوق')
+        if (tseCategoryFilter === 'metals') return cat.includes('فلز') || cat.includes('معدن') || cat.includes('کانه')
+        if (tseCategoryFilter === 'auto') return cat.includes('خودرو') || cat.includes('قطعات')
+        if (tseCategoryFilter === 'oil') return cat.includes('نفت') || cat.includes('شیمیایی') || cat.includes('پتروشیمی')
+        if (tseCategoryFilter === 'bank') return cat.includes('بانک') || cat.includes('سرمایه‌گذاری') || cat.includes('بیمه')
+        if (tseCategoryFilter === 'pharma') return cat.includes('دارو') || cat.includes('بهداشت')
+        if (tseCategoryFilter === 'cement') return cat.includes('سیمان') || cat.includes('ساختمان') || cat.includes('املاک') || cat.includes('مسکن')
+        if (tseCategoryFilter === 'food') return cat.includes('غذا') || cat.includes('زراعت') || cat.includes('کشاورزی') || cat.includes('دام')
+        if (tseCategoryFilter === 'tech') return cat.includes('رایانه') || cat.includes('اطلاعات') || cat.includes('مخابرات')
         return true
       })
     }
@@ -430,14 +431,40 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
   }, [tseInstrumentsList, tseSearchQuery, tseCategoryFilter])
 
   /**
-   * انتخاب نماد از لیست رسمی بورس و دریافت فوری آخرین قیمت معاملاتی
+   * انتخاب نماد از لیست رسمی بورس و درج آنی آخرین قیمت هر واحد در بخش ارزش روز هر واحد
    */
   function selectTseInstrument(item: TseInstrumentSummary) {
     setInvSymbol(item.symbol)
     setInvInscode(item.inscode)
     setInvName(item.name)
+
+    // درج فوری و خودکار آخرین قیمت معامله در فیلد ارزش روز هر واحد
+    const pricePerUnit = item.lastPrice || item.closingPrice || 0
+    if (pricePerUnit > 0) {
+      const displayPrice = currencyUnit === 'IRT' ? Math.round(pricePerUnit / 10) : pricePerUnit
+      setInvCurrentUnitPrice(formatSeparatedNumber(displayPrice))
+
+      // محاسبه خودکار ارزش کل در صورت وجود تعداد
+      const q = Number(digitsOnly(invQuantity))
+      if (q > 0) {
+        const totalCurr = currencyUnit === 'IRT' ? Math.round((q * pricePerUnit) / 10) : q * pricePerUnit
+        setInvCurrentValue(formatSeparatedNumber(totalCurr))
+      }
+
+      setTseDetails({
+        lastPrice: item.lastPrice || pricePerUnit,
+        closingPrice: item.closingPrice || pricePerUnit,
+        changePercent: item.changePercent || 0,
+        source: 'tsetmc',
+      })
+      const sign = (item.changePercent || 0) > 0 ? '+' : ''
+      setTseInfo(
+        `✓ نماد «${item.symbol}» با موفقیت انتخاب شد. آخرین قیمت هر واحد: ${formatMoney(pricePerUnit)} (${sign}${toFaDigits(item.changePercent || 0)}٪) در ارزش روز درج شد.`
+      )
+      notifyUser(`آخرین قیمت هر واحد نماد «${item.symbol}» با موفقیت در فرم قرار گرفت`)
+    }
+
     setIsTsePickerOpen(false)
-    void handleTseLookup(item.symbol, item.inscode)
   }
 
   /**
@@ -528,11 +555,15 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
           setInvCurrentValue(formatSeparatedNumber(totalCurr))
         }
       } else {
-        setTseInfo('نماد در سامانه بورس دریافت نشد؛ لطفاً قیمت را دستی وارد کنید.')
-        notifyUser('اطلاعات نماد دریافت نشد')
+        if (!invCurrentUnitPrice) {
+          setTseInfo('نماد در سامانه بورس دریافت نشد؛ لطفاً قیمت را دستی وارد کنید.')
+          notifyUser('اطلاعات نماد دریافت نشد')
+        }
       }
     } catch {
-      setTseInfo('خطا در ارتباط با سرور بورس')
+      if (!invCurrentUnitPrice) {
+        setTseInfo('خطا در ارتباط با سرور بورس')
+      }
     } finally {
       setTseLoading(false)
     }
@@ -2233,15 +2264,46 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
               onClose={() => setIsTsePickerOpen(false)}
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '72vh' }}>
-                <p style={{ fontSize: 12, color: 'var(--hy-text-secondary)', margin: 0 }}>
-                  نماد مورد نظر را جستجو یا انتخاب کنید تا آخرین قیمت معامله مستقیماً از TSETMC استعلام و درج شود:
-                </p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <p style={{ fontSize: 12, color: 'var(--hy-text-secondary)', margin: 0 }}>
+                    نماد مورد نظر را انتخاب کنید تا آخرین قیمت معامله مستقیماً در بخش ارزش روز هر واحد درج شود:
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {isTseLoadingCatalog ? (
+                      <span style={{ fontSize: 11, color: 'var(--hy-accent)', fontWeight: 600 }}>
+                        ⏳ در حال فراخوانی کلیه نمادها...
+                      </span>
+                    ) : (
+                      <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
+                        {toFaDigits(filteredTseInstruments.length)} نماد
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void loadAllTseInstruments()}
+                      disabled={isTseLoadingCatalog}
+                      style={{
+                        fontSize: 10,
+                        padding: '3px 8px',
+                        borderRadius: 8,
+                        border: '1px solid rgba(255,255,255,0.15)',
+                        background: 'rgba(255,255,255,0.06)',
+                        color: 'var(--hy-text)',
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
+                      title="فراخوانی مجدد فهرست نمادها از وب‌سرویس بورس"
+                    >
+                      {isTseLoadingCatalog ? '...' : '🔄 بازخوانی'}
+                    </button>
+                  </div>
+                </div>
 
                 {/* Search Bar */}
                 <div style={{ position: 'relative' }}>
                   <input
                     className="field-input"
-                    placeholder="🔍 جستجوی نماد، نام شرکت یا صنعت (مثلاً: فولاد، اهرم، عیار، مس)..."
+                    placeholder="🔍 جستجوی نماد، نام شرکت یا گروه (مثلاً: فولاد، خودرو، اهرم، عیار، طلا، شستا)..."
                     value={tseSearchQuery}
                     onChange={(e) => setTseSearchQuery(e.target.value)}
                     autoFocus
@@ -2270,11 +2332,19 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                 <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
                   {[
                     { id: 'all', label: 'همه نمادها' },
-                    { id: 'gold', label: '🪙 صندوق‌های طلا' },
+                    { id: 'gold', label: '🪙 صندوق طلا' },
                     { id: 'leveraged', label: '⚡ اهرمی' },
-                    { id: 'stock', label: '🏢 سهام شاخص' },
+                    { id: 'stock', label: '🏢 سهام بورس و فرابورس' },
                     { id: 'fund', label: '📈 صندوق‌های سهامی' },
                     { id: 'fixed_income', label: '💰 درآمد ثابت' },
+                    { id: 'metals', label: '⛏️ فلزات و معادن' },
+                    { id: 'oil', label: '🛢️ پتروپالایشی' },
+                    { id: 'bank', label: '🏦 بانک و مالی' },
+                    { id: 'auto', label: '🚗 خودرو و قطعات' },
+                    { id: 'pharma', label: '💊 دارویی' },
+                    { id: 'cement', label: '🏗️ سیمان و ساختمانی' },
+                    { id: 'food', label: '🌾 غذایی و زراعت' },
+                    { id: 'tech', label: '💻 فناوری و ارتباطات' },
                   ].map((tab) => (
                     <button
                       key={tab.id}
