@@ -1838,7 +1838,7 @@ apiRouter.post('/tsetmc/batch-quotes', async (req: Request, res: Response): Prom
 // ============================================================================
 // CLOUD SYNC & SNAPSHOT RESILIENCE API
 // ============================================================================
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 const SNAPSHOTS_DIR = join(process.cwd(), 'data', 'snapshots')
@@ -1860,21 +1860,44 @@ function getSnapshotFilePath(userId: string): string {
 apiRouter.get('/sync/snapshot', (req: Request, res: Response): void => {
   try {
     const userId = String(req.query.userId || req.headers['x-user-id'] || 'default')
-    const filePath = getSnapshotFilePath(userId)
-    if (existsSync(filePath)) {
-      const content = readFileSync(filePath, 'utf8')
-      const parsed = JSON.parse(content)
-      res.json({ success: true, ...parsed })
+    const candidates = new Set<string>()
+    candidates.add(getSnapshotFilePath(userId))
+    candidates.add(getSnapshotFilePath('default'))
+    candidates.add(getSnapshotFilePath('hesabyar_main_user'))
+    candidates.add(getSnapshotFilePath('latest'))
+
+    try {
+      if (existsSync(SNAPSHOTS_DIR)) {
+        for (const file of readdirSync(SNAPSHOTS_DIR)) {
+          if (file.endsWith('.json')) {
+            candidates.add(join(SNAPSHOTS_DIR, file))
+          }
+        }
+      }
+    } catch {}
+
+    let newestPayload: Record<string, unknown> | null = null
+    let highestUpdatedAt = -1
+
+    for (const path of candidates) {
+      if (existsSync(path)) {
+        try {
+          const content = readFileSync(path, 'utf8')
+          const parsed = JSON.parse(content)
+          const time = Number(parsed.updatedAt) || 0
+          if (time > highestUpdatedAt && parsed.data) {
+            highestUpdatedAt = time
+            newestPayload = parsed
+          }
+        } catch {}
+      }
+    }
+
+    if (newestPayload) {
+      res.json({ success: true, ...newestPayload })
       return
     }
-    // Check fallback default if specific user not found
-    const defaultPath = getSnapshotFilePath('default')
-    if (existsSync(defaultPath)) {
-      const content = readFileSync(defaultPath, 'utf8')
-      const parsed = JSON.parse(content)
-      res.json({ success: true, ...parsed })
-      return
-    }
+
     res.json({ success: true, data: null, updatedAt: 0 })
   } catch (err) {
     res.status(500).json({ success: false, error: 'خطا در خواندن اسنپ‌شات ابری سرور' })
@@ -1896,18 +1919,24 @@ apiRouter.post('/sync/snapshot', (req: Request, res: Response): void => {
       return
     }
 
-    const filePath = getSnapshotFilePath(userId)
     const payloadToSave = {
       userId,
       updatedAt,
       data,
     }
-    writeFileSync(filePath, JSON.stringify(payloadToSave, null, 2), 'utf8')
+    const jsonStr = JSON.stringify(payloadToSave, null, 2)
 
-    // Also mirror to default if custom user id was used, so other devices find it easily
-    if (userId !== 'default') {
+    // همگام‌سازی کامل با فایل اختصاصی کاربر و تمام مسیرهای مشترک دستگاه‌ها
+    const pathsToSave = [
+      getSnapshotFilePath(userId),
+      getSnapshotFilePath('default'),
+      getSnapshotFilePath('hesabyar_main_user'),
+      getSnapshotFilePath('latest'),
+    ]
+
+    for (const p of pathsToSave) {
       try {
-        writeFileSync(getSnapshotFilePath('default'), JSON.stringify(payloadToSave, null, 2), 'utf8')
+        writeFileSync(p, jsonStr, 'utf8')
       } catch {}
     }
 

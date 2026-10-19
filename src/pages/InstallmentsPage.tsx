@@ -87,6 +87,28 @@ export function InstallmentsPage({
     }
   })
 
+  // Sorting for Debts (بدهی‌ها)
+  const [debtSort, setDebtSort] = useState<'due-date' | 'overdue' | 'amount' | 'manual'>('due-date')
+  const [debtManualOrder, setDebtManualOrder] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('hy_debts_manual_order')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+
+  // Sorting for Cheques (چک‌ها)
+  const [chequeSort, setChequeSort] = useState<'due-date' | 'overdue' | 'amount' | 'manual'>('due-date')
+  const [chequeManualOrder, setChequeManualOrder] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('hy_cheques_manual_order')
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+
   // Listen for event from InstallmentPlanSheet when user converts plan to debt
   useEffect(() => {
     const onOpenDebt = (event: Event) => {
@@ -223,6 +245,130 @@ export function InstallmentsPage({
   const totalLentActive = debts
     .filter((d) => d.direction === 'lent' && d.status === 'active')
     .reduce((sum, d) => sum + d.amount, 0)
+
+  // Cheque sorting (سورت چک‌ها بر اساس سررسید، معوق، مبلغ و جابجایی دستی)
+  const sortedCheques = useMemo(() => {
+    const list = filteredCheques.slice()
+    if (chequeSort === 'due-date') {
+      return list.sort((a, b) => (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99'))
+    }
+    if (chequeSort === 'overdue') {
+      return list.sort((a, b) => {
+        const isOverA = a.status === 'pending' && a.dueDate < today
+        const isOverB = b.status === 'pending' && b.dueDate < today
+        if (isOverA && !isOverB) return -1
+        if (!isOverA && isOverB) return 1
+        return (a.dueDate || '9999-99-99').localeCompare(b.dueDate || '9999-99-99')
+      })
+    }
+    if (chequeSort === 'amount') {
+      return list.sort((a, b) => b.amount - a.amount)
+    }
+    if (chequeSort === 'manual') {
+      return list.sort((a, b) => {
+        const idxA = chequeManualOrder.indexOf(a.id)
+        const idxB = chequeManualOrder.indexOf(b.id)
+        if (idxA === -1 && idxB === -1) return 0
+        if (idxA === -1) return 1
+        if (idxB === -1) return -1
+        return idxA - idxB
+      })
+    }
+    return list
+  }, [filteredCheques, chequeSort, chequeManualOrder, today])
+
+  function moveChequeUp(id: string) {
+    const currentList = sortedCheques.map((c) => c.id)
+    const index = currentList.indexOf(id)
+    if (index <= 0) return
+    const next = [...currentList]
+    const temp = next[index - 1]
+    next[index - 1] = next[index]
+    next[index] = temp
+    setChequeManualOrder(next)
+    try {
+      localStorage.setItem('hy_cheques_manual_order', JSON.stringify(next))
+    } catch {}
+  }
+
+  function moveChequeDown(id: string) {
+    const currentList = sortedCheques.map((c) => c.id)
+    const index = currentList.indexOf(id)
+    if (index === -1 || index >= currentList.length - 1) return
+    const next = [...currentList]
+    const temp = next[index + 1]
+    next[index + 1] = next[index]
+    next[index] = temp
+    setChequeManualOrder(next)
+    try {
+      localStorage.setItem('hy_cheques_manual_order', JSON.stringify(next))
+    } catch {}
+  }
+
+  // Debt sorting (سورت بدهی‌ها بر اساس سررسید، معوق، مبلغ و جابجایی دستی)
+  const sortedDebts = useMemo(() => {
+    const list = filteredDebts.slice()
+    if (debtSort === 'due-date') {
+      return list.sort((a, b) => {
+        const dueA = a.dueDate || '9999-99-99'
+        const dueB = b.dueDate || '9999-99-99'
+        return dueA.localeCompare(dueB)
+      })
+    }
+    if (debtSort === 'overdue') {
+      return list.sort((a, b) => {
+        const isOverA = a.status === 'active' && a.dueDate && a.dueDate < today
+        const isOverB = b.status === 'active' && b.dueDate && b.dueDate < today
+        if (isOverA && !isOverB) return -1
+        if (!isOverA && isOverB) return 1
+        const dueA = a.dueDate || '9999-99-99'
+        const dueB = b.dueDate || '9999-99-99'
+        return dueA.localeCompare(dueB)
+      })
+    }
+    if (debtSort === 'amount') {
+      return list.sort((a, b) => b.amount - a.amount)
+    }
+    if (debtSort === 'manual') {
+      return list.sort((a, b) => {
+        const idxA = debtManualOrder.indexOf(a.id)
+        const idxB = debtManualOrder.indexOf(b.id)
+        if (idxA === -1 && idxB === -1) return 0
+        if (idxA === -1) return 1
+        if (idxB === -1) return -1
+        return idxA - idxB
+      })
+    }
+    return list
+  }, [filteredDebts, debtSort, debtManualOrder, today])
+
+  function moveDebtUp(id: string) {
+    const currentList = sortedDebts.map((d) => d.id)
+    const index = currentList.indexOf(id)
+    if (index <= 0) return
+    const next = [...currentList]
+    const temp = next[index - 1]
+    next[index - 1] = next[index]
+    next[index] = temp
+    setDebtManualOrder(next)
+    try {
+      localStorage.setItem('hy_debts_manual_order', JSON.stringify(next))
+    } catch {}
+  }
+
+  function moveDebtDown(id: string) {
+    const currentList = sortedDebts.map((d) => d.id)
+    const index = currentList.indexOf(id)
+    if (index === -1 || index >= currentList.length - 1) return
+    const next = [...currentList]
+    const temp = next[index + 1]
+    next[index + 1] = next[index]
+    next[index] = temp
+    setDebtManualOrder(next)
+    try {
+      localStorage.setItem('hy_debts_manual_order', JSON.stringify(next))
+    } catch {}
+  }
 
   // Quick Action Handlers for Debts & Cheques
   async function handleDeleteDebt(id: string) {
@@ -579,6 +725,62 @@ export function InstallmentsPage({
             </button>
           </div>
 
+          {/* Request 14: Debts Sorting Bar */}
+          {debts.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 8,
+                marginBottom: 12,
+                padding: '6px 10px',
+                background: 'rgba(255, 255, 255, 0.03)',
+                borderRadius: 12,
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+              }}
+            >
+              <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
+                🔄 سورت بدهی و طلب:
+              </span>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className={`cat-mini${debtSort === 'due-date' ? ' active' : ''}`}
+                  onClick={() => setDebtSort('due-date')}
+                  style={{ fontSize: 11, padding: '4px 8px' }}
+                >
+                  نزدیک‌ترین سررسید
+                </button>
+                <button
+                  type="button"
+                  className={`cat-mini${debtSort === 'overdue' ? ' active' : ''}`}
+                  onClick={() => setDebtSort('overdue')}
+                  style={{ fontSize: 11, padding: '4px 8px' }}
+                >
+                  بیشترین اقساط معوق
+                </button>
+                <button
+                  type="button"
+                  className={`cat-mini${debtSort === 'amount' ? ' active' : ''}`}
+                  onClick={() => setDebtSort('amount')}
+                  style={{ fontSize: 11, padding: '4px 8px' }}
+                >
+                  مبلغ قسط
+                </button>
+                <button
+                  type="button"
+                  className={`cat-mini${debtSort === 'manual' ? ' active' : ''}`}
+                  onClick={() => setDebtSort('manual')}
+                  style={{ fontSize: 11, padding: '4px 8px' }}
+                >
+                  جابجایی دستی
+                </button>
+              </div>
+            </div>
+          )}
+
           {debts.length === 0 ? (
             <div className="empty-state lg">
               <div className="empty-ico">🤝</div>
@@ -595,80 +797,143 @@ export function InstallmentsPage({
                 ＋ ثبت اولین بدهی / طلب
               </button>
             </div>
-          ) : filteredDebts.length === 0 ? (
+          ) : sortedDebts.length === 0 ? (
             <p className="sheet-sub">موردی در این دسته یافت نشد.</p>
           ) : (
             <div className="plan-list">
-              {filteredDebts.map((d) => {
+              {sortedDebts.map((d, idx, arr) => {
                 const isOverdue = d.status === 'active' && d.dueDate && d.dueDate < today
                 return (
-                  /* Request 5: Swipe Row for Debts and Loans */
-                  <SwipeRow
+                  <div
                     key={d.id}
-                    onEdit={() => {
-                      setEditingDebt(d)
-                      setDebtSheetOpen(true)
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      width: '100%',
                     }}
-                    onDelete={() => void handleDeleteDebt(d.id)}
                   >
-                    <div
-                      className="plan-card lg-row"
-                      style={{ textAlign: 'right', cursor: 'pointer', width: '100%' }}
-                      onClick={() => {
-                        setEditingDebt(d)
-                        setDebtSheetOpen(true)
-                      }}
-                    >
-                      <div className="plan-top">
-                        <div>
-                          <div className="plan-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span>{d.direction === 'borrowed' ? '🔴' : '🟢'}</span>
-                            <span>{d.party}</span>
-                            <span style={{ fontSize: 11, color: 'var(--hy-text-tertiary)', fontWeight: 'normal' }}>
-                              ({d.direction === 'borrowed' ? 'بدهی من' : 'طلب من'})
-                            </span>
-                          </div>
-                          <div className="plan-meta">
-                            {d.status === 'settled'
-                              ? `تسویه شده در تاریخ ${d.settledAt ? formatPersianDateFull(d.settledAt) : 'نامشخص'}`
-                              : d.dueDate
-                                ? `موعد سررسید بازپرداخت: ${formatPersianDateFull(d.dueDate)}`
-                                : 'بدون موعد بازپرداخت مشخص'}
-                          </div>
-                        </div>
-                        <div className="plan-right">
-                          <span className={`badge ${d.status === 'settled' ? 'ok' : isOverdue ? 'overdue' : 'pending'}`}>
-                            {d.status === 'settled' ? 'تسویه شده' : isOverdue ? 'سررسید گذشته' : 'جاری'}
-                          </span>
-                          <div className={`plan-amount ${d.direction === 'borrowed' ? 'down' : 'up'}`}>
-                            {formatMoney(d.amount)}
-                          </div>
-                        </div>
+                    {/* Manual Reordering Buttons for Debts */}
+                    {debtSort === 'manual' ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            moveDebtUp(d.id)
+                          }}
+                          disabled={idx === 0}
+                          style={{
+                            width: 26,
+                            height: 24,
+                            borderRadius: 6,
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            background: 'rgba(255, 255, 255, 0.08)',
+                            color: idx === 0 ? 'rgba(255, 255, 255, 0.2)' : 'var(--hy-text)',
+                            cursor: idx === 0 ? 'default' : 'pointer',
+                            display: 'grid',
+                            placeItems: 'center',
+                            fontSize: 10,
+                          }}
+                          title="انتقال بدهی / طلب به بالا"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            moveDebtDown(d.id)
+                          }}
+                          disabled={idx === arr.length - 1}
+                          style={{
+                            width: 26,
+                            height: 24,
+                            borderRadius: 6,
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            background: 'rgba(255, 255, 255, 0.08)',
+                            color: idx === arr.length - 1 ? 'rgba(255, 255, 255, 0.2)' : 'var(--hy-text)',
+                            cursor: idx === arr.length - 1 ? 'default' : 'pointer',
+                            display: 'grid',
+                            placeItems: 'center',
+                            fontSize: 10,
+                          }}
+                          title="انتقال بدهی / طلب به پایین"
+                        >
+                          ▼
+                        </button>
                       </div>
-                      {d.note ? (
-                        <div style={{ fontSize: 12, color: 'var(--hy-text-secondary)', marginTop: 6 }}>
-                          شرح: {d.note}
-                        </div>
-                      ) : null}
+                    ) : null}
 
-                      {/* Request 6: Quick Revert to Active for Settled Debts */}
-                      {d.status === 'settled' ? (
-                        <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
-                          <button
-                            type="button"
-                            className="cat-mini"
-                            style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#2563eb', fontSize: 11, padding: '4px 10px' }}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              void handleUnsettleDebtQuick(d.id)
-                            }}
-                          >
-                            ↩️ بازگردانی به وضعیت پرداخت‌نشده (جاری)
-                          </button>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Swipe Row for Debts and Loans */}
+                      <SwipeRow
+                        onEdit={() => {
+                          setEditingDebt(d)
+                          setDebtSheetOpen(true)
+                        }}
+                        onDelete={() => void handleDeleteDebt(d.id)}
+                      >
+                        <div
+                          className="plan-card lg-row"
+                          style={{ textAlign: 'right', cursor: 'pointer', width: '100%' }}
+                          onClick={() => {
+                            setEditingDebt(d)
+                            setDebtSheetOpen(true)
+                          }}
+                        >
+                          <div className="plan-top">
+                            <div>
+                              <div className="plan-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span>{d.direction === 'borrowed' ? '🔴' : '🟢'}</span>
+                                <span>{d.party}</span>
+                                <span style={{ fontSize: 11, color: 'var(--hy-text-tertiary)', fontWeight: 'normal' }}>
+                                  ({d.direction === 'borrowed' ? 'بدهی من' : 'طلب من'})
+                                </span>
+                              </div>
+                              <div className="plan-meta">
+                                {d.status === 'settled'
+                                  ? `تسویه شده در تاریخ ${d.settledAt ? formatPersianDateFull(d.settledAt) : 'نامشخص'}`
+                                  : d.dueDate
+                                    ? `موعد سررسید بازپرداخت: ${formatPersianDateFull(d.dueDate)}`
+                                    : 'بدون موعد بازپرداخت مشخص'}
+                              </div>
+                            </div>
+                            <div className="plan-right">
+                              <span className={`badge ${d.status === 'settled' ? 'ok' : isOverdue ? 'overdue' : 'pending'}`}>
+                                {d.status === 'settled' ? 'تسویه شده' : isOverdue ? 'سررسید گذشته' : 'جاری'}
+                              </span>
+                              <div className={`plan-amount ${d.direction === 'borrowed' ? 'down' : 'up'}`}>
+                                {formatMoney(d.amount)}
+                              </div>
+                            </div>
+                          </div>
+                          {d.note ? (
+                            <div style={{ fontSize: 12, color: 'var(--hy-text-secondary)', marginTop: 6 }}>
+                              شرح: {d.note}
+                            </div>
+                          ) : null}
+
+                          {/* Quick Revert to Active for Settled Debts */}
+                          {d.status === 'settled' ? (
+                            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+                              <button
+                                type="button"
+                                className="cat-mini"
+                                style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#2563eb', fontSize: 11, padding: '4px 10px' }}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  void handleUnsettleDebtQuick(d.id)
+                                }}
+                              >
+                                ↩️ بازگردانی به وضعیت پرداخت‌نشده (جاری)
+                              </button>
+                            </div>
+                          ) : null}
                         </div>
-                      ) : null}
+                      </SwipeRow>
                     </div>
-                  </SwipeRow>
+                  </div>
                 )
               })}
             </div>
@@ -741,6 +1006,62 @@ export function InstallmentsPage({
             </button>
           </div>
 
+          {/* Request 14: Cheques Sorting Bar */}
+          {cheques.length > 0 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 8,
+                marginBottom: 12,
+                padding: '6px 10px',
+                background: 'rgba(255, 255, 255, 0.03)',
+                borderRadius: 12,
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+              }}
+            >
+              <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
+                🔄 سورت چک‌ها:
+              </span>
+              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  className={`cat-mini${chequeSort === 'due-date' ? ' active' : ''}`}
+                  onClick={() => setChequeSort('due-date')}
+                  style={{ fontSize: 11, padding: '4px 8px' }}
+                >
+                  نزدیک‌ترین سررسید
+                </button>
+                <button
+                  type="button"
+                  className={`cat-mini${chequeSort === 'overdue' ? ' active' : ''}`}
+                  onClick={() => setChequeSort('overdue')}
+                  style={{ fontSize: 11, padding: '4px 8px' }}
+                >
+                  بیشترین اقساط معوق
+                </button>
+                <button
+                  type="button"
+                  className={`cat-mini${chequeSort === 'amount' ? ' active' : ''}`}
+                  onClick={() => setChequeSort('amount')}
+                  style={{ fontSize: 11, padding: '4px 8px' }}
+                >
+                  مبلغ قسط
+                </button>
+                <button
+                  type="button"
+                  className={`cat-mini${chequeSort === 'manual' ? ' active' : ''}`}
+                  onClick={() => setChequeSort('manual')}
+                  style={{ fontSize: 11, padding: '4px 8px' }}
+                >
+                  جابجایی دستی
+                </button>
+              </div>
+            </div>
+          )}
+
           {cheques.length === 0 ? (
             <div className="empty-state lg">
               <div className="empty-ico">🧾</div>
@@ -757,7 +1078,7 @@ export function InstallmentsPage({
                 ＋ ثبت اولین چک
               </button>
             </div>
-          ) : filteredCheques.length === 0 ? (
+          ) : sortedCheques.length === 0 ? (
             <div className="empty-state" style={{ padding: '24px 16px', margin: '10px 0' }}>
               <p className="sheet-sub">
                 {chequeFilter === 'cleared'
@@ -767,78 +1088,141 @@ export function InstallmentsPage({
             </div>
           ) : (
             <div className="plan-list">
-              {filteredCheques.map((c) => {
+              {sortedCheques.map((c, idx, arr) => {
                 const statusMeta = CHEQUE_STATUS_LABEL[c.status]
                 const isOverdue = c.status === 'pending' && c.dueDate < today
                 const isCleared = c.status === 'cleared'
 
                 return (
-                  /* Request 8: Swipe Row for Cheques */
-                  <SwipeRow
+                  <div
                     key={c.id}
-                    onEdit={() => {
-                      setEditingCheque(c)
-                      setChequeSheetOpen(true)
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      width: '100%',
                     }}
-                    onDelete={() => void handleDeleteCheque(c.id)}
                   >
-                    <div
-                      className="plan-card lg-row"
-                      style={{ textAlign: 'right', cursor: 'pointer', width: '100%' }}
-                      onClick={() => {
-                        setEditingCheque(c)
-                        setChequeSheetOpen(true)
-                      }}
-                    >
-                      <div className="plan-top">
-                        <div>
-                          <div className="plan-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span>{c.direction === 'payable' ? '📤' : '📥'}</span>
-                            <span>{c.party}</span>
-                            <span style={{ fontSize: 11, color: 'var(--hy-text-tertiary)', fontWeight: 'normal' }}>
-                              ({c.bankName})
-                            </span>
-                          </div>
-                          <div className="plan-meta">
-                            {isCleared
-                              ? `وصول شده در تاریخ: ${c.clearedAt ? formatPersianDateFull(c.clearedAt) : 'نامشخص'}`
-                              : `سررسید: ${formatPersianDateFull(c.dueDate)}`}
-                            {c.sayadId ? ` · صیاد: ${toFaDigits(c.sayadId.slice(-4))}` : ''}
-                          </div>
-                        </div>
-                        <div className="plan-right">
-                          <span className={`badge ${isOverdue ? 'overdue' : statusMeta.className}`}>
-                            {isOverdue ? 'معوق' : statusMeta.label}
-                          </span>
-                          <div className={`plan-amount ${c.direction === 'payable' ? 'down' : 'up'}`}>
-                            {formatMoney(c.amount)}
-                          </div>
-                        </div>
+                    {/* Manual Reordering Buttons for Cheques */}
+                    {chequeSort === 'manual' ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            moveChequeUp(c.id)
+                          }}
+                          disabled={idx === 0}
+                          style={{
+                            width: 26,
+                            height: 24,
+                            borderRadius: 6,
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            background: 'rgba(255, 255, 255, 0.08)',
+                            color: idx === 0 ? 'rgba(255, 255, 255, 0.2)' : 'var(--hy-text)',
+                            cursor: idx === 0 ? 'default' : 'pointer',
+                            display: 'grid',
+                            placeItems: 'center',
+                            fontSize: 10,
+                          }}
+                          title="انتقال چک به بالا"
+                        >
+                          ▲
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            moveChequeDown(c.id)
+                          }}
+                          disabled={idx === arr.length - 1}
+                          style={{
+                            width: 26,
+                            height: 24,
+                            borderRadius: 6,
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            background: 'rgba(255, 255, 255, 0.08)',
+                            color: idx === arr.length - 1 ? 'rgba(255, 255, 255, 0.2)' : 'var(--hy-text)',
+                            cursor: idx === arr.length - 1 ? 'default' : 'pointer',
+                            display: 'grid',
+                            placeItems: 'center',
+                            fontSize: 10,
+                          }}
+                          title="انتقال چک به پایین"
+                        >
+                          ▼
+                        </button>
                       </div>
-                      {c.note ? (
-                        <div style={{ fontSize: 12, color: 'var(--hy-text-secondary)', marginTop: 6 }}>
-                          بابت: {c.note}
-                        </div>
-                      ) : null}
+                    ) : null}
 
-                      {/* Restore Cleared Cheque to Active */}
-                      {isCleared ? (
-                        <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
-                          <button
-                            type="button"
-                            className="cat-mini"
-                            style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#2563eb', fontSize: 11, padding: '4px 10px' }}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              void handleRestoreChequeToPending(c)
-                            }}
-                          >
-                            ↩️ بازگردانی به چک‌های جاری (معلق)
-                          </button>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Swipe Row for Cheques */}
+                      <SwipeRow
+                        onEdit={() => {
+                          setEditingCheque(c)
+                          setChequeSheetOpen(true)
+                        }}
+                        onDelete={() => void handleDeleteCheque(c.id)}
+                      >
+                        <div
+                          className="plan-card lg-row"
+                          style={{ textAlign: 'right', cursor: 'pointer', width: '100%' }}
+                          onClick={() => {
+                            setEditingCheque(c)
+                            setChequeSheetOpen(true)
+                          }}
+                        >
+                          <div className="plan-top">
+                            <div>
+                              <div className="plan-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span>{c.direction === 'payable' ? '📤' : '📥'}</span>
+                                <span>{c.party}</span>
+                                <span style={{ fontSize: 11, color: 'var(--hy-text-tertiary)', fontWeight: 'normal' }}>
+                                  ({c.bankName})
+                                </span>
+                              </div>
+                              <div className="plan-meta">
+                                {isCleared
+                                  ? `وصول شده در تاریخ: ${c.clearedAt ? formatPersianDateFull(c.clearedAt) : 'نامشخص'}`
+                                  : `سررسید: ${formatPersianDateFull(c.dueDate)}`}
+                                {c.sayadId ? ` · صیاد: ${toFaDigits(c.sayadId.slice(-4))}` : ''}
+                              </div>
+                            </div>
+                            <div className="plan-right">
+                              <span className={`badge ${isOverdue ? 'overdue' : statusMeta.className}`}>
+                                {isOverdue ? 'معوق' : statusMeta.label}
+                              </span>
+                              <div className={`plan-amount ${c.direction === 'payable' ? 'down' : 'up'}`}>
+                                {formatMoney(c.amount)}
+                              </div>
+                            </div>
+                          </div>
+                          {c.note ? (
+                            <div style={{ fontSize: 12, color: 'var(--hy-text-secondary)', marginTop: 6 }}>
+                              بابت: {c.note}
+                            </div>
+                          ) : null}
+
+                          {/* Restore Cleared Cheque to Active */}
+                          {isCleared ? (
+                            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+                              <button
+                                type="button"
+                                className="cat-mini"
+                                style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#2563eb', fontSize: 11, padding: '4px 10px' }}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  void handleRestoreChequeToPending(c)
+                                }}
+                              >
+                                ↩️ بازگردانی به چک‌های جاری (معلق)
+                              </button>
+                            </div>
+                          ) : null}
                         </div>
-                      ) : null}
+                      </SwipeRow>
                     </div>
-                  </SwipeRow>
+                  </div>
                 )
               })}
             </div>

@@ -34,7 +34,7 @@ interface Payload {
 function mergeCollection<T extends { id: string; createdAt?: number; updatedAt?: number }>(
   local: unknown,
   remote: unknown,
-  _remoteTime?: number,
+  remoteTime = 0,
 ): T[] {
   const remoteList = Array.isArray(remote) ? (remote as T[]) : []
   const localList = Array.isArray(local) ? (local as T[]) : []
@@ -48,16 +48,24 @@ function mergeCollection<T extends { id: string; createdAt?: number; updatedAt?:
     if (item && item.id) map.set(item.id, item)
   }
 
-  // Then add all local items: NEVER drop any local items!
+  // Then evaluate local items:
   for (const item of localList) {
     if (!item || !item.id) continue
     const rItem = map.get(item.id)
     if (!rItem) {
-      map.set(item.id, item)
+      // Local item not present in remote snapshot
+      const lTime = item.updatedAt ?? item.createdAt ?? 0
+      // If local item was created or modified after remote snapshot was taken, preserve it
+      if (!remoteTime || lTime > remoteTime) {
+        map.set(item.id, item)
+      }
     } else {
       const lTime = item.updatedAt ?? item.createdAt ?? 0
       const rTime = rItem.updatedAt ?? rItem.createdAt ?? 0
-      if (lTime >= rTime) {
+      // Remote wins if newer or equal (remote is authoritative snapshot from cloud)
+      if (rTime >= lTime) {
+        map.set(item.id, rItem)
+      } else {
         map.set(item.id, item)
       }
     }
@@ -79,6 +87,7 @@ export function LiveSync() {
     let timer = 0
     let socket: WebSocket | null = null
     let lastSent = Number(localStorage.getItem('hy-cloud-seen') || 0)
+    let lastAppliedRemoteTime = 0
     let toldSignedOut = false
     const deviceId = sessionStorage.getItem('hy-device') ?? crypto.randomUUID()
     sessionStorage.setItem('hy-device', deviceId)
@@ -149,12 +158,15 @@ export function LiveSync() {
       const data = remote.data
       if (!data) return
 
-      // If remote has newer data, or force pull on start/focus
-      if ((remoteTime > lastSent || force) && (data.origin !== deviceId || force)) {
+      const isFromOtherDevice = data.origin !== deviceId
+      const isNewRemote = remoteTime !== lastAppliedRemoteTime
+
+      // اگر داده‌های ابری تازه‌تر از دستگاه دیگری آمده باشد، بلافاصله ادغام و اعمال شود
+      if ((isNewRemote && isFromOtherDevice) || force) {
         const live = readLiveStore()
         const local = await extrasRef.current.exportLocal()
 
-        // ادغام هوشمند و امن داده‌ها تا هیچ تراکنش یا حسابی حذف نشود
+        // ادغام هوشمند و امن داده‌ها تا هیچ تراکنش، سهام یا حسابی حذف نشود
         const mergedAccounts = mergeCollection(live.accounts, data.accounts, remoteTime)
         const mergedTransactions = mergeCollection(live.transactions, data.transactions, remoteTime)
         const mergedPlans = mergeCollection(live.plans, data.plans, remoteTime)
@@ -190,9 +202,16 @@ export function LiveSync() {
             dongEvents: mergedDongEvents,
           })
         })
+        lastAppliedRemoteTime = remoteTime
         lastSent = remoteTime
         localStorage.setItem('hy-cloud-seen', String(lastSent))
         clearCloudDirty()
+
+        // اطلاع‌رسانی به صفحات برای به‌روزرسانی آنی دارایی‌ها و اطلاعات
+        window.dispatchEvent(new CustomEvent('hy-cloud-updated', { detail: { time: remoteTime } }))
+        window.dispatchEvent(new Event('hy-investments-updated'))
+        window.dispatchEvent(new Event('hy-debts-updated'))
+        window.dispatchEvent(new Event('hy-cheques-updated'))
 
         // اگر تغییرات محلی ادغام شده بود، وضعیت جدید را به ابر ارسال کنیم
         if (hadLocalAdditions) {

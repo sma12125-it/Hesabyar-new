@@ -155,7 +155,8 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
             party: 'تجهیزات مدرن',
             status: 'pending',
             note: 'بابت تسویه فاکتور صندلی ارگونومیک',
-            createdAt: now - 3 * 86400000,
+            createdAt: 1700000000000,
+            updatedAt: 1700000000000,
           },
           {
             id: 'chq_mellat',
@@ -167,7 +168,8 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
             party: 'مهندس رضایی',
             status: 'pending',
             note: 'قسط دوم قرارداد طراحی',
-            createdAt: now - 5 * 86400000,
+            createdAt: 1700000000000,
+            updatedAt: 1700000000000,
           },
         ]
         void db.setKv('cheques', initialCheques)
@@ -184,7 +186,8 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
             dueDate: addDaysIso(today, 8),
             note: 'قرض‌الحسنه جهت رهن انبار',
             status: 'active',
-            createdAt: now - 15 * 86400000,
+            createdAt: 1700000000000,
+            updatedAt: 1700000000000,
           },
           {
             id: 'debt_lent_1',
@@ -194,7 +197,8 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
             dueDate: addDaysIso(today, 22),
             note: 'مساعدت شخصی',
             status: 'active',
-            createdAt: now - 7 * 86400000,
+            createdAt: 1700000000000,
+            updatedAt: 1700000000000,
           },
         ]
         void db.setKv('debts', initialDebts)
@@ -212,7 +216,8 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
             quantity: 21.5,
             purchaseDate: addDaysIso(today, -60),
             note: 'پوشش تورم و پس‌انداز بلندمدت',
-            createdAt: now - 60 * 86400000,
+            createdAt: 1700000000000,
+            updatedAt: 1700000000000,
           },
           {
             id: 'inv_fund_1',
@@ -222,7 +227,8 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
             currentValue: 56_200_000,
             purchaseDate: addDaysIso(today, -30),
             note: 'سرمایه‌گذاری در بورس',
-            createdAt: now - 30 * 86400000,
+            createdAt: 1700000000000,
+            updatedAt: 1700000000000,
           },
         ]
         void db.setKv('investments', initialInvestments)
