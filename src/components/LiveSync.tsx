@@ -11,7 +11,7 @@ import {
   withoutSync,
 } from '../lib/sync'
 import { useExtras } from '../store/Extras'
-import { useStore } from '../store/Store'
+import { readLiveStore, useStore } from '../store/Store'
 
 interface Payload {
   accounts: never[]
@@ -42,42 +42,28 @@ function mergeCollection<T extends { id: string; createdAt?: number; updatedAt?:
   if (remoteList.length === 0) return localList
   if (localList.length === 0) return remoteList
 
-  const remoteMap = new Map<string, T>()
+  const map = new Map<string, T>()
+  // First, add all remote items
   for (const item of remoteList) {
-    if (item && item.id) remoteMap.set(item.id, item)
+    if (item && item.id) map.set(item.id, item)
   }
 
-  // Any local items that are newer or do not exist on remote yet
-  const localMap = new Map<string, T>()
+  // Then add all local items: NEVER drop any local items!
   for (const item of localList) {
     if (!item || !item.id) continue
-    // If remote does not have this item at all, IT MUST BE PRESERVED!
-    if (!remoteMap.has(item.id)) {
-      localMap.set(item.id, item)
-      continue
-    }
-    const itemTime = item.updatedAt ?? item.createdAt ?? 0
-    const rItem = remoteMap.get(item.id)!
-    const rTime = rItem.updatedAt ?? rItem.createdAt ?? 0
-    if (itemTime > rTime) {
-      localMap.set(item.id, item)
+    const rItem = map.get(item.id)
+    if (!rItem) {
+      map.set(item.id, item)
+    } else {
+      const lTime = item.updatedAt ?? item.createdAt ?? 0
+      const rTime = rItem.updatedAt ?? rItem.createdAt ?? 0
+      if (lTime >= rTime) {
+        map.set(item.id, item)
+      }
     }
   }
 
-  const result: T[] = []
-  for (const [id, rItem] of remoteMap.entries()) {
-    const lItem = localMap.get(id)
-    if (lItem) {
-      result.push(lItem)
-      localMap.delete(id)
-    } else {
-      result.push(rItem)
-    }
-  }
-  for (const lItem of localMap.values()) {
-    result.push(lItem)
-  }
-  return result
+  return Array.from(map.values())
 }
 
 export function LiveSync() {
@@ -98,16 +84,17 @@ export function LiveSync() {
     sessionStorage.setItem('hy-device', deviceId)
 
     async function snapshot() {
-      const current = storeRef.current
+      // Read authoritative synchronous in-memory store so newly added transactions are never missed
+      const live = readLiveStore()
       const local = await extrasRef.current.exportLocal()
       return {
         updatedAt: Date.now(),
         data: {
-          accounts: current.accounts,
-          transactions: current.transactions,
-          plans: current.plans,
-          items: current.items,
-          customCategories: current.customCategories,
+          accounts: live.accounts,
+          transactions: live.transactions,
+          plans: live.plans,
+          items: live.items,
+          customCategories: storeRef.current.customCategories,
           budgets: local.budgets,
           goals: local.goals,
           investments: local.investments,
@@ -147,6 +134,7 @@ export function LiveSync() {
     }
 
     async function applyRemote(force = false) {
+      if (!storeRef.current.ready) return
       const session = await ensureSession()
       if (!session || closed) return
       const remote = await pullSnapshot<Payload>(session)
@@ -163,15 +151,15 @@ export function LiveSync() {
 
       // If remote has newer data, or force pull on start/focus
       if ((remoteTime > lastSent || force) && (data.origin !== deviceId || force)) {
-        const currentStore = storeRef.current
+        const live = readLiveStore()
         const local = await extrasRef.current.exportLocal()
 
         // ادغام هوشمند و امن داده‌ها تا هیچ تراکنش یا حسابی حذف نشود
-        const mergedAccounts = mergeCollection(currentStore.accounts, data.accounts, remoteTime)
-        const mergedTransactions = mergeCollection(currentStore.transactions, data.transactions, remoteTime)
-        const mergedPlans = mergeCollection(currentStore.plans, data.plans, remoteTime)
-        const mergedItems = mergeCollection(currentStore.items, data.items, remoteTime)
-        const mergedCategories = mergeCollection(currentStore.customCategories, data.customCategories, remoteTime)
+        const mergedAccounts = mergeCollection(live.accounts, data.accounts, remoteTime)
+        const mergedTransactions = mergeCollection(live.transactions, data.transactions, remoteTime)
+        const mergedPlans = mergeCollection(live.plans, data.plans, remoteTime)
+        const mergedItems = mergeCollection(live.items, data.items, remoteTime)
+        const mergedCategories = mergeCollection(storeRef.current.customCategories, data.customCategories, remoteTime)
 
         const mergedCheques = mergeCollection(local.cheques, data.cheques, remoteTime)
         const mergedDebts = mergeCollection(local.debts, data.debts, remoteTime)
