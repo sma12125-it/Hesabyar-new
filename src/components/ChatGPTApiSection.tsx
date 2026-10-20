@@ -3,22 +3,58 @@ import { loadSession, notifyUser } from '../lib/sync'
 
 export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) {
   const session = loadSession()
+  const [activeSubTab, setActiveSubTab] = useState<'mcp' | 'customGpt'>('mcp')
   const [copiedToken, setCopiedToken] = useState(false)
-  const [copiedOpenApi, setCopiedOpenApi] = useState(false)
-  const [copiedMcp, setCopiedMcp] = useState(false)
+  const [copiedOpenApiUrl, setCopiedOpenApiUrl] = useState(false)
+  const [copiedOpenApiRaw, setCopiedOpenApiRaw] = useState(false)
+  const [copiedMcpUrl, setCopiedMcpUrl] = useState(false)
+  const [copiedJsonConfig, setCopiedJsonConfig] = useState(false)
+  const [copiedHeaderValue, setCopiedHeaderValue] = useState(false)
 
   const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'
   const apiBaseUrl = `${origin}/api/v1`
   const openApiUrl = `${apiBaseUrl}/openapi.json`
-  const mcpUrl = `${apiBaseUrl}/mcp/tools`
+  const mcpServerUrl = `${origin}/mcp`
   const docsUrl = `${apiBaseUrl}/docs`
+
+  const token = session?.accessToken || 'server_cloud_sync_token'
+  const bearerHeaderValue = `Bearer ${token}`
+
+  const jsonMcpConfig = JSON.stringify(
+    {
+      mcpServers: {
+        hesabyar: {
+          url: mcpServerUrl,
+          headers: {
+            Authorization: bearerHeaderValue,
+          },
+        },
+      },
+    },
+    null,
+    2
+  )
 
   const handleCopy = (text: string, setFn: (val: boolean) => void, label: string) => {
     void navigator.clipboard.writeText(text).then(() => {
       setFn(true)
-      notifyUser(`${label} با موفقیت در کلیپ‌بورد کپی شد`)
+      notifyUser(`${label} در کلیپ‌بورد کپی شد`)
       setTimeout(() => setFn(false), 2500)
     })
+  }
+
+  const handleCopyOpenApiRaw = async () => {
+    try {
+      const res = await fetch(openApiUrl)
+      if (res.ok) {
+        const text = await res.text()
+        handleCopy(text, setCopiedOpenApiRaw, 'متن کامل OpenAPI Schema')
+      } else {
+        notifyUser('خطا در دریافت متن OpenAPI')
+      }
+    } catch {
+      notifyUser('خطا در دریافت متن OpenAPI')
+    }
   }
 
   return (
@@ -57,7 +93,7 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
           <span>احراز هویت و توکن دسترسی (Bearer Token)</span>
         </h3>
         <p className="sheet-sub" style={{ marginTop: 2 }}>
-          برای حفظ امنیت کامل، هر کاربر دارای فضای داده کاملاً ایزوله در Supabase است و ChatGPT فقط به اطلاعات خود شما دسترسی خواهد داشت.
+          برای حفظ امنیت کامل، دسترسی‌ها با توکن امن محافظت می‌شوند و هوش مصنوعی فقط به داده‌های حساب شما دسترسی خواهد داشت.
         </p>
 
         {session ? (
@@ -65,20 +101,20 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: 8, border: '1px solid rgba(16, 185, 129, 0.2)' }}>
               <div style={{ fontSize: '12px', color: '#10b981', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span>✓</span>
-                <span>متصل به حساب ابری: <strong>{session.email}</strong></span>
+                <span>متصل به حساب: <strong>{session.email}</strong></span>
               </div>
-              <span className="badge ok" style={{ fontSize: '10px' }}>احراز شده</span>
+              <span className="badge ok" style={{ fontSize: '10px' }}>فعال</span>
             </div>
 
             <div>
               <label style={{ fontSize: '11px', color: 'var(--hy-text-secondary)', display: 'block', marginBottom: 4 }}>
-                توکن امن دسترسی (برای تنظیم در ChatGPT Action یا MCP):
+                توکن امن دسترسی (Bearer Token):
               </label>
               <div style={{ display: 'flex', gap: 6 }}>
                 <input
                   type="password"
                   readOnly
-                  value={session.accessToken}
+                  value={token}
                   style={{
                     flex: 1,
                     direction: 'ltr',
@@ -94,7 +130,7 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
                 <button
                   type="button"
                   className="home-pill"
-                  onClick={() => handleCopy(session.accessToken, setCopiedToken, 'توکن دسترسی')}
+                  onClick={() => handleCopy(token, setCopiedToken, 'توکن دسترسی')}
                   style={{ padding: '0 14px', fontSize: '11.5px', fontWeight: 700 }}
                 >
                   {copiedToken ? 'کپی شد ✓' : 'کپی توکن'}
@@ -119,102 +155,276 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
         )}
       </div>
 
-      {/* Endpoint Links & Manifests */}
-      <div className="lg settings-block">
-        <h3 style={{ fontSize: '13.5px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span>🌐</span>
-          <span>آدرس سرور و مشخصات اتصال API</span>
-        </h3>
-        <p className="sheet-sub" style={{ marginTop: 2 }}>
-          لینک‌های استاندارد برای وارد کردن مستقیم در Custom GPT یا فایل کانفیگ MCP Server
-        </p>
-
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
-          {/* Base URL */}
-          <div style={{ padding: '8px 10px', background: 'var(--hy-input-bg)', borderRadius: 8, border: '1px solid var(--hy-border)' }}>
-            <div style={{ fontSize: '11px', color: 'var(--hy-text-secondary)', marginBottom: 2 }}>آدرس ریشه (API Base URL):</div>
-            <div style={{ fontFamily: 'monospace', fontSize: '12px', direction: 'ltr', color: '#38bdf8' }}>{apiBaseUrl}</div>
-          </div>
-
-          {/* OpenAPI JSON Button */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'var(--hy-input-bg)', borderRadius: 8, border: '1px solid var(--hy-border)' }}>
-            <div>
-              <div style={{ fontSize: '11.5px', fontWeight: 700 }}>OpenAPI 3.1.0 Schema</div>
-              <div style={{ fontSize: '10px', color: 'var(--hy-text-secondary)' }}>جهت وارد کردن در بخش Actions در ChatGPT Custom GPT</div>
-            </div>
-            <button
-              type="button"
-              className="home-pill ghost"
-              onClick={() => handleCopy(openApiUrl, setCopiedOpenApi, 'آدرس OpenAPI')}
-              style={{ fontSize: '11px', padding: '4px 10px' }}
-            >
-              {copiedOpenApi ? 'کپی شد ✓' : 'کپی لینک'}
-            </button>
-          </div>
-
-          {/* MCP Tools JSON Button */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 10px', background: 'var(--hy-input-bg)', borderRadius: 8, border: '1px solid var(--hy-border)' }}>
-            <div>
-              <div style={{ fontSize: '11.5px', fontWeight: 700 }}>MCP Tools Manifest</div>
-              <div style={{ fontSize: '10px', color: 'var(--hy-text-secondary)' }}>جهت استفاده در کلاینت‌های پشتیبان MCP (Model Context Protocol)</div>
-            </div>
-            <button
-              type="button"
-              className="home-pill ghost"
-              onClick={() => handleCopy(mcpUrl, setCopiedMcp, 'آدرس ابزارهای MCP')}
-              style={{ fontSize: '11px', padding: '4px 10px' }}
-            >
-              {copiedMcp ? 'کپی شد ✓' : 'کپی لینک'}
-            </button>
-          </div>
-
-          {/* Web Docs Link */}
-          <a
-            href={docsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              padding: '9px 12px',
-              borderRadius: 8,
-              background: 'rgba(56, 189, 248, 0.12)',
-              color: '#38bdf8',
-              fontSize: '12px',
-              fontWeight: 700,
-              textDecoration: 'none',
-              marginTop: 4,
-            }}
-          >
-            <span>مشاهده صفحه مستندات تعاملی API در مرورگر</span>
-            <span>↗</span>
-          </a>
-        </div>
+      {/* Tabs to switch between MCP Server vs Custom GPT Action */}
+      <div className="seg" role="tablist" style={{ margin: '2px 0' }}>
+        <button
+          className={`seg-btn${activeSubTab === 'mcp' ? ' active' : ''}`}
+          type="button"
+          onClick={() => setActiveSubTab('mcp')}
+          style={{ fontSize: '12px', fontWeight: 700, padding: '8px 6px' }}
+        >
+          ⚡ تنظیم به عنوان Custom MCP Server
+        </button>
+        <button
+          className={`seg-btn${activeSubTab === 'customGpt' ? ' active' : ''}`}
+          type="button"
+          onClick={() => setActiveSubTab('customGpt')}
+          style={{ fontSize: '12px', fontWeight: 700, padding: '8px 6px' }}
+        >
+          🛠️ تنظیم به عنوان Custom GPT Action
+        </button>
       </div>
 
-      {/* Guide Cards */}
-      <div className="lg settings-block">
-        <h3 style={{ fontSize: '13.5px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span>📖</span>
-          <span>راهنمای گام‌به‌گام اتصال به ChatGPT</span>
-        </h3>
+      {/* TAB 1: CUSTOM MCP SERVER (Desktop / Developer Mode) */}
+      {activeSubTab === 'mcp' ? (
+        <div className="lg settings-block">
+          <h3 style={{ fontSize: '13.5px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>⚡</span>
+            <span>مشخصات اتصال سرور MCP (Streamable HTTP / SSE)</span>
+          </h3>
+          <p className="sheet-sub" style={{ marginTop: 2 }}>
+            در نرم‌افزار دسکتاپ ChatGPT، Cursor یا Claude Desktop مقادیر زیر را در فیلدهای متناظر وارد کنید:
+          </p>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, fontSize: '11.5px', color: 'var(--hy-text-primary)', lineHeight: 1.6 }}>
-          <div style={{ padding: '6px 10px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: 6 }}>
-            <strong>۱. ایجاد Custom GPT در ChatGPT:</strong> در منوی ChatGPT گزینه Explore GPTs و سپس Create را بزنید.
-          </div>
-          <div style={{ padding: '6px 10px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: 6 }}>
-            <strong>۲. افزودن اکشن (Action):</strong> در تب Configure، روی دکمه Create new action کلیک کنید و لینک OpenAPI Schema بالا را وارد کنید (یا محتوای json آن را paste کنید).
-          </div>
-          <div style={{ padding: '6px 10px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: 6 }}>
-            <strong>۳. تنظیم Authentication:</strong> در بخش احراز هویت اکشن، نوع را <code>Bearer</code> قرار دهید و توکن امن خود را در آن وارد کنید.
-          </div>
-          <div style={{ padding: '6px 10px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: 6 }}>
-            <strong>۴. تأیید عملیات مالی حساس (Confirmation Flow):</strong> سیستم حسابیار به طور کامل از قابلیت <code>dryRun</code> پشتیبانی می‌کند تا ChatGPT قبل از انتقال وجه یا ثبت هزینه‌های حساس، پیش‌نمایش و موجودی بعد از تراکنش را به شما نشان داده و از شما تأیید بگیرد!
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+            {/* Field 1: Name */}
+            <div style={{ padding: '8px 10px', background: 'var(--hy-input-bg)', borderRadius: 8, border: '1px solid var(--hy-border)' }}>
+              <div style={{ fontSize: '11px', color: 'var(--hy-text-secondary)', marginBottom: 2 }}>
+                ۱. نام سرور (Server Name):
+              </div>
+              <div style={{ fontFamily: 'monospace', fontSize: '12.5px', fontWeight: 700, color: '#38bdf8' }}>
+                HesabYar
+              </div>
+            </div>
+
+            {/* Field 2: Type */}
+            <div style={{ padding: '8px 10px', background: 'var(--hy-input-bg)', borderRadius: 8, border: '1px solid var(--hy-border)' }}>
+              <div style={{ fontSize: '11px', color: 'var(--hy-text-secondary)', marginBottom: 2 }}>
+                ۲. نوع پروتکل سرور (Server Type / Transport):
+              </div>
+              <div style={{ fontFamily: 'monospace', fontSize: '12px', color: '#10b981', fontWeight: 700 }}>
+                HTTP (یا SSE / Streamable HTTP)
+              </div>
+            </div>
+
+            {/* Field 3: Server URL */}
+            <div style={{ padding: '8px 10px', background: 'var(--hy-input-bg)', borderRadius: 8, border: '1px solid var(--hy-border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <div style={{ fontSize: '11px', color: 'var(--hy-text-secondary)' }}>
+                  ۳. آدرس سرور (Server URL / Endpoint):
+                </div>
+                <button
+                  type="button"
+                  className="home-pill ghost"
+                  onClick={() => handleCopy(mcpServerUrl, setCopiedMcpUrl, 'آدرس سرور MCP')}
+                  style={{ fontSize: '11px', padding: '3px 8px' }}
+                >
+                  {copiedMcpUrl ? 'کپی شد ✓' : 'کپی آدرس'}
+                </button>
+              </div>
+              <div style={{ fontFamily: 'monospace', fontSize: '12px', direction: 'ltr', color: '#38bdf8', wordBreak: 'break-all' }}>
+                {mcpServerUrl}
+              </div>
+            </div>
+
+            {/* Field 4: Headers */}
+            <div style={{ padding: '8px 10px', background: 'var(--hy-input-bg)', borderRadius: 8, border: '1px solid var(--hy-border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <div style={{ fontSize: '11px', color: 'var(--hy-text-secondary)' }}>
+                  ۴. هدرهای احراز هویت (Headers):
+                </div>
+                <button
+                  type="button"
+                  className="home-pill ghost"
+                  onClick={() => handleCopy(bearerHeaderValue, setCopiedHeaderValue, 'مقدار هدر Authorization')}
+                  style={{ fontSize: '11px', padding: '3px 8px' }}
+                >
+                  {copiedHeaderValue ? 'کپی شد ✓' : 'کپی مقدار هدر'}
+                </button>
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--hy-text-primary)', lineHeight: 1.6 }}>
+                نام هدر (Key): <code style={{ color: '#38bdf8' }}>Authorization</code>
+                <br />
+                مقدار هدر (Value): <code style={{ color: '#10b981', direction: 'ltr', display: 'inline-block' }}>{bearerHeaderValue}</code>
+              </div>
+            </div>
+
+            {/* JSON Config Snippet */}
+            <div style={{ marginTop: 6, padding: '10px 12px', background: 'rgba(0, 0, 0, 0.35)', borderRadius: 8, border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--hy-text-secondary)' }}>
+                  کد آماده کانفیگ JSON (جهت پیست در mcpServers):
+                </span>
+                <button
+                  type="button"
+                  className="home-pill"
+                  onClick={() => handleCopy(jsonMcpConfig, setCopiedJsonConfig, 'کد JSON کانفیگ MCP')}
+                  style={{ fontSize: '11px', padding: '3px 10px' }}
+                >
+                  {copiedJsonConfig ? 'کپی شد ✓' : 'کپی JSON کانفیگ'}
+                </button>
+              </div>
+              <pre
+                style={{
+                  margin: 0,
+                  fontSize: '11px',
+                  fontFamily: 'monospace',
+                  direction: 'ltr',
+                  color: '#93c5fd',
+                  overflowX: 'auto',
+                  padding: '8px',
+                  background: 'rgba(15, 23, 42, 0.8)',
+                  borderRadius: 6,
+                }}
+              >
+                {jsonMcpConfig}
+              </pre>
+            </div>
           </div>
         </div>
+      ) : (
+        /* TAB 2: CUSTOM GPT ACTIONS (ChatGPT Web/App) */
+        <div className="lg settings-block">
+          <h3 style={{ fontSize: '13.5px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>🛠️</span>
+            <span>مشخصات ساخت Custom GPT Action در وب چت‌جی‌پی‌تی</span>
+          </h3>
+          <p className="sheet-sub" style={{ marginTop: 2 }}>
+            در منوی ChatGPT به مسیر <strong>Explore GPTs &gt; Create &gt; Configure &gt; Actions</strong> بروید و فیلدها را به این شکل تکمیل کنید:
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+            {/* Step 1: Authentication */}
+            <div style={{ padding: '8px 10px', background: 'var(--hy-input-bg)', borderRadius: 8, border: '1px solid var(--hy-border)' }}>
+              <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#38bdf8', marginBottom: 4 }}>
+                ۱. تنظیم احراز هویت (Authentication):
+              </div>
+              <ul style={{ margin: 0, paddingRight: 16, fontSize: '11px', color: 'var(--hy-text-primary)', lineHeight: 1.6 }}>
+                <li>نوع احراز هویت (Authentication Type): گزینه <strong>API Key</strong> را انتخاب کنید.</li>
+                <li>نوع کلید (Auth Type): گزینه <strong>Bearer</strong> را علامت بزنید.</li>
+                <li>کلید API (API Key): توکن امن خود را در این فیلد قرار دهید:</li>
+              </ul>
+              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                <input
+                  type="password"
+                  readOnly
+                  value={token}
+                  style={{
+                    flex: 1,
+                    direction: 'ltr',
+                    fontFamily: 'monospace',
+                    fontSize: '11px',
+                    padding: '6px 8px',
+                    borderRadius: 6,
+                    background: 'rgba(0,0,0,0.2)',
+                    border: '1px solid var(--hy-border)',
+                    color: 'var(--hy-text-primary)',
+                  }}
+                />
+                <button
+                  type="button"
+                  className="home-pill"
+                  onClick={() => handleCopy(token, setCopiedToken, 'توکن دسترسی')}
+                  style={{ padding: '0 12px', fontSize: '11px' }}
+                >
+                  {copiedToken ? 'کپی شد ✓' : 'کپی'}
+                </button>
+              </div>
+            </div>
+
+            {/* Step 2: Schema */}
+            <div style={{ padding: '8px 10px', background: 'var(--hy-input-bg)', borderRadius: 8, border: '1px solid var(--hy-border)' }}>
+              <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#38bdf8', marginBottom: 4 }}>
+                ۲. طرحواره API (Schema):
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--hy-text-secondary)', marginBottom: 6 }}>
+                روی <strong>Import from URL</strong> کلیک کنید و لینک زیر را قرار دهید:
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                <input
+                  type="text"
+                  readOnly
+                  value={openApiUrl}
+                  style={{
+                    flex: 1,
+                    direction: 'ltr',
+                    fontFamily: 'monospace',
+                    fontSize: '11px',
+                    padding: '6px 8px',
+                    borderRadius: 6,
+                    background: 'rgba(0,0,0,0.2)',
+                    border: '1px solid var(--hy-border)',
+                    color: '#38bdf8',
+                  }}
+                />
+                <button
+                  type="button"
+                  className="home-pill ghost"
+                  onClick={() => handleCopy(openApiUrl, setCopiedOpenApiUrl, 'آدرس OpenAPI Schema')}
+                  style={{ padding: '0 12px', fontSize: '11px' }}
+                >
+                  {copiedOpenApiUrl ? 'کپی شد ✓' : 'کپی لینک'}
+                </button>
+              </div>
+
+              {/* Direct JSON Copy if URL fails */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px dashed rgba(255,255,255,0.1)' }}>
+                <span style={{ fontSize: '10.5px', color: 'var(--hy-text-secondary)' }}>
+                  اگر ChatGPT در خواندن لینک خطا داد، متن JSON را مستقیماً پیست کنید:
+                </span>
+                <button
+                  type="button"
+                  className="home-pill"
+                  onClick={() => void handleCopyOpenApiRaw()}
+                  style={{ fontSize: '10.5px', padding: '3px 8px' }}
+                >
+                  {copiedOpenApiRaw ? 'کپی شد ✓' : 'کپی کل متن JSON'}
+                </button>
+              </div>
+            </div>
+
+            {/* Step 3: Privacy Policy */}
+            <div style={{ padding: '8px 10px', background: 'var(--hy-input-bg)', borderRadius: 8, border: '1px solid var(--hy-border)' }}>
+              <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#38bdf8', marginBottom: 2 }}>
+                ۳. لینک حریم خصوصی (Privacy Policy):
+              </div>
+              <div style={{ fontFamily: 'monospace', fontSize: '11.5px', direction: 'ltr', color: 'var(--hy-text-secondary)' }}>
+                {docsUrl}
+              </div>
+            </div>
+
+            {/* Step 4: Safety / Confirmation */}
+            <div style={{ padding: '8px 10px', background: 'rgba(16, 185, 129, 0.08)', borderRadius: 8, border: '1px solid rgba(16, 185, 129, 0.2)' }}>
+              <div style={{ fontSize: '11px', color: '#10b981', lineHeight: 1.5 }}>
+                ✓ <strong>سیستم تأیید مالی دو مرحله‌ای (Confirmation Flow):</strong> حسابیار مجهز به <code>dryRun</code> است؛ بنابراین چت‌جی‌پی‌تی برای تراکنش‌ها ابتدا پیش‌نمایش مبلغ و موجودی را نشان داده و پس از تأیید صریح شما ثبت می‌کند.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Web Docs Link */}
+      <div style={{ textAlign: 'center' }}>
+        <a
+          href={docsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 16px',
+            borderRadius: 8,
+            background: 'rgba(56, 189, 248, 0.12)',
+            color: '#38bdf8',
+            fontSize: '12px',
+            fontWeight: 700,
+            textDecoration: 'none',
+          }}
+        >
+          <span>مشاهده صفحه مستندات کامل API در مرورگر</span>
+          <span>↗</span>
+        </a>
       </div>
     </div>
   )
