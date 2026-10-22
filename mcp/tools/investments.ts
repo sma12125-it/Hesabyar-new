@@ -139,4 +139,86 @@ export function registerInvestmentTools(server: McpServer) {
       }
     },
   )
+
+  const txKind = z.enum(['buy', 'sell', 'issue', 'redeem']).describe('خرید، فروش، صدور یا ابطال')
+
+  server.registerTool(
+    'add_investment_transaction',
+    {
+      title: 'ثبت خرید، فروش، صدور یا ابطال',
+      description:
+        'ثبت یک معامله روی دارایی. بهای تمام‌شده با میانگین موزون محاسبه می‌شود و فروش یا ابطال بیش از موجودی رد می‌شود. برای صندوق از صدور و ابطال استفاده کنید.',
+      inputSchema: {
+        id: z.string().describe('شناسه دارایی'),
+        kind: txKind,
+        quantity: z.number().positive().describe('تعداد واحد'),
+        unitPrice: z.number().positive().describe('قیمت هر واحد'),
+        currency: currencySchema,
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'فرمت تاریخ باید YYYY-MM-DD باشد').describe('تاریخ معامله'),
+        note: z.string().optional().describe('یادداشت'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    },
+    async ({ id, ...body }) => {
+      try {
+        const result = await hesabyarApi.post(`/investments/${encodeURIComponent(id)}/transactions`, body)
+        return formatSuccessResponse(result, 'معامله ثبت شد')
+      } catch (err) {
+        return formatErrorResponse(err)
+      }
+    },
+  )
+
+  server.registerTool(
+    'update_investment_transaction',
+    {
+      title: 'ویرایش معامله دارایی',
+      description: 'ویرایش تعداد، قیمت، تاریخ یا نوع یک معامله. اگر بعد از ویرایش موجودی منفی شود، درخواست رد می‌شود.',
+      inputSchema: {
+        id: z.string().describe('شناسه دارایی'),
+        transactionId: z.string().describe('شناسه معامله'),
+        kind: txKind.optional(),
+        quantity: z.number().positive().optional(),
+        unitPrice: z.number().positive().optional(),
+        currency: currencySchema,
+        date: dateSchema,
+        note: z.string().optional(),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+    },
+    async ({ id, transactionId, ...body }) => {
+      try {
+        const result = await hesabyarApi.patch(
+          `/investments/${encodeURIComponent(id)}/transactions/${encodeURIComponent(transactionId)}`,
+          body,
+        )
+        return formatSuccessResponse(result, 'معامله ویرایش شد')
+      } catch (err) {
+        return formatErrorResponse(err)
+      }
+    },
+  )
+
+  server.registerTool(
+    'delete_investment_transaction',
+    {
+      title: 'حذف معامله دارایی',
+      description: 'حذف یک خرید، فروش، صدور یا ابطال. اگر حذف باعث شود فروش بعدی بیش از موجودی شود، درخواست رد می‌شود.',
+      inputSchema: {
+        id: z.string().describe('شناسه دارایی'),
+        transactionId: z.string().describe('شناسه معامله'),
+      },
+      annotations: { readOnlyHint: false, destructiveHint: true, openWorldHint: false },
+    },
+    async ({ id, transactionId }) => {
+      try {
+        const result = await hesabyarApi.delete(
+          `/investments/${encodeURIComponent(id)}/transactions/${encodeURIComponent(transactionId)}`,
+        )
+        return formatSuccessResponse(result, 'معامله حذف شد')
+      } catch (err) {
+        return formatErrorResponse(err)
+      }
+    },
+  )
 }

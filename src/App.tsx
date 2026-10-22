@@ -15,6 +15,7 @@ import { HomePage } from './pages/HomePage'
 import { AccountsPage } from './pages/AccountsPage'
 import { AccountDetailPage } from './pages/AccountDetailPage'
 import { ReportsPage } from './pages/ReportsPage'
+import { InvestmentDetailPage } from './pages/InvestmentDetailPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AuthGate } from './components/AuthGate'
 import { VoiceSheet } from './components/VoiceSheet'
@@ -291,6 +292,10 @@ function Shell() {
                 onPay={(itemId) => setSheet({ type: 'installment-pay', itemId })}
               />
             }
+          />
+          <Route
+            path="/reports/investments/:id"
+            element={<InvestmentDetailPage onScroll={onScroll} />}
           />
           <Route
             path="/reports"

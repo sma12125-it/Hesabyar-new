@@ -209,19 +209,46 @@ export interface SavingsGoal {
 
 export type InvestmentMarket = 'gold' | 'stock' | 'fund' | 'crypto' | 'bank' | 'property' | 'other' | (string & {})
 
+/** خرید و فروش for traded assets; صدور و ابطال for funds. Both increase or decrease the same position. */
+export type InvestmentTxKind = 'buy' | 'sell' | 'issue' | 'redeem'
+
+export interface InvestmentTransaction {
+  id: string
+  assetId: string
+  kind: InvestmentTxKind
+  /** Units, shares, or grams. */
+  quantity: number
+  /** Price per unit in rials. */
+  unitPrice: number
+  /** ISO Gregorian calendar date (YYYY-MM-DD). Shown in Jalali. */
+  date: string
+  note?: string
+  createdAt: number
+  updatedAt?: number
+}
+
 export interface InvestmentAsset {
   id: string
   name: string
   market: InvestmentMarket
   symbol?: string
   inscode?: string
+  /** Remaining cost basis in rials (weighted-average cost × quantity still held). */
   purchaseAmount: number
+  /** Mark-to-market value of the remaining quantity, in rials. */
   currentValue: number
+  /** Remaining quantity after buys/issues and sells/redemptions. */
   quantity?: number
+  /** Weighted-average cost per remaining unit, in rials. */
   unitPrice?: number
+  /** User-entered (or market) price per unit, in rials. Not a transaction. */
   currentUnitPrice?: number
+  /** Realized profit in rials from sells and redemptions. */
+  realizedProfit?: number
   purchaseDate?: string
   note?: string
+  /** Trade history. Absent on legacy rows; synthesized once on load. */
+  transactions?: InvestmentTransaction[]
   createdAt: number
   updatedAt?: number
 }

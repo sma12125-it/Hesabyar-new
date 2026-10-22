@@ -4,9 +4,16 @@ import { checkPasswordVerifier, generateRecoveryCode, rememberedAccountPassword 
 import { loadSession, signIn } from '../lib/sync'
 import { openCards, sealCards, unwrapText, validateCard, wrapText } from '../lib/vault'
 import { createId } from '../lib/ids'
+import {
+  migrateInvestmentAsset,
+  prepareInvestments,
+  recomputeAsset,
+  removeTransaction,
+  upsertTransaction,
+} from '../lib/investments'
 import { digitsOnly, toFaDigits } from '../lib/money'
 import { addDaysIso, todayIso } from '../lib/iso'
-import type { BankCard, Budget, Cheque, ChequeStatus, CurrencyUnit, DebtLoan, DongEvent, InvestmentAsset, ReminderSettings, SavingsGoal } from '../types'
+import type { BankCard, Budget, Cheque, ChequeStatus, CurrencyUnit, DebtLoan, DongEvent, InvestmentAsset, InvestmentTransaction, ReminderSettings, SavingsGoal } from '../types'
 
 interface VaultBlob {
   salt: string
@@ -47,6 +54,11 @@ interface ExtrasValue {
   deleteGoal: (id: string) => Promise<void>
   saveInvestment: (asset: Omit<InvestmentAsset, 'id' | 'createdAt'> & { id?: string }) => Promise<InvestmentAsset>
   deleteInvestment: (id: string) => Promise<void>
+  saveInvestmentTransaction: (
+    assetId: string,
+    tx: Omit<InvestmentTransaction, 'id' | 'assetId' | 'createdAt'> & { id?: string; createdAt?: number },
+  ) => Promise<InvestmentAsset>
+  deleteInvestmentTransaction: (assetId: string, txId: string) => Promise<InvestmentAsset>
   saveDongEvent: (event: Omit<DongEvent, 'id' | 'createdAt'> & { id?: string }) => Promise<DongEvent>
   deleteDongEvent: (id: string) => Promise<void>
   saveCheque: (cheque: Omit<Cheque, 'id' | 'createdAt'> & { id?: string }) => Promise<Cheque>
@@ -231,6 +243,10 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
             updatedAt: 1700000000000,
           },
         ]
+      }
+      const preparedInvestments = prepareInvestments(initialInvestments)
+      initialInvestments = preparedInvestments.assets
+      if (!nextInvestments || preparedInvestments.changed) {
         void db.setKv('investments', initialInvestments)
       }
 
@@ -663,15 +679,46 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       saveInvestment: async (asset) => {
         const existing = asset.id ? investmentsRef.current.find((item) => item.id === asset.id) : undefined
         const now = Date.now()
-        const row: InvestmentAsset = {
+        const id = existing?.id ?? asset.id ?? createId('inv')
+        const draft: InvestmentAsset = {
+          ...existing,
           ...asset,
-          id: existing?.id ?? createId('inv'),
+          id,
+          transactions: asset.transactions ?? existing?.transactions,
           createdAt: existing?.createdAt ?? now,
           updatedAt: now,
         }
+        const row =
+          draft.transactions && draft.transactions.length > 0
+            ? recomputeAsset(draft)
+            : migrateInvestmentAsset(draft).asset
         const next = investmentsRef.current.some((item) => item.id === row.id)
           ? investmentsRef.current.map((item) => (item.id === row.id ? row : item))
           : [...investmentsRef.current, row]
+        investmentsRef.current = next
+        setInvestments(next)
+        await db.setKv('investments', next)
+        const { notifyLocalChange } = await import('../lib/sync')
+        notifyLocalChange()
+        return row
+      },
+      saveInvestmentTransaction: async (assetId, tx) => {
+        const existing = investmentsRef.current.find((item) => item.id === assetId)
+        if (!existing) throw new Error('دارایی سرمایه‌گذاری پیدا نشد')
+        const row = upsertTransaction(existing, tx)
+        const next = investmentsRef.current.map((item) => (item.id === row.id ? row : item))
+        investmentsRef.current = next
+        setInvestments(next)
+        await db.setKv('investments', next)
+        const { notifyLocalChange } = await import('../lib/sync')
+        notifyLocalChange()
+        return row
+      },
+      deleteInvestmentTransaction: async (assetId, txId) => {
+        const existing = investmentsRef.current.find((item) => item.id === assetId)
+        if (!existing) throw new Error('دارایی سرمایه‌گذاری پیدا نشد')
+        const row = removeTransaction(existing, txId)
+        const next = investmentsRef.current.map((item) => (item.id === row.id ? row : item))
         investmentsRef.current = next
         setInvestments(next)
         await db.setKv('investments', next)
@@ -763,9 +810,10 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
           await db.setKv('goals', data.goals)
         }
         if (Array.isArray(data.investments)) {
-          investmentsRef.current = data.investments as InvestmentAsset[]
-          setInvestments(data.investments as InvestmentAsset[])
-          await db.setKv('investments', data.investments)
+          const prepared = prepareInvestments(data.investments as InvestmentAsset[])
+          investmentsRef.current = prepared.assets
+          setInvestments(prepared.assets)
+          await db.setKv('investments', prepared.assets)
         }
         if (Array.isArray(data.dongEvents)) {
           dongEventsRef.current = data.dongEvents as DongEvent[]

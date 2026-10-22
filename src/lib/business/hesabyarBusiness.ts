@@ -23,6 +23,12 @@ import {
 } from '../installments'
 import { createId } from '../ids'
 import { isValidIsoDate, todayIso } from '../iso'
+import {
+  migrateInvestmentAsset,
+  removeTransaction,
+  upsertTransaction,
+  withCurrentUnitPrice,
+} from '../investments'
 import { actorStamp } from '../actor'
 import {
   availableAfterReplacing,
@@ -49,6 +55,8 @@ import type {
   InstallmentItem,
   InstallmentPlan,
   InvestmentAsset,
+  InvestmentTransaction,
+  InvestmentTxKind,
   ReminderSettings,
   SavingsGoal,
   Transaction,
@@ -1490,13 +1498,13 @@ export function deleteSavingsGoal(data: AppData, id: string): { nextData: AppDat
 // ============================================================================
 
 export function getInvestments(data: AppData): InvestmentAsset[] {
-  return (data.investments || []).slice()
+  return (data.investments || []).map((asset) => migrateInvestmentAsset(asset).asset)
 }
 
 export function getInvestment(data: AppData, id: string): InvestmentAsset {
   const asset = (data.investments || []).find((a) => a.id === id || a.name.toLowerCase() === id.toLowerCase())
   if (!asset) throw new Error(`دارایی سرمایه‌گذاری «${id}» یافت نشد`)
-  return asset
+  return migrateInvestmentAsset(asset).asset
 }
 
 export function createInvestment(
@@ -1518,7 +1526,7 @@ export function createInvestment(
   const currentRials = parseInputAmount(input.currentValue, input.currency)
   const now = Date.now()
 
-  const newAsset: InvestmentAsset = {
+  const draft: InvestmentAsset = {
     id: createId('inv'),
     name: input.name.trim(),
     market: input.market,
@@ -1532,6 +1540,7 @@ export function createInvestment(
     createdAt: now,
     updatedAt: now,
   }
+  const newAsset = migrateInvestmentAsset(draft).asset
 
   const nextInvestments = [...(data.investments || []), newAsset]
   return {
@@ -1548,14 +1557,22 @@ export function updateInvestment(
   const asset = (data.investments || []).find((a) => a.id === id)
   if (!asset) throw new Error('دارایی سرمایه‌گذاری پیدا نشد')
 
-  const updated: InvestmentAsset = {
-    ...asset,
-    currentValue: patch.currentValue != null ? parseInputAmount(patch.currentValue, patch.currency) : asset.currentValue,
-    currentUnitPrice: patch.currentUnitPrice != null ? patch.currentUnitPrice : asset.currentUnitPrice,
-    note: patch.note !== undefined ? patch.note.trim() : asset.note,
-    updatedAt: Date.now(),
+  const base = migrateInvestmentAsset(asset).asset
+  let nextAsset: InvestmentAsset = {
+    ...base,
+    note: patch.note !== undefined ? patch.note.trim() : base.note,
+  }
+  if (patch.currentUnitPrice != null) {
+    nextAsset = withCurrentUnitPrice(nextAsset, patch.currentUnitPrice)
+  } else if (patch.currentValue != null) {
+    const value = parseInputAmount(patch.currentValue, patch.currency)
+    const qty = nextAsset.quantity ?? 0
+    nextAsset = qty > 0 ? withCurrentUnitPrice(nextAsset, value / qty) : { ...nextAsset, currentValue: value, updatedAt: Date.now() }
+  } else {
+    nextAsset = { ...nextAsset, updatedAt: Date.now() }
   }
 
+  const updated = nextAsset
   const nextInvestments = (data.investments || []).map((a) => (a.id === id ? updated : a))
   return {
     asset: updated,
@@ -1566,6 +1583,83 @@ export function updateInvestment(
 export function deleteInvestment(data: AppData, id: string): { nextData: AppData } {
   const nextInvestments = (data.investments || []).filter((a) => a.id !== id)
   return { nextData: { ...data, investments: nextInvestments } }
+}
+
+function investmentOrThrow(data: AppData, id: string): InvestmentAsset {
+  const asset = (data.investments || []).find((a) => a.id === id)
+  if (!asset) throw new Error('دارایی سرمایه‌گذاری پیدا نشد')
+  return asset
+}
+
+function replaceInvestment(data: AppData, asset: InvestmentAsset): AppData {
+  return {
+    ...data,
+    investments: (data.investments || []).map((row) => (row.id === asset.id ? asset : row)),
+  }
+}
+
+export function addInvestmentTransaction(
+  data: AppData,
+  assetId: string,
+  input: {
+    kind: InvestmentTxKind
+    quantity: number
+    unitPrice: number
+    date: string
+    note?: string
+    currency?: CurrencyUnit
+  },
+): { asset: InvestmentAsset; transaction: InvestmentTransaction; nextData: AppData } {
+  const txId = createId('itx')
+  const asset = upsertTransaction(investmentOrThrow(data, assetId), {
+    id: txId,
+    kind: input.kind,
+    quantity: input.quantity,
+    unitPrice: parseInputAmount(input.unitPrice, input.currency),
+    date: input.date,
+    note: input.note,
+  })
+  const transaction = (asset.transactions ?? []).find((row) => row.id === txId)
+  if (!transaction) throw new Error('معامله ثبت نشد')
+  return { asset, transaction, nextData: replaceInvestment(data, asset) }
+}
+
+export function updateInvestmentTransaction(
+  data: AppData,
+  assetId: string,
+  txId: string,
+  input: {
+    kind?: InvestmentTxKind
+    quantity?: number
+    unitPrice?: number
+    date?: string
+    note?: string
+    currency?: CurrencyUnit
+  },
+): { asset: InvestmentAsset; transaction: InvestmentTransaction; nextData: AppData } {
+  const current = migrateInvestmentAsset(investmentOrThrow(data, assetId)).asset
+  const previous = (current.transactions ?? []).find((row) => row.id === txId)
+  if (!previous) throw new Error('معامله پیدا نشد')
+  const asset = upsertTransaction(current, {
+    ...previous,
+    kind: input.kind ?? previous.kind,
+    quantity: input.quantity ?? previous.quantity,
+    unitPrice: input.unitPrice != null ? parseInputAmount(input.unitPrice, input.currency) : previous.unitPrice,
+    date: input.date ?? previous.date,
+    note: input.note !== undefined ? input.note : previous.note,
+  })
+  const transaction = (asset.transactions ?? []).find((row) => row.id === txId)
+  if (!transaction) throw new Error('معامله پیدا نشد')
+  return { asset, transaction, nextData: replaceInvestment(data, asset) }
+}
+
+export function deleteInvestmentTransaction(
+  data: AppData,
+  assetId: string,
+  txId: string,
+): { asset: InvestmentAsset; nextData: AppData } {
+  const asset = removeTransaction(investmentOrThrow(data, assetId), txId)
+  return { asset, nextData: replaceInvestment(data, asset) }
 }
 
 // ============================================================================
