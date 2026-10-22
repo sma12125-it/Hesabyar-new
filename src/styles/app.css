@@ -1566,18 +1566,6 @@ html[data-theme='dark'] .corner-item-ico {
 }
 
 @media (min-width: 1100px) {
-  .app { grid-template-columns: 232px minmax(0, 1fr); gap: 16px; padding: 14px; }
-
-  .app-scroll {
-    grid-column: 2;
-    margin: 0;
-    padding: 8px 16px 20px;
-    border-radius: 22px;
-    background: rgba(255, 255, 255, 0.28);
-    border: 0.5px solid rgba(255, 255, 255, 0.55);
-    box-shadow: 0 18px 50px rgba(15, 23, 42, 0.06);
-  }
-
   .top-row {
     position: sticky;
     top: 0;
@@ -2418,39 +2406,140 @@ html[data-theme='dark'] .window-popup-footer {
     color: var(--hy-text);
   }
 
-  /* Desktop optimized workspace layout */
+  /* ═════════════════════════════════════════════════════════════════
+     ۱. چیدمان تمام‌صفحه دسکتاپ: حذف قاب و مرزهای گوشی و اشغال ۱۰۰٪ صفحه
+     ═════════════════════════════════════════════════════════════════ */
+  html,
+  body,
+  #root {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    position: fixed !important;
+    inset: 0 !important;
+  }
+
   .page-stage {
-    padding-right: calc(var(--desktop-nav-w, 240px) + 20px) !important;
-    padding-left: 20px !important;
-    padding-top: 20px !important;
-    padding-bottom: 20px !important;
-    min-height: 100vh !important;
-    box-sizing: border-box !important;
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
     justify-content: flex-start !important;
-    transition: padding-right 0.26s cubic-bezier(0.16, 1, 0.3, 1);
   }
 
+  html .device,
+  html[data-theme] .device,
   .device {
-    width: min(880px, 100%) !important;
-    max-width: 880px !important;
-    height: auto !important;
-    min-height: calc(100vh - 40px) !important;
-    margin: 0 auto !important;
-    border-radius: 28px !important;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28) !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 0% !important;
   }
 
+  html .device-screen,
+  html[data-theme] .device-screen,
   .device-screen {
-    min-height: calc(100vh - 40px) !important;
-    height: auto !important;
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    border-radius: 0 !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 0% !important;
+    position: relative !important;
   }
 
+  .wallpaper {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    pointer-events: none !important;
+  }
+
+  /* ═════════════════════════════════════════════════════════════════
+     ۲. محفظه اصلی اپلیکیشن: رعایت فاصله از سایدبار شناور سمت راست
+     ═════════════════════════════════════════════════════════════════ */
+  .app {
+    width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    min-height: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 0% !important;
+    overflow: hidden !important;
+    position: relative !important;
+    box-sizing: border-box !important;
+    padding-right: var(--desktop-nav-w, 240px) !important;
+    padding-left: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    transition: padding-right 0.26s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  }
+
+  /* ═════════════════════════════════════════════════════════════════
+     ۳. فعال‌سازی اسکرول روان و نامحدود در صفحات دسکتاپ
+     ═════════════════════════════════════════════════════════════════ */
   .app-scroll {
-    padding-bottom: 40px !important;
+    flex: 1 1 0% !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    -webkit-overflow-scrolling: touch !important;
+    box-sizing: border-box !important;
+    padding: 24px 36px 90px !important;
+  }
+
+  /* اسکرول‌بار شیک و مدرن شیشه‌ای برای دسکتاپ */
+  .app-scroll::-webkit-scrollbar {
+    width: 8px;
+  }
+  .app-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .app-scroll::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.3);
+    border-radius: 999px;
+  }
+  .app-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(13, 148, 136, 0.6);
+  }
+
+  /* پهنای مناسب و چشم‌نواز کارت‌ها در صفحات با حفظ تمام‌صفحه بودن */
+  .page-home,
+  .page-accounts,
+  .page-installments,
+  .report-page,
+  .settings-page {
+    max-width: 1380px !important;
+    margin: 0 auto !important;
+    width: 100% !important;
   }
 
   .mic-fab {
-    bottom: 24px !important;
-    left: 24px !important;
+    bottom: 28px !important;
+    left: 28px !important;
   }
 }
