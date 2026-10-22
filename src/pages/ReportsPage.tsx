@@ -1,16 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { categoriesFor } from '../lib/categories'
 import { monthKey, expenseByCategory, spentInCategory } from '../lib/reports'
 import { todayIso } from '../lib/iso'
 import { createId } from '../lib/ids'
 import { digitsOnly, formatSeparatedNumber, toFaDigits } from '../lib/money'
 import { SettingsButton } from '../components/SettingsButton'
+import { DateField } from '../components/DateField'
 import { WindowPopup } from '../components/WindowPopup'
 import { useExtras } from '../store/Extras'
 import { useStore } from '../store/Store'
 import { notifyUser } from '../lib/sync'
+import { COST_BASIS_METHOD_FA, defaultKindForMarket, formatQuantity, parseQuantity } from '../lib/investments'
 import { TSE_INSTRUMENTS, normalizePersian } from '../lib/tseCatalog'
-import type { CardMarket, InvestmentMarket, DongEvent, DongExpenseItem, InvestmentAsset } from '../types'
+import type { CardMarket, InvestmentMarket, DongEvent, DongExpenseItem, InvestmentAsset, InvestmentTxKind } from '../types'
 
 export interface SettlementTransfer {
   id: string
@@ -212,6 +215,8 @@ const DEFAULT_POPULAR_SYMBOLS: TseInstrumentSummary[] = TSE_INSTRUMENTS as unkno
 type ActiveTab = 'budget' | 'goals' | 'investments' | 'dong'
 
 export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void }) {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { transactions, customCategories, createCategory, renameCategory } = useStore()
   const {
     budgets,
@@ -232,7 +237,10 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
     currencyUnit,
   } = useExtras()
 
-  const [activeTab, setActiveTab] = useState<ActiveTab>('budget')
+  const requestedTab = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState<ActiveTab>(
+    requestedTab === 'goals' || requestedTab === 'investments' || requestedTab === 'dong' ? requestedTab : 'budget',
+  )
   const today = todayIso()
   const month = monthKey(today) ?? ''
   const bars = expenseByCategory(transactions, month, customCategories)
@@ -261,6 +269,10 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
 
   const totalInvestmentCost = useMemo(() => investments.reduce((sum, i) => sum + i.purchaseAmount, 0), [investments])
   const totalInvestmentValue = useMemo(() => investments.reduce((sum, i) => sum + i.currentValue, 0), [investments])
+  const totalRealizedProfit = useMemo(
+    () => investments.reduce((sum, i) => sum + (i.realizedProfit || 0), 0),
+    [investments],
+  )
   const totalInvestmentProfit = totalInvestmentValue - totalInvestmentCost
   const totalInvestmentRoi =
     totalInvestmentCost > 0 ? ((totalInvestmentProfit / totalInvestmentCost) * 100).toFixed(1) : '0'
@@ -319,6 +331,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
   const [invBuyPrice, setInvBuyPrice] = useState('')
   const [invCurrentValue, setInvCurrentValue] = useState('')
   const [invNote, setInvNote] = useState('')
+  const [invPurchaseDate, setInvPurchaseDate] = useState(todayIso())
   const [tseLoading, setTseLoading] = useState(false)
   const [tseInfo, setTseInfo] = useState<string | null>(null)
   const [isRefreshingTse, setIsRefreshingTse] = useState(false)
@@ -846,8 +859,13 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
               }}
             >
               {totalInvestmentProfit >= 0 ? '+' : ''}
-              {toFaDigits(totalInvestmentRoi)}% بازدهی کل
+              {toFaDigits(totalInvestmentRoi)}% بازدهی مانده
             </div>
+            {totalRealizedProfit !== 0 ? (
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
+                سود تحقق‌یافته: {formatCompactMoney(totalRealizedProfit)}
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -1675,6 +1693,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                   setInvBuyPrice('')
                   setInvCurrentValue('')
                   setInvNote('')
+                  setInvPurchaseDate(todayIso())
                   setTseInfo(null)
                   setTseDetails(null)
                   setIsCreateInvOpen(true)
@@ -1691,8 +1710,12 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
               <h2>سبد دارایی‌ها ({toFaDigits(filteredInvestments.length)})</h2>
               <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
                 ارزش روز کل: <strong>{formatMoney(totalInvestmentValue)}</strong>
+                {totalRealizedProfit !== 0 ? ` · تحقق‌یافته: ${formatCompactMoney(totalRealizedProfit)}` : ''}
               </span>
             </div>
+            <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', margin: '0 0 10px' }}>
+              بهای تمام‌شده با روش {COST_BASIS_METHOD_FA} است. برای خرید، فروش، صدور و ابطال روی دارایی بزنید.
+            </p>
 
             {filteredInvestments.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '36px 14px', color: 'var(--hy-text-secondary)' }}>
@@ -1720,12 +1743,18 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                   return (
                     <div
                       key={asset.id}
-                      className="home-card lg"
+                      className="home-card lg inv-hit"
+                      role="link"
+                      tabIndex={0}
+                      onClick={() => navigate(`/reports/investments/${asset.id}`)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') navigate(`/reports/investments/${asset.id}`)
+                      }}
                       style={{
                         padding: '14px 16px',
                         borderRadius: 16,
-                        border: isLoss ? '1.5px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
-                        background: isLoss ? 'rgba(239, 68, 68, 0.04)' : 'rgba(255, 255, 255, 0.03)',
+                        border: isLoss ? '1.5px solid var(--hy-expense)' : '1px solid var(--hy-border)',
+                        background: isLoss ? 'var(--hy-danger-soft)' : 'transparent',
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
@@ -1785,9 +1814,10 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
 
                           {asset.quantity ? (
                             <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4 }}>
-                              تعداد واحد/سهم: <b>{toFaDigits(asset.quantity)}</b>
-                              {asset.unitPrice ? ` · بهای خرید هر واحد: ${formatMoney(asset.unitPrice)}` : ''}
-                              {asset.currentUnitPrice ? ` · ارزش روز هر واحد: ${formatMoney(asset.currentUnitPrice)}` : ''}
+                              تعداد مانده: <b>{formatQuantity(asset.quantity)}</b>
+                              {asset.unitPrice ? ` · میانگین بها: ${formatMoney(asset.unitPrice)}` : ''}
+                              {asset.currentUnitPrice ? ` · قیمت روز: ${formatMoney(asset.currentUnitPrice)}` : ''}
+                              {asset.realizedProfit ? ` · تحقق‌یافته: ${formatMoney(asset.realizedProfit)}` : ''}
                             </div>
                           ) : null}
                           {asset.note ? (
@@ -1797,7 +1827,14 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           ) : null}
                         </div>
 
-                        <div style={{ display: 'flex', gap: 6 }}>
+                        <div style={{ display: 'flex', gap: 6 }} onClick={(event) => event.stopPropagation()}>
+                          <button
+                            className="cat-mini"
+                            type="button"
+                            onClick={() => navigate(`/reports/investments/${asset.id}`)}
+                          >
+                            معاملات
+                          </button>
                           <button
                             className="cat-mini"
                             type="button"
@@ -1865,7 +1902,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                         }}
                       >
                         <div>
-                          <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)' }}>بهای کل خرید</div>
+                          <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)' }}>بهای تمام‌شده مانده</div>
                           <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>
                             {formatCompactMoney(asset.purchaseAmount)}
                           </div>
@@ -1877,13 +1914,13 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           </div>
                         </div>
                         <div>
-                          <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)' }}>اختلاف با بهای خرید</div>
+                          <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)' }}>سود و زیان تحقق‌نیافته</div>
                           <div
                             style={{
                               fontSize: 13,
                               fontWeight: 900,
                               marginTop: 2,
-                              color: isLoss ? '#ef4444' : isGain ? '#10b981' : 'var(--hy-text-secondary)',
+                              color: isLoss ? 'var(--hy-expense)' : isGain ? 'var(--hy-income)' : 'var(--hy-text-secondary)',
                             }}
                           >
                             {isLoss ? '-' : isGain ? '+' : ''}
@@ -2201,7 +2238,8 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                       </label>
                       <input
                         className="field-input"
-                        inputMode="numeric"
+                        inputMode="decimal"
+                        readOnly={Boolean(editingInv)}
                         placeholder="تعداد واحد یا سهم (مثلاً: ۱۰۰۰)"
                         value={invQuantity}
                         onChange={(e) => {
@@ -2224,6 +2262,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                       <input
                         className="field-input"
                         inputMode="numeric"
+                        readOnly={Boolean(editingInv)}
                         placeholder={`بهای خرید هر واحد (${unitLabel})`}
                         value={invUnitPrice}
                         onChange={(e) => {
@@ -2342,6 +2381,14 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                     )
                   })()}
 
+                  {!editingInv ? (
+                    <DateField label="تاریخ اولین معامله" value={invPurchaseDate} onChange={setInvPurchaseDate} />
+                  ) : (
+                    <p style={{ fontSize: 12, color: 'var(--hy-text-secondary)', lineHeight: 1.7 }}>
+                      تعداد و بهای تمام‌شده از تاریخچه معاملات با روش {COST_BASIS_METHOD_FA} محاسبه می‌شود. خرید، فروش، صدور و ابطال در صفحه معاملات همین دارایی ثبت می‌شود.
+                    </p>
+                  )}
+
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 700 }}>یادداشت یا کارگزاری (اختیاری):</label>
                     <input
@@ -2358,15 +2405,35 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                     style={{ marginTop: 10 }}
                     onClick={() => {
                       const name = (invSymbol || invName).trim()
-                      const q = Number(digitsOnly(invQuantity))
-                      const buyUnitPriceNum = Number(digitsOnly(invUnitPrice))
-                      const currUnitPriceNum = Number(digitsOnly(invCurrentUnitPrice)) || buyUnitPriceNum
-
-                      // فیلدهای اجباری: نام نماد، تعداد واحد و سهم، بهای خرید هر واحد
                       if (!name) {
                         notifyUser('وارد کردن نام یا نماد دارایی الزامی است')
                         return
                       }
+
+                      if (editingInv) {
+                        const currRaw = Number(digitsOnly(invCurrentUnitPrice))
+                        const currentUnitPrice = currRaw > 0
+                          ? currencyUnit === 'IRT' ? currRaw * 10 : currRaw
+                          : editingInv.currentUnitPrice
+                        void saveInvestment({
+                          ...editingInv,
+                          name,
+                          market: invMarket,
+                          symbol: invSymbol.trim() || undefined,
+                          inscode: invInscode.trim() || undefined,
+                          note: invNote.trim() || undefined,
+                          currentUnitPrice,
+                          transactions: editingInv.transactions,
+                        })
+                        notifyUser('مشخصات دارایی ذخیره شد')
+                        setIsCreateInvOpen(false)
+                        setEditingInv(null)
+                        return
+                      }
+
+                      const q = parseQuantity(invQuantity)
+                      const buyUnitPriceNum = Number(digitsOnly(invUnitPrice))
+                      const currUnitPriceNum = Number(digitsOnly(invCurrentUnitPrice)) || buyUnitPriceNum
                       if (!q || q <= 0) {
                         notifyUser('وارد کردن تعداد واحد و سهم الزامی است')
                         return
@@ -2376,31 +2443,43 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                         return
                       }
 
-                      // تبدیل مبالغ به ریال برای ذخیره‌سازی استاندارد در پایگاه داده
                       const buyUnitPriceRials = currencyUnit === 'IRT' ? buyUnitPriceNum * 10 : buyUnitPriceNum
                       const currUnitPriceRials = currencyUnit === 'IRT' ? currUnitPriceNum * 10 : currUnitPriceNum
-
                       const defaultBuyTotal = q * buyUnitPriceRials
                       const defaultCurrTotal = q * currUnitPriceRials
-
                       const purchaseAmount = invBuyPrice ? parseAmountToRials(invBuyPrice) : defaultBuyTotal
                       const currentValue = invCurrentValue ? parseAmountToRials(invCurrentValue) : defaultCurrTotal
+                      const unitPrice = q > 0 ? purchaseAmount / q : buyUnitPriceRials
+                      const id = createId('inv')
+                      const kind: InvestmentTxKind = defaultKindForMarket(invMarket)
 
                       void saveInvestment({
-                        id: editingInv?.id || undefined,
+                        id,
                         name,
                         market: invMarket,
                         symbol: invSymbol.trim() || undefined,
                         inscode: invInscode.trim() || undefined,
-                        purchaseAmount, // بهای کل خرید بر اساس زمان خرید (ثابت می‌ماند)
-                        currentValue,   // ارزش روز دارایی (با به‌روزرسانی قیمت تغییر می‌کند)
+                        purchaseAmount,
+                        currentValue,
                         quantity: q,
-                        unitPrice: buyUnitPriceRials, // بهای خرید هر واحد در زمان خرید
-                        currentUnitPrice: currUnitPriceRials, // ارزش روز هر واحد بر اساس آخرین قیمت روز
+                        unitPrice,
+                        currentUnitPrice: currUnitPriceRials > 0 ? currUnitPriceRials : undefined,
+                        purchaseDate: invPurchaseDate,
                         note: invNote.trim() || undefined,
+                        transactions: [
+                          {
+                            id: createId('itx'),
+                            assetId: id,
+                            kind,
+                            quantity: q,
+                            unitPrice,
+                            date: invPurchaseDate,
+                            createdAt: Date.now(),
+                          },
+                        ],
                       })
 
-                      notifyUser(editingInv ? 'دارایی با موفقیت ویرایش شد' : 'دارایی با بهای خرید زمان معامله و ارزش روز ثبت شد')
+                      notifyUser('دارایی با اولین معامله و ارزش روز ثبت شد')
                       setIsCreateInvOpen(false)
                       setEditingInv(null)
                     }}

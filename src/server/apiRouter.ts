@@ -7,6 +7,7 @@ import {
   createCheque,
   createDebt,
   createInstallmentPlan,
+  addInvestmentTransaction,
   createInvestment,
   createSavingsGoal,
   createTransaction,
@@ -17,6 +18,7 @@ import {
   deleteInstallmentItem,
   deleteInstallmentPlan,
   deleteInvestment,
+  deleteInvestmentTransaction,
   deleteSavingsGoal,
   deleteTransaction,
   getAccountBalance,
@@ -51,6 +53,7 @@ import {
   updateChequeStatus,
   updateInstallmentPlan,
   updateInvestment,
+  updateInvestmentTransaction,
   updateRemindersSettings,
   updateSavingsGoal,
   updateTransaction,
@@ -1379,6 +1382,75 @@ apiRouter.delete('/investments/:id', requireAuth, async (req: Request, res: Resp
     res.json({ success: true, message: 'دارایی حذف شد' })
   } catch (err) {
     res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در حذف دارایی' })
+  }
+})
+
+const INVESTMENT_TX_KINDS = new Set(['buy', 'sell', 'issue', 'redeem'])
+
+/**
+ * POST /api/v1/investments/:id/transactions
+ * خرید، فروش، صدور یا ابطال. قیمت واحد با همان واحد ارز purchaseAmount است.
+ */
+apiRouter.post('/investments/:id/transactions', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    if (!INVESTMENT_TX_KINDS.has(body.kind) || body.quantity == null || body.unitPrice == null || !body.date) {
+      res.status(400).json({ success: false, error: 'فیلدهای الزامی: kind, quantity, unitPrice, date' })
+      return
+    }
+    const data = await loadUserData(req.user!)
+    const result = addInvestmentTransaction(data, String(req.params.id), {
+      kind: body.kind,
+      quantity: Number(body.quantity),
+      unitPrice: Number(body.unitPrice),
+      date: String(body.date),
+      note: body.note ? String(body.note) : undefined,
+      currency: (body.currency as CurrencyUnit) || 'IRT',
+    })
+    await saveUserData(req.user!, result.nextData)
+    res.status(201).json({ success: true, data: result.asset, transaction: result.transaction })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در ثبت معامله' })
+  }
+})
+
+/**
+ * PATCH /api/v1/investments/:id/transactions/:txId
+ */
+apiRouter.patch('/investments/:id/transactions/:txId', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    if (body.kind != null && !INVESTMENT_TX_KINDS.has(body.kind)) {
+      res.status(400).json({ success: false, error: 'نوع معامله نامعتبر است' })
+      return
+    }
+    const data = await loadUserData(req.user!)
+    const result = updateInvestmentTransaction(data, String(req.params.id), String(req.params.txId), {
+      kind: body.kind,
+      quantity: body.quantity != null ? Number(body.quantity) : undefined,
+      unitPrice: body.unitPrice != null ? Number(body.unitPrice) : undefined,
+      date: body.date ? String(body.date) : undefined,
+      note: body.note !== undefined ? String(body.note) : undefined,
+      currency: (body.currency as CurrencyUnit) || 'IRT',
+    })
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, data: result.asset, transaction: result.transaction })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در ویرایش معامله' })
+  }
+})
+
+/**
+ * DELETE /api/v1/investments/:id/transactions/:txId
+ */
+apiRouter.delete('/investments/:id/transactions/:txId', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const data = await loadUserData(req.user!)
+    const result = deleteInvestmentTransaction(data, String(req.params.id), String(req.params.txId))
+    await saveUserData(req.user!, result.nextData)
+    res.json({ success: true, data: result.asset, message: 'معامله حذف شد' })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در حذف معامله' })
   }
 })
 

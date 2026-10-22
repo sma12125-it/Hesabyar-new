@@ -2543,3 +2543,125 @@ html[data-theme='dark'] .window-popup-footer {
     left: 28px !important;
   }
 }
+
+.inv-screen {
+  padding: 12px 16px 28px;
+  box-sizing: border-box;
+}
+
+.inv-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.inv-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(148px, 1fr));
+  gap: 8px;
+}
+
+.inv-stat {
+  padding: 12px 14px;
+  border-radius: 16px;
+}
+
+.inv-stat .lbl,
+.inv-meta {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--hy-text-secondary);
+}
+
+.inv-stat .val {
+  margin-top: 4px;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--hy-text);
+}
+
+.inv-stat .val.up { color: var(--hy-income); }
+.inv-stat .val.down { color: var(--hy-expense); }
+
+.inv-note,
+.inv-block {
+  padding: 14px 16px;
+  border-radius: 16px;
+}
+
+.inv-note p,
+.inv-title-row {
+  margin-top: 6px;
+}
+
+.inv-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.inv-title-row h2,
+.inv-block h2 {
+  font-size: 15px;
+  color: var(--hy-text);
+}
+
+.inv-kind {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.inv-kind.in { color: var(--hy-income); }
+.inv-kind.out { color: var(--hy-expense); }
+
+.inv-price-row,
+.inv-actions,
+.inv-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.inv-price-row .field-input { flex: 1; min-width: 140px; }
+.inv-price-row .cta-confirm { width: auto; min-width: 120px; }
+
+.inv-form,
+.inv-history {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.inv-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inv-form .field-input {
+  color: var(--hy-text);
+  width: 100%;
+}
+
+.inv-tx {
+  padding: 10px 0;
+  border-top: 1px solid var(--hy-border);
+}
+
+.inv-tx-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.inv-hit { cursor: pointer; }
+
+button.cat-mini.active {
+  background: var(--hy-accent);
+  color: var(--hy-on-accent);
+}

@@ -1518,6 +1518,11 @@ button.cat-mini:hover {
   filter: brightness(1.1);
 }
 
+button.cat-mini.active {
+  background: var(--hy-accent) !important;
+  color: var(--hy-on-accent) !important;
+}
+
 button.cta-confirm {
   transition: all 0.2s ease;
 }
