@@ -296,10 +296,10 @@ export function AccountsPage({
             padding: '14px 16px',
             borderRadius: 18,
             background: activeTab === 'credit' ? 'rgba(56, 189, 248, 0.18)' : 'var(--glass-chrome)',
-            border: activeTab === 'credit' ? '1.5px solid #38bdf8' : 'var(--glass-border)',
+            border: activeTab === 'credit' ? '1.5px solid var(--hy-transfer)' : 'var(--glass-border)',
             cursor: 'pointer',
             transition: 'all 0.2s ease',
-            boxShadow: activeTab === 'credit' ? '0 8px 24px rgba(56, 189, 248, 0.2)' : 'none',
+            boxShadow: activeTab === 'credit' ? '0 8px 24px color-mix(in srgb, var(--hy-transfer) 28%, transparent)' : 'none',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -308,7 +308,7 @@ export function AccountsPage({
             </span>
             <span style={{ fontSize: 16 }}>💳</span>
           </div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: '#38bdf8', margin: '6px 0 4px' }}>
+          <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--hy-transfer)', margin: '6px 0 4px' }}>
             {formatMoney(creditTotal)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--hy-subtext)' }}>
@@ -323,7 +323,7 @@ export function AccountsPage({
             padding: '14px 16px',
             borderRadius: 18,
             background: activeTab === 'investment' ? 'rgba(192, 132, 252, 0.18)' : 'var(--glass-chrome)',
-            border: activeTab === 'investment' ? '1.5px solid #c084fc' : 'var(--glass-border)',
+            border: activeTab === 'investment' ? '1.5px solid var(--hy-violet)' : 'var(--glass-border)',
             cursor: 'pointer',
             transition: 'all 0.2s ease',
             boxShadow: activeTab === 'investment' ? '0 8px 24px rgba(192, 132, 252, 0.2)' : 'none',
@@ -335,7 +335,7 @@ export function AccountsPage({
             </span>
             <span style={{ fontSize: 16 }}>📈</span>
           </div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: '#c084fc', margin: '6px 0 4px' }}>
+          <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--hy-violet)', margin: '6px 0 4px' }}>
             {formatMoney(investmentTotal)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--hy-subtext)' }}>
@@ -436,7 +436,7 @@ export function AccountsPage({
               }
               setCardId(null)
             }}
-            style={{ fontSize: 11, padding: '6px 12px', background: 'rgba(56, 189, 248, 0.2)', color: '#38bdf8' }}
+            style={{ fontSize: 11, padding: '6px 12px', background: 'color-mix(in srgb, var(--hy-transfer) 20%, transparent)', color: 'var(--hy-transfer)' }}
           >
             ＋ ایجاد کارت جدید
           </button>

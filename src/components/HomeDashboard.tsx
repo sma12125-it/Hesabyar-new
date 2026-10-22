@@ -356,12 +356,12 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
         </article>
         <article className="home-kpi lg">
           <span>اعتبار خرید</span>
-          <strong style={{ color: '#38bdf8' }}>{displayMoney(creditBalance)}</strong>
+          <strong style={{ color: 'var(--hy-transfer)' }}>{displayMoney(creditBalance)}</strong>
           <small>{toFaDigits(creditAccounts.length)} کارت / حساب اعتباری</small>
         </article>
         <article className="home-kpi lg">
           <span>پس‌انداز و سرمایه</span>
-          <strong style={{ color: '#c084fc' }}>{displayMoney(investmentBalance)}</strong>
+          <strong style={{ color: 'var(--hy-violet)' }}>{displayMoney(investmentBalance)}</strong>
           <small>{toFaDigits(investmentAccounts.length)} حساب پس‌انداز و سرمایه</small>
         </article>
         <article className="home-kpi lg">
@@ -493,8 +493,8 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
                     borderRadius: 8,
                     fontSize: 10,
                     fontWeight: cashflowPeriod === p.id ? 700 : 500,
-                    border: cashflowPeriod === p.id ? '1px solid var(--hy-teal)' : '1px solid rgba(255,255,255,0.15)',
-                    background: cashflowPeriod === p.id ? 'rgba(15, 118, 110, 0.25)' : 'transparent',
+                    border: cashflowPeriod === p.id ? '1px solid var(--hy-teal)' : '1px solid var(--hy-border-color)',
+                    background: cashflowPeriod === p.id ? 'color-mix(in srgb, var(--hy-teal) 22%, transparent)' : 'transparent',
                     color: cashflowPeriod === p.id ? 'var(--hy-text)' : 'var(--hy-subtext)',
                     cursor: 'pointer',
                   }}

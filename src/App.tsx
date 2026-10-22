@@ -464,20 +464,7 @@ function Shell() {
 
       {/* Minimized Sheets Taskbar Dock at bottom-right */}
       {minimizedSheets.length > 0 ? (
-        <div
-          className="desktop-dock"
-          style={{
-            position: 'fixed',
-            bottom: 20,
-            right: 24,
-            zIndex: 9999,
-            display: 'flex',
-            flexDirection: 'column-reverse',
-            gap: 8,
-            alignItems: 'flex-end',
-            pointerEvents: 'auto',
-          }}
-        >
+        <div className="desktop-dock">
           {minimizedSheets.map((s, idx) => {
             const meta = getSheetMeta(s)
             return (
@@ -485,22 +472,6 @@ function Shell() {
                 key={idx}
                 className="minimized-window-pill"
                 onClick={() => restoreMinimizedSheet(idx)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  background: 'rgba(15, 23, 42, 0.94)',
-                  backdropFilter: 'blur(20px)',
-                  WebkitBackdropFilter: 'blur(20px)',
-                  color: '#fff',
-                  padding: '8px 14px',
-                  borderRadius: 14,
-                  border: '1px solid rgba(255, 255, 255, 0.28)',
-                  boxShadow: '0 12px 36px rgba(0, 0, 0, 0.5)',
-                  cursor: 'pointer',
-                  animation: 'popIn 0.2s ease',
-                  userSelect: 'none',
-                }}
                 title="کلیک برای بازگشت پنجره (ری‌استور)"
               >
                 <span style={{ fontSize: 18, lineHeight: 1 }}>{meta.icon}</span>
@@ -518,22 +489,10 @@ function Shell() {
                 </span>
                 <button
                   type="button"
+                  className="dock-restore"
                   onClick={(e) => {
                     e.stopPropagation()
                     restoreMinimizedSheet(idx)
-                  }}
-                  style={{
-                    background: 'rgba(56, 189, 248, 0.16)',
-                    border: '1px solid rgba(56, 189, 248, 0.35)',
-                    color: '#38bdf8',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    padding: '4px 8px',
-                    borderRadius: 8,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
                   }}
                 >
                   <span>🗖</span>
@@ -541,23 +500,10 @@ function Shell() {
                 </button>
                 <button
                   type="button"
+                  className="dock-close"
                   onClick={(e) => {
                     e.stopPropagation()
                     closeMinimizedSheet(idx)
-                  }}
-                  style={{
-                    background: 'rgba(239, 68, 68, 0.2)',
-                    border: '1px solid rgba(239, 68, 68, 0.35)',
-                    color: '#f87171',
-                    borderRadius: '50%',
-                    width: 22,
-                    height: 22,
-                    display: 'grid',
-                    placeItems: 'center',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    marginLeft: 2,
                   }}
                   title="بستن پنجره"
                   aria-label="بستن"

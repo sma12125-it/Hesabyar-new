@@ -43,7 +43,33 @@ html:not([data-theme='glass']) .tab-bar::after,
 html:not([data-theme='glass']) .card-surface::before,
 html:not([data-theme='glass']) .card-surface::after,
 html:not([data-theme='glass']) .chip::before,
-html:not([data-theme='glass']) .chip::after {
+html:not([data-theme='glass']) .chip::after,
+html:not([data-theme='glass']) .icon-btn::before,
+html:not([data-theme='glass']) .icon-btn::after,
+html:not([data-theme='glass']) .sheet-close::before,
+html:not([data-theme='glass']) .sheet-close::after,
+html:not([data-theme='glass']) .back-btn::before,
+html:not([data-theme='glass']) .back-btn::after,
+html:not([data-theme='glass']) .mic-fab::before,
+html:not([data-theme='glass']) .mic-fab::after,
+html:not([data-theme='glass']) .fab-pill::before,
+html:not([data-theme='glass']) .fab-pill::after,
+html:not([data-theme='glass']) .cta-confirm::before,
+html:not([data-theme='glass']) .cta-confirm::after,
+html:not([data-theme='glass']) .corner-add-btn::after,
+html:not([data-theme='glass']) .corner-menu::before,
+html:not([data-theme='glass']) .tx-ico::before,
+html:not([data-theme='glass']) .tx-ico::after,
+html:not([data-theme='glass']) .acct-ico::before,
+html:not([data-theme='glass']) .acct-ico::after,
+html:not([data-theme='glass']) .empty-ico::before,
+html:not([data-theme='glass']) .empty-ico::after,
+html:not([data-theme='glass']) .aico::before,
+html:not([data-theme='glass']) .aico::after,
+html:not([data-theme='glass']) .ficon::before,
+html:not([data-theme='glass']) .ficon::after,
+html:not([data-theme='glass']) .oico::before,
+html:not([data-theme='glass']) .oico::after {
   display: none !important;
   content: none !important;
 }
@@ -74,6 +100,16 @@ html[data-theme='dark'] {
   --glass-border-soft: 1px solid rgba(255, 255, 255, 0.05);
   --shadow-glass: 0 4px 20px rgba(0, 0, 0, 0.35);
   --shadow-glass-float: 0 -4px 24px rgba(0, 0, 0, 0.5);
+  --hy-on-accent: #ffffff;
+  --hy-accent-fill: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  --hy-hover: rgba(255, 255, 255, 0.08);
+  --hy-border-color: rgba(255, 255, 255, 0.12);
+  --hy-input-bg: #090e18;
+  --hy-danger-soft: rgba(239, 68, 68, 0.16);
+  --hy-warn: #fbbf24;
+  --hy-warn-soft: rgba(251, 191, 36, 0.16);
+  --hy-chart-grid: rgba(248, 250, 252, 0.12);
+  --hy-track: rgba(148, 163, 184, 0.22);
 }
 
 html[data-theme='dark-obsidian'] body,
@@ -294,6 +330,16 @@ html[data-theme='minimal-paper'] {
   --glass-border-soft: 1px solid #f1f5f9;
   --shadow-glass: 0 1px 3px rgba(0, 0, 0, 0.05), 0 8px 24px rgba(0, 0, 0, 0.03);
   --shadow-glass-float: 0 -2px 14px rgba(0, 0, 0, 0.05);
+  --hy-on-accent: #ffffff;
+  --hy-accent-fill: #0f766e;
+  --hy-hover: rgba(15, 23, 42, 0.05);
+  --hy-border-color: #e2e8f0;
+  --hy-input-bg: #f8fafc;
+  --hy-danger-soft: rgba(220, 38, 38, 0.1);
+  --hy-warn: #92400e;
+  --hy-warn-soft: rgba(245, 158, 11, 0.16);
+  --hy-chart-grid: rgba(15, 23, 42, 0.08);
+  --hy-track: rgba(15, 23, 42, 0.08);
 }
 
 html[data-theme='minimal-paper'] body,
@@ -479,6 +525,16 @@ html[data-theme='emerald-gold'] {
   --glass-border-soft: 1px solid rgba(245, 158, 11, 0.15);
   --shadow-glass: 0 4px 20px rgba(0, 0, 0, 0.5);
   --shadow-glass-float: 0 -4px 24px rgba(0, 0, 0, 0.65);
+  --hy-on-accent: #041a12;
+  --hy-accent-fill: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+  --hy-hover: rgba(245, 158, 11, 0.14);
+  --hy-border-color: rgba(245, 158, 11, 0.35);
+  --hy-input-bg: #041a12;
+  --hy-danger-soft: rgba(248, 113, 113, 0.16);
+  --hy-warn: #fbbf24;
+  --hy-warn-soft: rgba(245, 158, 11, 0.16);
+  --hy-chart-grid: rgba(236, 253, 245, 0.14);
+  --hy-track: rgba(167, 243, 208, 0.18);
 }
 
 html[data-theme='emerald-gold'] body,
@@ -668,6 +724,16 @@ html[data-theme='cyber-neon'] {
   --glass-border-soft: 1px solid rgba(192, 132, 252, 0.15);
   --shadow-glass: 0 4px 20px rgba(0, 0, 0, 0.6);
   --shadow-glass-float: 0 -4px 24px rgba(0, 240, 255, 0.2);
+  --hy-on-accent: #ffffff;
+  --hy-accent-fill: linear-gradient(135deg, #00f0ff 0%, #7c3aed 100%);
+  --hy-hover: rgba(0, 240, 255, 0.12);
+  --hy-border-color: rgba(0, 240, 255, 0.35);
+  --hy-input-bg: #080517;
+  --hy-danger-soft: rgba(255, 0, 85, 0.16);
+  --hy-warn: #fde68a;
+  --hy-warn-soft: rgba(253, 230, 138, 0.14);
+  --hy-chart-grid: rgba(240, 253, 244, 0.14);
+  --hy-track: rgba(165, 180, 252, 0.22);
 }
 
 html[data-theme='cyber-neon'] body,
@@ -859,6 +925,16 @@ html[data-theme='neobrutal'] {
   --glass-border-soft: 2px solid #0f172a;
   --shadow-glass: 4px 4px 0px #0f172a;
   --shadow-glass-float: 0 -4px 0px rgba(15, 23, 42, 0.08);
+  --hy-on-accent: #ffffff;
+  --hy-accent-fill: #2563eb;
+  --hy-hover: #fef08a;
+  --hy-border-color: #0f172a;
+  --hy-input-bg: #ffffff;
+  --hy-danger-soft: #fee2e2;
+  --hy-warn: #92400e;
+  --hy-warn-soft: #fef08a;
+  --hy-chart-grid: rgba(15, 23, 42, 0.18);
+  --hy-track: #e7e5e4;
 }
 
 html[data-theme='neobrutal'] body,
@@ -1084,6 +1160,16 @@ html[data-theme='classic-navy'] {
   --glass-chrome-float: #081024;
   --glass-chrome-sheet: #111c38;
   --glass-border: 1px solid rgba(148, 163, 184, 0.18);
+  --hy-on-accent: #ffffff;
+  --hy-accent-fill: linear-gradient(135deg, #0284c7 0%, #1d4ed8 100%);
+  --hy-hover: rgba(56, 189, 248, 0.14);
+  --hy-border-color: rgba(148, 163, 184, 0.32);
+  --hy-input-bg: #091228;
+  --hy-danger-soft: rgba(239, 68, 68, 0.16);
+  --hy-warn: #fbbf24;
+  --hy-warn-soft: rgba(56, 189, 248, 0.12);
+  --hy-chart-grid: rgba(241, 245, 249, 0.14);
+  --hy-track: rgba(148, 163, 184, 0.22);
   --glass-border-soft: 1px solid rgba(148, 163, 184, 0.1);
   --shadow-glass: 0 4px 20px rgba(0, 0, 0, 0.4);
   --shadow-glass-float: 0 -4px 24px rgba(0, 0, 0, 0.5);
@@ -1376,7 +1462,24 @@ html[data-theme='glass'] .theme-item-card.is-selected .theme-radio-dot {
 
 .lock-screen .field-input:focus {
   border-color: var(--hy-accent) !important;
-  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--hy-accent) 28%, transparent) !important;
+}
+
+.lock-screen .link {
+  color: var(--hy-accent);
+  font-weight: 700;
+  text-align: center;
+}
+
+html:not([data-theme='glass']) .lock-screen {
+  width: 100%;
+  max-width: none;
+  background: transparent !important;
+  align-items: center;
+}
+
+html:not([data-theme='glass']) .lock-screen > * {
+  width: min(440px, 100%);
 }
 
 .pattern-grid {
@@ -1406,6 +1509,11 @@ button.cat-mini {
   transition: all 0.2s ease;
 }
 
+button.cat-mini.danger {
+  color: var(--hy-expense) !important;
+  background: var(--hy-danger-soft) !important;
+}
+
 button.cat-mini:hover {
   filter: brightness(1.1);
 }
@@ -1416,6 +1524,292 @@ button.cta-confirm {
 
 .seg-btn.active {
   background: var(--hy-accent) !important;
-  color: #ffffff !important;
+  color: var(--hy-on-accent) !important;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   SURFACES THE PER-THEME BLOCKS NEVER LISTED
+   Glass keeps its own materials. Every other theme paints the remaining
+   chrome with the tokens above, so login, forms, menus and dialogs match.
+   Selectors stay narrower than the per-theme rules, which keep their shades.
+   ════════════════════════════════════════════════════════════════════════════ */
+html:not([data-theme='glass']) .lg-light,
+html:not([data-theme='glass']) .field-chip,
+html:not([data-theme='glass']) .icon-btn,
+html:not([data-theme='glass']) .sheet-close,
+html:not([data-theme='glass']) .back-btn,
+html:not([data-theme='glass']) .mic-fab,
+html:not([data-theme='glass']) .qa-ico,
+html:not([data-theme='glass']) .tx-ico,
+html:not([data-theme='glass']) .acct-ico,
+html:not([data-theme='glass']) .empty-ico,
+html:not([data-theme='glass']) .aico,
+html:not([data-theme='glass']) .ficon,
+html:not([data-theme='glass']) .oico,
+html:not([data-theme='glass']) .inst-num,
+html:not([data-theme='glass']) .month-pill,
+html:not([data-theme='glass']) .report-tile,
+html:not([data-theme='glass']) .toast,
+html:not([data-theme='glass']) .archive-entry,
+html:not([data-theme='glass']) .corner-menu,
+html:not([data-theme='glass']) .menu-card button,
+html:not([data-theme='glass']) .btn-secondary-glass,
+html:not([data-theme='glass']) .jalali-cal-nav-btn,
+html:not([data-theme='glass']) .jalali-cal-month,
+html:not([data-theme='glass']) .cat-add,
+html:not([data-theme='glass']) .option-item,
+html:not([data-theme='glass']) .voice-box,
+html:not([data-theme='glass']) .loan-preview,
+html:not([data-theme='glass']) .readonly-tag,
+html:not([data-theme='glass']) .badge,
+html:not([data-theme='glass']) .minimized-window-pill,
+html:not([data-theme='glass']) .desktop-sidebar,
+html:not([data-theme='glass']) .desk-hamburger-btn,
+html:not([data-theme='glass']) .desk-theme-toggle {
+  background: var(--glass-chrome) !important;
+  border: var(--glass-border) !important;
+  box-shadow: var(--shadow-glass) !important;
+  color: var(--hy-text) !important;
+}
+
+html:not([data-theme='glass']) .qa-ico,
+html:not([data-theme='glass']) .tx-ico,
+html:not([data-theme='glass']) .acct-ico,
+html:not([data-theme='glass']) .empty-ico,
+html:not([data-theme='glass']) .aico,
+html:not([data-theme='glass']) .ficon,
+html:not([data-theme='glass']) .oico,
+html:not([data-theme='glass']) .inst-num,
+html:not([data-theme='glass']) .readonly-tag {
+  background: var(--glass-chrome-strong) !important;
+  box-shadow: none !important;
+}
+
+html:not([data-theme='glass']) .field-chip:focus-within,
+html:not([data-theme='glass']) .icon-btn:hover,
+html:not([data-theme='glass']) .sheet-close:hover,
+html:not([data-theme='glass']) .back-btn:hover {
+  border-color: var(--hy-accent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--hy-accent) 28%, transparent) !important;
+}
+
+html:not([data-theme='glass']) .field-chip .field-input,
+html:not([data-theme='glass']) .field-chip .amount-input,
+html:not([data-theme='glass']) .menu-card button {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+html:not([data-theme='glass']) .menu-card button:hover,
+html:not([data-theme='glass']) .corner-menu button:hover,
+html:not([data-theme='glass']) .desk-nav-item:hover,
+html:not([data-theme='glass']) .desk-hamburger-btn:hover,
+html:not([data-theme='glass']) .desk-theme-toggle:hover,
+html:not([data-theme='glass']) .jalali-cal-day:hover,
+html:not([data-theme='glass']) .table-row-hover:hover,
+html:not([data-theme='glass']) .option-item:hover {
+  background: var(--hy-hover) !important;
+  color: var(--hy-text) !important;
+}
+
+html:not([data-theme='glass']) .fab-pill,
+html:not([data-theme='glass']) .corner-add-btn,
+html:not([data-theme='glass']) .desk-action-btn,
+html:not([data-theme='glass']) .head-action,
+html:not([data-theme='glass']) .jalali-cal-day.selected,
+html:not([data-theme='glass']) .jalali-cal-month.selected,
+html:not([data-theme='glass']) .home-pill:not(.ghost):not(.income):not(.expense) {
+  background: var(--hy-accent-fill) !important;
+  color: var(--hy-on-accent) !important;
+  border: var(--glass-border) !important;
+  box-shadow: var(--shadow-glass) !important;
+}
+
+html:not([data-theme='glass']) .corner-plus::before,
+html:not([data-theme='glass']) .corner-plus::after {
+  background: var(--hy-on-accent) !important;
+}
+
+html:not([data-theme='glass']) .seg-thumb,
+html:not([data-theme='glass']) .seg-thumb.income {
+  background: color-mix(in srgb, var(--hy-accent) 24%, var(--glass-chrome-strong)) !important;
+  border: var(--glass-border) !important;
+  box-shadow: none !important;
+}
+
+html:not([data-theme='glass']) .home-chip,
+html:not([data-theme='glass']) .inst-num.paid {
+  background: color-mix(in srgb, var(--hy-teal) 16%, var(--glass-chrome)) !important;
+  color: var(--hy-teal) !important;
+  border: var(--glass-border) !important;
+}
+
+html:not([data-theme='glass']) .badge.cash {
+  color: var(--hy-teal) !important;
+  background: color-mix(in srgb, var(--hy-teal) 16%, var(--glass-chrome)) !important;
+}
+html:not([data-theme='glass']) .badge.bank {
+  color: var(--hy-transfer) !important;
+  background: color-mix(in srgb, var(--hy-transfer) 16%, var(--glass-chrome)) !important;
+}
+html:not([data-theme='glass']) .badge.overdue,
+html:not([data-theme='glass']) .badge.due-soon {
+  color: var(--hy-expense) !important;
+  background: var(--hy-danger-soft) !important;
+}
+html:not([data-theme='glass']) .badge.ok,
+html:not([data-theme='glass']) .badge.paid {
+  color: var(--hy-income) !important;
+  background: color-mix(in srgb, var(--hy-income) 16%, var(--glass-chrome)) !important;
+}
+html:not([data-theme='glass']) .badge.pending {
+  color: var(--hy-text-secondary) !important;
+  background: var(--hy-track) !important;
+}
+
+html:not([data-theme='glass']) .home-chart .grid {
+  stroke: var(--hy-chart-grid);
+}
+
+html:not([data-theme='glass']) .home-cat .track,
+html:not([data-theme='glass']) .progress-bar,
+html:not([data-theme='glass']) .cat-bar-track,
+html:not([data-theme='glass']) .cat-bar-row .track {
+  background: var(--hy-track) !important;
+}
+
+html:not([data-theme='glass']) .home-donut .track {
+  stroke: color-mix(in srgb, var(--hy-teal) 35%, transparent);
+}
+
+html:not([data-theme='glass']) .banner.error,
+html:not([data-theme='glass']) .btn-ghost-danger {
+  color: var(--hy-expense) !important;
+  background: var(--hy-danger-soft) !important;
+  border-color: color-mix(in srgb, var(--hy-expense) 45%, transparent) !important;
+}
+
+html:not([data-theme='glass']) .banner.archive {
+  color: var(--hy-warn) !important;
+  background: var(--hy-warn-soft) !important;
+  border-color: color-mix(in srgb, var(--hy-warn) 45%, transparent) !important;
+}
+
+html:not([data-theme='glass']) .inst-num.overdue {
+  color: var(--hy-expense) !important;
+  background: var(--hy-danger-soft) !important;
+  border-color: color-mix(in srgb, var(--hy-expense) 45%, transparent) !important;
+}
+html:not([data-theme='glass']) .inst-info .sub.danger,
+html:not([data-theme='glass']) .budget-stats .remain.warn {
+  color: var(--hy-expense) !important;
+}
+
+html:not([data-theme='glass']) .sheet-handle {
+  background: var(--hy-text-tertiary) !important;
+}
+
+html:not([data-theme='glass']) .desktop-sidebar {
+  border-left: var(--glass-border) !important;
+  color: var(--hy-text) !important;
+}
+
+html:not([data-theme='glass']) .desk-nav-header,
+html:not([data-theme='glass']) .desk-nav-footer,
+html:not([data-theme='glass']) .settings-sub-header {
+  border-color: var(--hy-border-color) !important;
+}
+
+html:not([data-theme='glass']) .desk-nav-item.active {
+  background: color-mix(in srgb, var(--hy-accent) 18%, var(--glass-chrome)) !important;
+  border-color: var(--hy-accent) !important;
+  color: var(--hy-accent) !important;
+  box-shadow: none !important;
+}
+
+html:not([data-theme='glass']) .desk-brand-title,
+html:not([data-theme='glass']) .desk-nav-item,
+html:not([data-theme='glass']) .desk-theme-toggle {
+  color: var(--hy-text-secondary);
+}
+
+html:not([data-theme='glass']) .desk-nav-item.active,
+html:not([data-theme='glass']) .desk-brand-title {
+  color: var(--hy-text) !important;
+}
+
+html:not([data-theme='glass']) .desk-nav-item.active {
+  color: var(--hy-accent) !important;
+}
+
+html:not([data-theme='glass']) .corner-menu button {
+  background: var(--glass-chrome-strong) !important;
+  border: var(--glass-border) !important;
+  color: var(--hy-text) !important;
+}
+
+@media (min-width: 1100px) {
+  html:not([data-theme='glass']) .top-row {
+    background: var(--glass-chrome) !important;
+    color: var(--hy-text);
+  }
+}
+
+.minimized-window-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--glass-chrome);
+  color: var(--hy-text);
+  padding: 8px 14px;
+  border-radius: 14px;
+  border: var(--glass-border);
+  box-shadow: var(--shadow-glass-float);
+  cursor: pointer;
+  animation: popIn 0.2s ease;
+  user-select: none;
+}
+
+.minimized-window-pill .dock-restore,
+.minimized-window-pill .dock-close {
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.minimized-window-pill .dock-restore {
+  background: color-mix(in srgb, var(--hy-accent) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--hy-accent) 40%, transparent);
+  color: var(--hy-accent);
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.minimized-window-pill .dock-close {
+  background: var(--hy-danger-soft);
+  border: 1px solid color-mix(in srgb, var(--hy-expense) 40%, transparent);
+  color: var(--hy-expense);
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+}
+
+.desktop-dock {
+  position: fixed;
+  bottom: 20px;
+  right: 24px;
+  z-index: 99999;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 8px;
+  align-items: flex-end;
+  pointer-events: auto;
 }
 

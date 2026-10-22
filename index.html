@@ -23,9 +23,19 @@
           var viewport = window.visualViewport
           var height = viewport ? viewport.height : window.innerHeight
           document.documentElement.style.setProperty('--hy-vh', Math.round(height) + 'px')
+          var allowed = {
+            'dark-obsidian': 1,
+            glass: 1,
+            'minimal-paper': 1,
+            'emerald-gold': 1,
+            'cyber-neon': 1,
+            neobrutal: 1,
+            'classic-navy': 1
+          }
           var saved = localStorage.getItem('hy-theme') || 'dark-obsidian'
           if (saved === 'dark') saved = 'dark-obsidian'
           if (saved === 'light') saved = 'glass'
+          if (!allowed[saved]) saved = 'dark-obsidian'
           document.documentElement.dataset.theme = saved
         } catch (e) {}
       })()

@@ -279,8 +279,8 @@ export function QuickEntrySheet({
             style={{
               padding: '10px 14px',
               borderRadius: 16,
-              background: 'rgba(255, 255, 255, 0.08)',
-              border: '0.5px solid rgba(255, 255, 255, 0.5)',
+              background: 'var(--glass-chrome)',
+              border: 'var(--glass-border)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
@@ -293,8 +293,8 @@ export function QuickEntrySheet({
                 <span
                   key={t}
                   style={{
-                    background: 'rgba(15, 118, 110, 0.15)',
-                    border: '0.5px solid #0f766e',
+                    background: 'color-mix(in srgb, var(--hy-teal) 16%, transparent)',
+                    border: '1px solid var(--hy-teal)',
                     borderRadius: 12,
                     padding: '2px 8px',
                     fontSize: 11,
@@ -339,8 +339,8 @@ export function QuickEntrySheet({
             style={{
               padding: '10px 14px',
               borderRadius: 16,
-              background: 'rgba(255, 255, 255, 0.08)',
-              border: '0.5px solid rgba(255, 255, 255, 0.5)',
+              background: 'var(--glass-chrome)',
+              border: 'var(--glass-border)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
