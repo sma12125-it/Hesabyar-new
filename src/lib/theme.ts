@@ -140,5 +140,8 @@ export function applyTheme(themeId: ThemeId): void {
   if (typeof document === 'undefined') return
   document.documentElement.dataset.theme = themeId
   localStorage.setItem('hy-theme', themeId)
+  const meta = THEMES.find((theme) => theme.id === themeId)
+  const themeColor = document.querySelector('meta[name="theme-color"]')
+  if (themeColor && meta) themeColor.setAttribute('content', meta.preview.bg)
   window.dispatchEvent(new CustomEvent('hy-theme-change', { detail: { theme: themeId } }))
 }

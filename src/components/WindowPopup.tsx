@@ -57,41 +57,12 @@ export function GlobalMinimizedDock() {
   if (items.length === 0) return null
 
   return createPortal(
-    <div
-      className="desktop-dock"
-      style={{
-        position: 'fixed',
-        bottom: 18,
-        right: 20,
-        zIndex: 99999,
-        display: 'flex',
-        flexDirection: 'column-reverse',
-        gap: 8,
-        alignItems: 'flex-end',
-        pointerEvents: 'auto',
-      }}
-    >
+    <div className="desktop-dock">
       {items.map((item) => (
         <div
           key={item.id}
           className="minimized-window-pill"
           onClick={item.restore}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            background: 'rgba(15, 23, 42, 0.94)',
-            backdropFilter: 'blur(24px)',
-            WebkitBackdropFilter: 'blur(24px)',
-            color: '#fff',
-            padding: '8px 14px',
-            borderRadius: 14,
-            border: '1px solid rgba(255, 255, 255, 0.28)',
-            boxShadow: '0 12px 36px rgba(0, 0, 0, 0.55)',
-            cursor: 'pointer',
-            animation: 'popIn 0.2s ease',
-            userSelect: 'none',
-          }}
           title="کلیک برای بازگردانی پنجره (Restore)"
         >
           <span style={{ fontSize: 18, lineHeight: 1 }}>{item.icon}</span>
@@ -109,22 +80,10 @@ export function GlobalMinimizedDock() {
           </span>
           <button
             type="button"
+            className="dock-restore"
             onClick={(e) => {
               e.stopPropagation()
               item.restore()
-            }}
-            style={{
-              background: 'rgba(56, 189, 248, 0.16)',
-              border: '1px solid rgba(56, 189, 248, 0.35)',
-              color: '#38bdf8',
-              fontSize: 11,
-              fontWeight: 700,
-              padding: '4px 8px',
-              borderRadius: 8,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
             }}
             title="باز کردن پنجره"
           >
@@ -133,23 +92,10 @@ export function GlobalMinimizedDock() {
           </button>
           <button
             type="button"
+            className="dock-close"
             onClick={(e) => {
               e.stopPropagation()
               item.close()
-            }}
-            style={{
-              background: 'rgba(239, 68, 68, 0.2)',
-              border: '1px solid rgba(239, 68, 68, 0.35)',
-              color: '#f87171',
-              borderRadius: '50%',
-              width: 22,
-              height: 22,
-              display: 'grid',
-              placeItems: 'center',
-              fontSize: 12,
-              fontWeight: 700,
-              cursor: 'pointer',
-              marginLeft: 2,
             }}
             title="بستن دائمی پنجره"
             aria-label="بستن"
@@ -620,7 +566,7 @@ export function WindowPopup({
                     style={{
                       fontSize: 10,
                       color: 'var(--hy-muted)',
-                      background: 'rgba(255,255,255,0.08)',
+                      background: 'var(--hy-hover)',
                       padding: '2px 6px',
                       borderRadius: 6,
                       flexShrink: 0,
@@ -655,9 +601,9 @@ export function WindowPopup({
                 className="no-drag"
                 onClick={onToggleTableView}
                 style={{
-                  background: isTableView ? 'var(--hy-teal)' : 'rgba(255, 255, 255, 0.12)',
-                  color: isTableView ? '#fff' : 'var(--hy-text)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  background: isTableView ? 'var(--hy-accent-fill)' : 'var(--hy-hover)',
+                  color: isTableView ? 'var(--hy-on-accent)' : 'var(--hy-text)',
+                  border: '1px solid var(--hy-border-color)',
                   borderRadius: 10,
                   padding: '5px 10px',
                   fontSize: 11,
@@ -682,8 +628,8 @@ export function WindowPopup({
                 width: 30,
                 height: 30,
                 borderRadius: 8,
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                background: 'rgba(255, 255, 255, 0.08)',
+                border: '1px solid var(--hy-border-color)',
+                background: 'var(--hy-hover)',
                 color: 'var(--hy-text)',
                 fontSize: 14,
                 display: 'grid',
@@ -706,8 +652,8 @@ export function WindowPopup({
                   width: 30,
                   height: 30,
                   borderRadius: 8,
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid var(--hy-border-color)',
+                  background: 'var(--hy-hover)',
                   color: 'var(--hy-text)',
                   fontSize: 13,
                   display: 'grid',
@@ -730,9 +676,9 @@ export function WindowPopup({
                 width: 32,
                 height: 32,
                 borderRadius: 8,
-                background: 'rgba(239, 68, 68, 0.15)',
-                color: '#ef4444',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
+                background: 'var(--hy-danger-soft)',
+                color: 'var(--hy-expense)',
+                border: '1px solid color-mix(in srgb, var(--hy-expense) 40%, transparent)',
                 display: 'grid',
                 placeItems: 'center',
                 cursor: 'pointer',

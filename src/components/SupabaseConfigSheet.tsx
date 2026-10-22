@@ -138,7 +138,7 @@ export function SupabaseConfigSheet({
                 padding: '10px 12px',
                 borderRadius: '10px',
                 background: statusMsg.ok ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                color: statusMsg.ok ? '#065f46' : '#991b1b',
+                color: statusMsg.ok ? 'var(--hy-income)' : 'var(--hy-expense)',
                 fontSize: '12px',
                 fontWeight: 500,
                 display: 'flex',

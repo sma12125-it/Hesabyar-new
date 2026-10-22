@@ -18,6 +18,21 @@
   --hy-text-secondary: rgba(51, 65, 85, 0.72);
   --hy-text-tertiary: rgba(100, 116, 139, 0.62);
   --hy-text-on-glass: rgba(15, 23, 42, 0.90);
+  /* Aliases used by inline styles. They track the active theme. */
+  --hy-subtext: var(--hy-text-secondary);
+  --hy-muted: var(--hy-text-tertiary);
+  --hy-accent: var(--hy-teal);
+  --hy-on-accent: #ffffff;
+  --hy-accent-fill: linear-gradient(165deg, rgba(45, 212, 191, 0.95) 0%, rgba(13, 148, 136, 0.92) 45%, rgba(15, 118, 110, 0.95) 100%);
+  --hy-hover: rgba(255, 255, 255, 0.35);
+  --hy-border-color: rgba(15, 23, 42, 0.14);
+  --hy-border: var(--hy-border-color);
+  --hy-input-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(240, 253, 250, 0.72));
+  --hy-danger-soft: rgba(220, 38, 38, 0.12);
+  --hy-warn: #92400e;
+  --hy-warn-soft: rgba(251, 191, 36, 0.18);
+  --hy-chart-grid: rgba(15, 23, 42, 0.08);
+  --hy-track: rgba(148, 163, 184, 0.22);
 
   /* ═══ GLASS FILL OPACITY (numeric) — AFTER this round ═══
      BEFORE: top 0.22 / mid 0.06 / bot 0.08 / strong-top 0.28 / strong-bot 0.10

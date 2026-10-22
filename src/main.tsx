@@ -2,9 +2,12 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App'
+import { applyTheme, getCurrentTheme } from './lib/theme'
 import './styles/glass-v2.css'
 import './styles/app.css'
 import './styles/themes.css'
+
+applyTheme(getCurrentTheme())
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {

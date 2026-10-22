@@ -64,7 +64,7 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: '28px' }}>🤖</span>
           <div>
-            <h2 style={{ fontSize: '15px', fontWeight: 800, color: '#38bdf8' }}>
+            <h2 style={{ fontSize: '15px', fontWeight: 800, color: 'var(--hy-accent)' }}>
               اتصال حساب شخصی به ChatGPT و پروتکل MCP
             </h2>
             <p className="sheet-sub" style={{ marginTop: 2, fontSize: '11px' }}>
@@ -76,7 +76,7 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
         <div style={{ marginTop: 12, padding: '10px 12px', background: 'rgba(56, 189, 248, 0.08)', borderRadius: 10, border: '1px dashed rgba(56, 189, 248, 0.3)' }}>
           <div style={{ fontSize: '11.5px', color: 'var(--hy-text-primary)', lineHeight: 1.6 }}>
             با اتصال حسابیار به ChatGPT می‌توانید دستورات صوتی یا متنی مانند این‌ها بفرستید:
-            <ul style={{ margin: '6px 0 0 0', paddingRight: '18px', color: '#7dd3fc' }}>
+            <ul style={{ margin: '6px 0 0 0', paddingRight: '18px', color: 'var(--hy-text-secondary)' }}>
               <li>«موجودی حساب بانک ملت من چقدر است؟»</li>
               <li>«یک هزینه ۲ میلیون تومانی بابت خرید پوشاک ثبت کن.»</li>
               <li>«تراکنش‌های این ماه من را نشان بده.»</li>
@@ -99,7 +99,7 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
         {session ? (
           <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: 8, border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-              <div style={{ fontSize: '12px', color: '#10b981', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ fontSize: '12px', color: 'var(--hy-income)', display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span>✓</span>
                 <span>متصل به حساب: <strong>{session.email}</strong></span>
               </div>
@@ -140,7 +140,7 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
           </div>
         ) : (
           <div style={{ marginTop: 12, padding: '12px', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 10, border: '1px solid rgba(245, 158, 11, 0.25)' }}>
-            <div style={{ fontSize: '12px', color: '#f59e0b', marginBottom: 8, lineHeight: 1.5 }}>
+            <div style={{ fontSize: '12px', color: 'var(--hy-warn)', marginBottom: 8, lineHeight: 1.5 }}>
               ⚠️ برای دریافت توکن امن و اتصال هوش مصنوعی، ابتدا باید از بخش همگام‌سازی ابری وارد حساب حسابیار خود شوید.
             </div>
             <button
@@ -192,7 +192,7 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
               <div style={{ fontSize: '11px', color: 'var(--hy-text-secondary)', marginBottom: 2 }}>
                 ۱. نام سرور (Server Name):
               </div>
-              <div style={{ fontFamily: 'monospace', fontSize: '12.5px', fontWeight: 700, color: '#38bdf8' }}>
+              <div style={{ fontFamily: 'monospace', fontSize: '12.5px', fontWeight: 700, color: 'var(--hy-accent)' }}>
                 HesabYar
               </div>
             </div>
@@ -202,7 +202,7 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
               <div style={{ fontSize: '11px', color: 'var(--hy-text-secondary)', marginBottom: 2 }}>
                 ۲. نوع پروتکل سرور (Server Type / Transport):
               </div>
-              <div style={{ fontFamily: 'monospace', fontSize: '12px', color: '#10b981', fontWeight: 700 }}>
+              <div style={{ fontFamily: 'monospace', fontSize: '12px', color: 'var(--hy-income)', fontWeight: 700 }}>
                 HTTP (یا SSE / Streamable HTTP)
               </div>
             </div>
@@ -222,7 +222,7 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
                   {copiedMcpUrl ? 'کپی شد ✓' : 'کپی آدرس'}
                 </button>
               </div>
-              <div style={{ fontFamily: 'monospace', fontSize: '12px', direction: 'ltr', color: '#38bdf8', wordBreak: 'break-all' }}>
+              <div style={{ fontFamily: 'monospace', fontSize: '12px', direction: 'ltr', color: 'var(--hy-accent)', wordBreak: 'break-all' }}>
                 {mcpServerUrl}
               </div>
             </div>
@@ -243,9 +243,9 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
                 </button>
               </div>
               <div style={{ fontSize: '11px', color: 'var(--hy-text-primary)', lineHeight: 1.6 }}>
-                نام هدر (Key): <code style={{ color: '#38bdf8' }}>Authorization</code>
+                نام هدر (Key): <code style={{ color: 'var(--hy-accent)' }}>Authorization</code>
                 <br />
-                مقدار هدر (Value): <code style={{ color: '#10b981', direction: 'ltr', display: 'inline-block' }}>{bearerHeaderValue}</code>
+                مقدار هدر (Value): <code style={{ color: 'var(--hy-income)', direction: 'ltr', display: 'inline-block' }}>{bearerHeaderValue}</code>
               </div>
             </div>
 
@@ -270,7 +270,7 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
                   fontSize: '11px',
                   fontFamily: 'monospace',
                   direction: 'ltr',
-                  color: '#93c5fd',
+                  color: 'var(--hy-text-secondary)',
                   overflowX: 'auto',
                   padding: '8px',
                   background: 'rgba(15, 23, 42, 0.8)',
@@ -296,7 +296,7 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
             {/* Step 1: Authentication */}
             <div style={{ padding: '8px 10px', background: 'var(--hy-input-bg)', borderRadius: 8, border: '1px solid var(--hy-border)' }}>
-              <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#38bdf8', marginBottom: 4 }}>
+              <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--hy-accent)', marginBottom: 4 }}>
                 ۱. تنظیم احراز هویت (Authentication):
               </div>
               <ul style={{ margin: 0, paddingRight: 16, fontSize: '11px', color: 'var(--hy-text-primary)', lineHeight: 1.6 }}>
@@ -316,7 +316,7 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
                     fontSize: '11px',
                     padding: '6px 8px',
                     borderRadius: 6,
-                    background: 'rgba(0,0,0,0.2)',
+                    background: 'var(--hy-input-bg)',
                     border: '1px solid var(--hy-border)',
                     color: 'var(--hy-text-primary)',
                   }}
@@ -334,7 +334,7 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
 
             {/* Step 2: Schema */}
             <div style={{ padding: '8px 10px', background: 'var(--hy-input-bg)', borderRadius: 8, border: '1px solid var(--hy-border)' }}>
-              <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#38bdf8', marginBottom: 4 }}>
+              <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--hy-accent)', marginBottom: 4 }}>
                 ۲. طرحواره API (Schema):
               </div>
               <div style={{ fontSize: '11px', color: 'var(--hy-text-secondary)', marginBottom: 6 }}>
@@ -352,9 +352,9 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
                     fontSize: '11px',
                     padding: '6px 8px',
                     borderRadius: 6,
-                    background: 'rgba(0,0,0,0.2)',
+                    background: 'var(--hy-input-bg)',
                     border: '1px solid var(--hy-border)',
-                    color: '#38bdf8',
+                    color: 'var(--hy-accent)',
                   }}
                 />
                 <button
@@ -385,7 +385,7 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
 
             {/* Step 3: Privacy Policy */}
             <div style={{ padding: '8px 10px', background: 'var(--hy-input-bg)', borderRadius: 8, border: '1px solid var(--hy-border)' }}>
-              <div style={{ fontSize: '11.5px', fontWeight: 700, color: '#38bdf8', marginBottom: 2 }}>
+              <div style={{ fontSize: '11.5px', fontWeight: 700, color: 'var(--hy-accent)', marginBottom: 2 }}>
                 ۳. لینک حریم خصوصی (Privacy Policy):
               </div>
               <div style={{ fontFamily: 'monospace', fontSize: '11.5px', direction: 'ltr', color: 'var(--hy-text-secondary)' }}>
@@ -395,7 +395,7 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
 
             {/* Step 4: Safety / Confirmation */}
             <div style={{ padding: '8px 10px', background: 'rgba(16, 185, 129, 0.08)', borderRadius: 8, border: '1px solid rgba(16, 185, 129, 0.2)' }}>
-              <div style={{ fontSize: '11px', color: '#10b981', lineHeight: 1.5 }}>
+              <div style={{ fontSize: '11px', color: 'var(--hy-income)', lineHeight: 1.5 }}>
                 ✓ <strong>سیستم تأیید مالی دو مرحله‌ای (Confirmation Flow):</strong> حسابیار مجهز به <code>dryRun</code> است؛ بنابراین چت‌جی‌پی‌تی برای تراکنش‌ها ابتدا پیش‌نمایش مبلغ و موجودی را نشان داده و پس از تأیید صریح شما ثبت می‌کند.
               </div>
             </div>
@@ -415,8 +415,8 @@ export function ChatGPTApiSection({ onOpenCloud }: { onOpenCloud: () => void }) 
             gap: 6,
             padding: '8px 16px',
             borderRadius: 8,
-            background: 'rgba(56, 189, 248, 0.12)',
-            color: '#38bdf8',
+            background: 'color-mix(in srgb, var(--hy-accent) 14%, transparent)',
+            color: 'var(--hy-accent)',
             fontSize: '12px',
             fontWeight: 700,
             textDecoration: 'none',
