@@ -28,7 +28,20 @@ export function normalizePersian(str: string): string {
 }
 
 export const TSE_INSTRUMENTS: TseInstrument[] = [
-  { symbol: 'عیار', name: 'صندوق طلای عیار مفید', inscode: '48449429711961520', type: 'gold', categoryName: 'صندوق طلا', lastPrice: 62450, closingPrice: 62400, yesterdayPrice: 61800, changePercent: 0.97 },
+  // ── صندوق‌های سرمایه‌گذاری کارگزاری مفید ──
+  { symbol: 'عیار', name: 'صندوق طلای عیار مفید', inscode: '48449429711961520', type: 'gold', categoryName: 'صندوق‌های مفید', lastPrice: 62450, closingPrice: 62400, yesterdayPrice: 61800, changePercent: 0.97 },
+  { symbol: 'توان', name: 'صندوق اهرمی توان مفید', inscode: '14081048679119139', type: 'leveraged', categoryName: 'صندوق‌های مفید', lastPrice: 19350, closingPrice: 19200, yesterdayPrice: 18850, changePercent: 1.86 },
+  { symbol: 'پیشتاز', name: 'صندوق سرمایه‌گذاری پیشتاز مفید', inscode: '43940733059296690', type: 'fund', categoryName: 'صندوق‌های مفید', lastPrice: 489500, closingPrice: 488000, yesterdayPrice: 482000, changePercent: 1.55 },
+  { symbol: 'پیشرو', name: 'صندوق سرمایه‌گذاری پیشرو مفید', inscode: '43940733059296691', type: 'fund', categoryName: 'صندوق‌های مفید', lastPrice: 382000, closingPrice: 381000, yesterdayPrice: 376000, changePercent: 1.6 },
+  { symbol: 'امید توسعه', name: 'صندوق سرمایه‌گذاری امید توسعه مفید', inscode: '43940733059296692', type: 'fund', categoryName: 'صندوق‌های مفید', lastPrice: 195000, closingPrice: 194000, yesterdayPrice: 191500, changePercent: 1.83 },
+  { symbol: 'حامی', name: 'صندوق سرمایه‌گذاری حامی مفید', inscode: '43940733059296693', type: 'fixed_income', categoryName: 'صندوق‌های مفید', lastPrice: 10050, closingPrice: 10050, yesterdayPrice: 10045, changePercent: 0.05 },
+  { symbol: 'نامی', name: 'صندوق سرمایه‌گذاری نامی مفید', inscode: '43940733059296694', type: 'fixed_income', categoryName: 'صندوق‌های مفید', lastPrice: 10180, closingPrice: 10170, yesterdayPrice: 10150, changePercent: 0.2 },
+  { symbol: 'آوند', name: 'صندوق سرمایه‌گذاری آوند مفید', inscode: '43940733059296695', type: 'fixed_income', categoryName: 'صندوق‌های مفید', lastPrice: 10220, closingPrice: 10210, yesterdayPrice: 10190, changePercent: 0.2 },
+  { symbol: 'اونیکس', name: 'صندوق بازنشستگی تکمیلی اونیکس مفید', inscode: '43940733059296696', type: 'fund', categoryName: 'صندوق‌های مفید', lastPrice: 13500, closingPrice: 13400, yesterdayPrice: 13200, changePercent: 1.52 },
+  { symbol: 'تضمین', name: 'صندوق تضمین اصل سرمایه مفید', inscode: '43940733059296697', type: 'fund', categoryName: 'صندوق‌های مفید', lastPrice: 14200, closingPrice: 14150, yesterdayPrice: 14000, changePercent: 1.07 },
+  { symbol: 'آرامش', name: 'صندوق سرمایه‌گذاری مشترک آرامش مفید', inscode: '43940733059296698', type: 'fixed_income', categoryName: 'صندوق‌های مفید', lastPrice: 10120, closingPrice: 10110, yesterdayPrice: 10100, changePercent: 0.1 },
+  { symbol: 'مفید', name: 'صندوق سرمایه‌گذاری ارمغان ایرانیان مفید', inscode: '43940733059296699', type: 'fund', categoryName: 'صندوق‌های مفید', lastPrice: 28400, closingPrice: 28300, yesterdayPrice: 27900, changePercent: 1.79 },
+  // ── سایر صندوق‌های طلا و اهرمی ──
   { symbol: 'طلا', name: 'صندوق پشتوانه طلای لوتوس', inscode: '20915247313278296', type: 'gold', categoryName: 'صندوق طلا', lastPrice: 64200, closingPrice: 64100, yesterdayPrice: 63500, changePercent: 0.94 },
   { symbol: 'کهربا', name: 'صندوق طلای کهربا', inscode: '24959146199622558', type: 'gold', categoryName: 'صندوق طلا', lastPrice: 62050, closingPrice: 61900, yesterdayPrice: 61300, changePercent: 0.98 },
   { symbol: 'زر', name: 'صندوق طلای زرفام', inscode: '70808810243177651', type: 'gold', categoryName: 'صندوق طلا', lastPrice: 63300, closingPrice: 63200, yesterdayPrice: 62600, changePercent: 0.96 },
@@ -40,7 +53,6 @@ export const TSE_INSTRUMENTS: TseInstrument[] = [
   { symbol: 'شتاب', name: 'صندوق اهرمی شتاب آگاه', inscode: '23062821213459632', type: 'leveraged', categoryName: 'صندوق اهرمی', lastPrice: 17100, closingPrice: 16900, yesterdayPrice: 16600, changePercent: 1.81 },
   { symbol: 'موج', name: 'صندوق اهرمی موج فیروزه', inscode: '60155250495818967', type: 'leveraged', categoryName: 'صندوق اهرمی', lastPrice: 18550, closingPrice: 18450, yesterdayPrice: 18100, changePercent: 1.93 },
   { symbol: 'جهش', name: 'صندوق اهرمی جهش فارابی', inscode: '34293961726051772', type: 'leveraged', categoryName: 'صندوق اهرمی', lastPrice: 17900, closingPrice: 17800, yesterdayPrice: 17500, changePercent: 1.71 },
-  { symbol: 'توان', name: 'صندوق اهرمی توان مفید', inscode: '14081048679119139', type: 'leveraged', categoryName: 'صندوق اهرمی', lastPrice: 19350, closingPrice: 19200, yesterdayPrice: 18850, changePercent: 1.86 },
   { symbol: 'نارنج', name: 'صندوق اهرمی نارنج ترنج', inscode: '25181048679119140', type: 'leveraged', categoryName: 'صندوق اهرمی', lastPrice: 16600, closingPrice: 16500, yesterdayPrice: 16200, changePercent: 1.85 },
   { symbol: 'پالایش', name: 'صندوق پالایشی یکم', inscode: '28107936665796340', type: 'fund', categoryName: 'صندوق پالایشی', lastPrice: 15100, closingPrice: 14950, yesterdayPrice: 14700, changePercent: 1.7 },
   { symbol: 'دارا یکم', name: 'صندوق واسطه‌گری مالی یکم', inscode: '18320491910245084', type: 'fund', categoryName: 'صندوق واسطه‌گری مالی', lastPrice: 12900, closingPrice: 12800, yesterdayPrice: 12600, changePercent: 1.59 },

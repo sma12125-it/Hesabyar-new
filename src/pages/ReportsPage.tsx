@@ -9,7 +9,7 @@ import { WindowPopup } from '../components/WindowPopup'
 import { useExtras } from '../store/Extras'
 import { useStore } from '../store/Store'
 import { notifyUser } from '../lib/sync'
-import { TSE_INSTRUMENTS } from '../lib/tseCatalog'
+import { TSE_INSTRUMENTS, normalizePersian } from '../lib/tseCatalog'
 import type { CardMarket, InvestmentMarket, DongEvent, DongExpenseItem, InvestmentAsset } from '../types'
 
 export interface SettlementTransfer {
@@ -402,6 +402,13 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
       list = list.filter((item) => {
         const t = (item.type || '').toLowerCase()
         const cat = (item.category || item.categoryName || '').toLowerCase()
+        if (tseCategoryFilter === 'mofid') {
+          return (
+            cat.includes('مفید') ||
+            (item.name || '').includes('مفید') ||
+            ['عیار', 'توان', 'پیشتاز', 'پیشرو', 'امید توسعه', 'حامی', 'نامی', 'آوند', 'اونیکس', 'تضمین', 'آرامش', 'مفید'].includes(item.symbol)
+          )
+        }
         if (tseCategoryFilter === 'gold') return t === 'gold' || cat.includes('طلا')
         if (tseCategoryFilter === 'leveraged') return t === 'leveraged' || cat.includes('اهرم')
         if (tseCategoryFilter === 'stock') return t === 'stock'
@@ -439,19 +446,21 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
     setInvInscode(item.inscode)
     setInvName(item.name)
 
-    // درج فوری و خودکار آخرین ارزش/قیمت معامله در فیلد «بهای خرید هر واحد» و «ارزش روز هر واحد»
+    // درج فوری و خودکار آخرین ارزش/قیمت معامله در فیلد «ارزش روز هر واحد» و «بهای خرید هر واحد»
     const pricePerUnit = item.lastPrice || item.closingPrice || 0
     if (pricePerUnit > 0) {
       const displayPrice = currencyUnit === 'IRT' ? Math.round(pricePerUnit / 10) : pricePerUnit
-      setInvUnitPrice(formatSeparatedNumber(displayPrice))
       setInvCurrentUnitPrice(formatSeparatedNumber(displayPrice))
+      if (!invUnitPrice) {
+        setInvUnitPrice(formatSeparatedNumber(displayPrice))
+      }
 
       // محاسبه خودکار ارزش روز کل و بهای کل بر اساس تعداد واحد
       const q = Number(digitsOnly(invQuantity))
       if (q > 0) {
-        const totalCalculated = q * displayPrice
-        setInvCurrentValue(formatSeparatedNumber(totalCalculated))
-        setInvBuyPrice(formatSeparatedNumber(totalCalculated))
+        const buyPrice = Number(digitsOnly(invUnitPrice)) || displayPrice
+        setInvBuyPrice(formatSeparatedNumber(q * buyPrice))
+        setInvCurrentValue(formatSeparatedNumber(q * displayPrice))
       }
 
       setTseDetails({
@@ -462,9 +471,9 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
       })
       const sign = (item.changePercent || 0) > 0 ? '+' : ''
       setTseInfo(
-        `✓ نماد «${item.symbol}» با موفقیت انتخاب شد. آخرین بهای هر واحد: ${formatMoney(displayPrice)} در فیلد بهای خرید هر واحد (${unitLabel}) درج شد (${sign}${toFaDigits(item.changePercent || 0)}٪).`
+        `✓ نماد «${item.symbol}» با موفقیت انتخاب شد. آخرین ارزش روز هر واحد: ${formatMoney(displayPrice)} (${sign}${toFaDigits(item.changePercent || 0)}٪).`
       )
-      notifyUser(`ارزش هر واحد نماد «${item.symbol}» در فیلد بهای خرید هر واحد قرار گرفت`)
+      notifyUser(`ارزش روز هر واحد نماد «${item.symbol}» درج شد`)
     }
 
     setIsTsePickerOpen(false)
@@ -578,8 +587,13 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
    * Batch refresh all stock and fund assets in portfolio from TSETMC
    */
   async function refreshTseQuotes(silent = false) {
-    const tseAssets = investments.filter((i) => i.market === 'stock' || i.market === 'fund' || i.symbol)
-    if (tseAssets.length === 0) return
+    const tseAssets = investments.filter(
+      (i) => i.symbol || i.inscode || i.market === 'stock' || i.market === 'fund' || i.market === 'gold'
+    )
+    if (tseAssets.length === 0) {
+      if (!silent) notifyUser('دارایی بورسی یا صندوق در سبد سرمایه‌گذاری برای به‌روزرسانی یافت نشد.')
+      return
+    }
     setIsRefreshingTse(true)
     let updatedCount = 0
     try {
@@ -593,28 +607,35 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
         const json = await res.json()
         const quotes = json.quotes || {}
         for (const asset of tseAssets) {
-          const key = asset.symbol || asset.name
-          const quote = quotes[key]
+          const sym = asset.symbol || ''
+          const code = asset.inscode || ''
+          const nm = asset.name || ''
+          const quote =
+            quotes[sym] ||
+            quotes[code] ||
+            quotes[nm] ||
+            quotes[normalizePersian(sym)] ||
+            quotes[normalizePersian(nm)]
+
           if (quote && typeof quote.price === 'number' && quote.price > 0) {
             const newUnitPrice = quote.lastPrice || quote.price
             const q = asset.quantity || 1
             const newTotalValue = Math.round(q * newUnitPrice)
-            if (newTotalValue !== asset.currentValue || newUnitPrice !== asset.currentUnitPrice) {
-              await saveInvestment({
-                ...asset,
-                currentUnitPrice: newUnitPrice,
-                currentValue: newTotalValue,
-                inscode: quote.inscode || asset.inscode,
-              })
-              updatedCount++
-            }
+            // بروزرسانی ارزش روز هر واحد و ارزش روز کل، با حفظ بهای خرید اولیه
+            await saveInvestment({
+              ...asset,
+              currentUnitPrice: newUnitPrice,
+              currentValue: newTotalValue,
+              inscode: quote.inscode || asset.inscode,
+            })
+            updatedCount++
           }
         }
       }
       if (!silent) {
         notifyUser(
           updatedCount > 0
-            ? `${toFaDigits(updatedCount)} دارایی با آخرین قیمت‌های بورس TSETMC بروزرسانی شدند.`
+            ? `${toFaDigits(updatedCount)} دارایی با آخرین قیمت‌های بورس و صندوق‌ها بروزرسانی شدند.`
             : 'قیمت دارایی‌های بورس به روز است.'
         )
       }
@@ -2187,11 +2208,11 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           const qStr = e.target.value
                           setInvQuantity(qStr)
                           const q = Number(digitsOnly(qStr))
-                          const u = Number(digitsOnly(invUnitPrice)) || Number(digitsOnly(invCurrentUnitPrice))
-                          if (q > 0 && u > 0) {
-                            const total = q * u
-                            setInvCurrentValue(formatSeparatedNumber(total))
-                            setInvBuyPrice(formatSeparatedNumber(total))
+                          const buyU = Number(digitsOnly(invUnitPrice))
+                          const currU = Number(digitsOnly(invCurrentUnitPrice)) || buyU
+                          if (q > 0) {
+                            if (buyU > 0) setInvBuyPrice(formatSeparatedNumber(q * buyU))
+                            if (currU > 0) setInvCurrentValue(formatSeparatedNumber(q * currU))
                           }
                         }}
                       />
@@ -2208,26 +2229,52 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                         onChange={(e) => {
                           const uStr = formatSeparatedNumber(e.target.value)
                           setInvUnitPrice(uStr)
-                          const u = Number(digitsOnly(uStr))
+                          const buyU = Number(digitsOnly(uStr))
                           if (!invCurrentUnitPrice) setInvCurrentUnitPrice(uStr)
                           const q = Number(digitsOnly(invQuantity))
-                          if (q > 0 && u > 0) {
-                            const total = q * u
-                            setInvCurrentValue(formatSeparatedNumber(total))
-                            setInvBuyPrice(formatSeparatedNumber(total))
+                          if (q > 0 && buyU > 0) {
+                            setInvBuyPrice(formatSeparatedNumber(q * buyU))
+                            if (!invCurrentValue) {
+                              const currU = Number(digitsOnly(invCurrentUnitPrice)) || buyU
+                              setInvCurrentValue(formatSeparatedNumber(q * currU))
+                            }
                           }
                         }}
                       />
                       <span style={{ fontSize: 10, color: 'var(--hy-text-secondary)', display: 'block', marginTop: 2 }}>
-                        (اتوماتیک از نماد بورس یا وارد کردن دستی)
+                        (قیمت واحد در زمان خرید)
                       </span>
                     </div>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                     <div>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--hy-text)' }}>
+                        ارزش روز هر واحد ({unitLabel}):
+                      </label>
+                      <input
+                        className="field-input"
+                        inputMode="numeric"
+                        placeholder={`ارزش روز هر واحد (${unitLabel})`}
+                        value={invCurrentUnitPrice}
+                        onChange={(e) => {
+                          const uStr = formatSeparatedNumber(e.target.value)
+                          setInvCurrentUnitPrice(uStr)
+                          const currU = Number(digitsOnly(uStr))
+                          const q = Number(digitsOnly(invQuantity))
+                          if (q > 0 && currU > 0) {
+                            setInvCurrentValue(formatSeparatedNumber(q * currU))
+                          }
+                        }}
+                      />
+                      <span style={{ fontSize: 10, color: 'var(--hy-text-secondary)', display: 'block', marginTop: 2 }}>
+                        (قیمت لحظه‌ای روز بازار)
+                      </span>
+                    </div>
+
+                    <div>
                       <label style={{ fontSize: 11, fontWeight: 700 }}>
-                        بهای کل خرید ({unitLabel}): <span style={{ fontSize: 10, color: 'var(--hy-text-secondary)' }}>(محاسبه خودکار)</span>
+                        بهای کل خرید ({unitLabel}):
                       </label>
                       <input
                         className="field-input"
@@ -2236,21 +2283,64 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                         value={invBuyPrice}
                         onChange={(e) => setInvBuyPrice(formatSeparatedNumber(e.target.value))}
                       />
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: 11, fontWeight: 700 }}>
-                        ارزش روز کل ({unitLabel}): <span style={{ fontSize: 10, color: 'var(--hy-text-secondary)' }}>(محاسبه خودکار)</span>
-                      </label>
-                      <input
-                        className="field-input"
-                        inputMode="numeric"
-                        placeholder={`ارزش روز کل (${unitLabel})`}
-                        value={invCurrentValue}
-                        onChange={(e) => setInvCurrentValue(formatSeparatedNumber(e.target.value))}
-                      />
+                      <span style={{ fontSize: 10, color: 'var(--hy-text-secondary)', display: 'block', marginTop: 2 }}>
+                        (تعداد × بهای خرید هر واحد)
+                      </span>
                     </div>
                   </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700 }}>
+                      ارزش روز کل دارایی ({unitLabel}):
+                    </label>
+                    <input
+                      className="field-input"
+                      inputMode="numeric"
+                      placeholder={`ارزش روز کل (${unitLabel})`}
+                      value={invCurrentValue}
+                      onChange={(e) => setInvCurrentValue(formatSeparatedNumber(e.target.value))}
+                    />
+                    <span style={{ fontSize: 10, color: 'var(--hy-text-secondary)', display: 'block', marginTop: 2 }}>
+                      (تعداد × ارزش روز هر واحد — بر اساس قیمت لحظه‌ای)
+                    </span>
+                  </div>
+
+                  {/* پیش‌نمایش زنده سود و زیان */}
+                  {(() => {
+                    const buyTotal = Number(digitsOnly(invBuyPrice)) || (Number(digitsOnly(invQuantity)) * Number(digitsOnly(invUnitPrice)))
+                    const currTotal = Number(digitsOnly(invCurrentValue)) || (Number(digitsOnly(invQuantity)) * (Number(digitsOnly(invCurrentUnitPrice)) || Number(digitsOnly(invUnitPrice))))
+                    if (!buyTotal || !currTotal) return null
+                    const diff = currTotal - buyTotal
+                    const roi = buyTotal > 0 ? (diff / buyTotal) * 100 : 0
+                    const isProfit = diff > 0
+                    const isLoss = diff < 0
+
+                    return (
+                      <div
+                        style={{
+                          padding: '10px 14px',
+                          borderRadius: 14,
+                          background: isProfit ? 'rgba(16, 185, 129, 0.12)' : isLoss ? 'rgba(239, 68, 68, 0.12)' : 'rgba(255, 255, 255, 0.05)',
+                          border: `1px solid ${isProfit ? 'rgba(16, 185, 129, 0.3)' : isLoss ? 'rgba(239, 68, 68, 0.3)' : 'rgba(255, 255, 255, 0.1)'}`,
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginTop: 4,
+                        }}
+                      >
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--hy-text)' }}>
+                          📊 برآورد سود / زیان اولیه:
+                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, fontSize: 13, color: isProfit ? '#10b981' : isLoss ? '#ef4444' : 'var(--hy-text-secondary)' }}>
+                          <span>{isProfit ? 'سود:' : isLoss ? 'زیان:' : 'سر به سر'}</span>
+                          <span>{formatMoney(currencyUnit === 'IRT' ? Math.abs(diff) * 10 : Math.abs(diff))}</span>
+                          <span style={{ direction: 'ltr', fontWeight: 900 }}>
+                            ({isProfit ? '+' : isLoss ? '-' : ''}{toFaDigits(Math.abs(roi).toFixed(1))}٪)
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })()}
 
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 700 }}>یادداشت یا کارگزاری (اختیاری):</label>
@@ -2269,9 +2359,10 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                     onClick={() => {
                       const name = (invSymbol || invName).trim()
                       const q = Number(digitsOnly(invQuantity))
-                      const unitPriceInput = Number(digitsOnly(invUnitPrice)) || Number(digitsOnly(invCurrentUnitPrice))
+                      const buyUnitPriceNum = Number(digitsOnly(invUnitPrice))
+                      const currUnitPriceNum = Number(digitsOnly(invCurrentUnitPrice)) || buyUnitPriceNum
 
-                      // فیلدهای اجباری بر اساس درخواست دقیق کاربر: نام نماد، تعداد واحد و سهم، بهای واحد
+                      // فیلدهای اجباری: نام نماد، تعداد واحد و سهم، بهای خرید هر واحد
                       if (!name) {
                         notifyUser('وارد کردن نام یا نماد دارایی الزامی است')
                         return
@@ -2280,24 +2371,20 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                         notifyUser('وارد کردن تعداد واحد و سهم الزامی است')
                         return
                       }
-                      if (!unitPriceInput || unitPriceInput <= 0) {
-                        notifyUser('وارد کردن بهای واحد (به‌صورت خودکار یا دستی) الزامی است')
+                      if (!buyUnitPriceNum || buyUnitPriceNum <= 0) {
+                        notifyUser('وارد کردن بهای خرید هر واحد الزامی است')
                         return
                       }
 
-                      // محاسبه مبالغ کل بر اساس تعداد × بهای واحد
-                      const calculatedTotalInUserUnit = q * unitPriceInput
-                      const calcRials = currencyUnit === 'IRT' ? calculatedTotalInUserUnit * 10 : calculatedTotalInUserUnit
+                      // تبدیل مبالغ به ریال برای ذخیره‌سازی استاندارد در پایگاه داده
+                      const buyUnitPriceRials = currencyUnit === 'IRT' ? buyUnitPriceNum * 10 : buyUnitPriceNum
+                      const currUnitPriceRials = currencyUnit === 'IRT' ? currUnitPriceNum * 10 : currUnitPriceNum
 
-                      const parsedCurrRials = invCurrentValue ? parseAmountToRials(invCurrentValue) : calcRials
-                      const parsedBuyRials = invBuyPrice ? parseAmountToRials(invBuyPrice) : (parsedCurrRials || calcRials)
+                      const defaultBuyTotal = q * buyUnitPriceRials
+                      const defaultCurrTotal = q * currUnitPriceRials
 
-                      // پس از ثبت و افزودن نماد، بهای کل ارزش روز که محاسبه شد به عنوان مبلغ بهای کل خرید قرار گیرد
-                      const purchaseAmount = editingInv ? parsedBuyRials : (parsedCurrRials || calcRials)
-                      const currentValue = parsedCurrRials || purchaseAmount
-
-                      const uPriceRials = currencyUnit === 'IRT' ? unitPriceInput * 10 : unitPriceInput
-                      const currUPriceRials = invCurrentUnitPrice ? parseAmountToRials(invCurrentUnitPrice) : uPriceRials
+                      const purchaseAmount = invBuyPrice ? parseAmountToRials(invBuyPrice) : defaultBuyTotal
+                      const currentValue = invCurrentValue ? parseAmountToRials(invCurrentValue) : defaultCurrTotal
 
                       void saveInvestment({
                         id: editingInv?.id || undefined,
@@ -2305,15 +2392,15 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                         market: invMarket,
                         symbol: invSymbol.trim() || undefined,
                         inscode: invInscode.trim() || undefined,
-                        purchaseAmount,
-                        currentValue,
+                        purchaseAmount, // بهای کل خرید بر اساس زمان خرید (ثابت می‌ماند)
+                        currentValue,   // ارزش روز دارایی (با به‌روزرسانی قیمت تغییر می‌کند)
                         quantity: q,
-                        unitPrice: uPriceRials,
-                        currentUnitPrice: currUPriceRials,
+                        unitPrice: buyUnitPriceRials, // بهای خرید هر واحد در زمان خرید
+                        currentUnitPrice: currUnitPriceRials, // ارزش روز هر واحد بر اساس آخرین قیمت روز
                         note: invNote.trim() || undefined,
                       })
 
-                      notifyUser(editingInv ? 'دارایی با موفقیت ویرایش شد' : 'دارایی با موفقیت به سبد سرمایه‌گذاری افزوده شد')
+                      notifyUser(editingInv ? 'دارایی با موفقیت ویرایش شد' : 'دارایی با بهای خرید زمان معامله و ارزش روز ثبت شد')
                       setIsCreateInvOpen(false)
                       setEditingInv(null)
                     }}
@@ -2401,6 +2488,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                 <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
                   {[
                     { id: 'all', label: 'همه نمادها' },
+                    { id: 'mofid', label: '⭐ صندوق‌های کارگزاری مفید' },
                     { id: 'gold', label: '🪙 صندوق طلا' },
                     { id: 'leveraged', label: '⚡ اهرمی' },
                     { id: 'stock', label: '🏢 سهام بورس و فرابورس' },

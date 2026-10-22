@@ -2175,3 +2175,282 @@ html[data-theme='dark'] .window-popup-footer {
 }
 
 
+
+
+/* ═════════════════════════════════════════════════════════════════════
+   DESKTOP RIGHT-SIDE HAMBURGER NAVIGATION & RESPONSIVE DESKTOP SHELL
+   ═════════════════════════════════════════════════════════════════════ */
+
+/* Mobile view: hide desktop sidebar */
+@media (max-width: 899px) {
+  .desktop-sidebar {
+    display: none !important;
+  }
+}
+
+/* Desktop view: min-width: 900px */
+@media (min-width: 900px) {
+  :root {
+    --desktop-nav-w: 240px;
+  }
+
+  .mobile-tab-bar {
+    display: none !important;
+  }
+
+  /* Desktop right sidebar navigation */
+  .desktop-sidebar {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: var(--desktop-nav-w, 240px);
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    padding: 18px 12px;
+    background: var(--glass-chrome-float, rgba(15, 23, 42, 0.7));
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    border-left: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: -6px 0 28px rgba(0, 0, 0, 0.14);
+    box-sizing: border-box;
+    transition: width 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+    direction: rtl;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .desktop-sidebar.is-collapsed {
+    width: 76px;
+    padding: 18px 8px;
+  }
+
+  .desk-nav-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 16px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .desk-hamburger-btn {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--hy-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .desk-hamburger-btn:hover {
+    background: rgba(13, 148, 136, 0.2);
+    border-color: var(--hy-teal);
+    color: var(--hy-teal);
+    transform: scale(1.05);
+  }
+
+  .desk-brand-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .desk-brand-logo {
+    font-size: 24px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .desk-brand-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .desk-brand-title {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--hy-text);
+    line-height: 1.2;
+  }
+
+  .desk-brand-sub {
+    font-size: 10px;
+    color: var(--hy-text-secondary);
+    white-space: nowrap;
+  }
+
+  /* Action button in sidebar */
+  .desk-action-btn {
+    width: 100%;
+    height: 44px;
+    border-radius: 14px;
+    border: none;
+    background: linear-gradient(135deg, var(--hy-teal) 0%, #0d9488 50%, #0f766e 100%);
+    color: #fff;
+    font-weight: 800;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    cursor: pointer;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 16px rgba(13, 148, 136, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    flex-shrink: 0;
+  }
+
+  .desk-action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(13, 148, 136, 0.45);
+  }
+
+  .desk-action-btn:active {
+    transform: translateY(0) scale(0.98);
+  }
+
+  .desk-action-icon {
+    font-size: 18px;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .desk-action-label {
+    white-space: nowrap;
+  }
+
+  /* Links list */
+  .desk-nav-links {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+  }
+
+  .desk-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    color: var(--hy-text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.18s ease;
+    border: 1px solid transparent;
+  }
+
+  .desktop-sidebar.is-collapsed .desk-nav-item {
+    justify-content: center;
+    padding: 12px 0;
+  }
+
+  .desk-nav-icon {
+    font-size: 20px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .desk-nav-label {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .desk-nav-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--hy-text);
+  }
+
+  .desk-nav-item.active {
+    background: linear-gradient(135deg, rgba(13, 148, 136, 0.22) 0%, rgba(13, 148, 136, 0.08) 100%);
+    border-color: rgba(13, 148, 136, 0.35);
+    color: var(--hy-teal);
+    font-weight: 800;
+    box-shadow: 0 2px 10px rgba(13, 148, 136, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+
+  .desk-nav-footer {
+    padding-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin-top: auto;
+  }
+
+  .desk-theme-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--hy-text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .desktop-sidebar.is-collapsed .desk-theme-toggle {
+    justify-content: center;
+    padding: 10px 0;
+  }
+
+  .desk-theme-toggle:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: var(--hy-text);
+  }
+
+  /* Desktop optimized workspace layout */
+  .page-stage {
+    padding-right: calc(var(--desktop-nav-w, 240px) + 20px) !important;
+    padding-left: 20px !important;
+    padding-top: 20px !important;
+    padding-bottom: 20px !important;
+    min-height: 100vh !important;
+    box-sizing: border-box !important;
+    justify-content: flex-start !important;
+    transition: padding-right 0.26s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .device {
+    width: min(880px, 100%) !important;
+    max-width: 880px !important;
+    height: auto !important;
+    min-height: calc(100vh - 40px) !important;
+    margin: 0 auto !important;
+    border-radius: 28px !important;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.28) !important;
+  }
+
+  .device-screen {
+    min-height: calc(100vh - 40px) !important;
+    height: auto !important;
+  }
+
+  .app-scroll {
+    padding-bottom: 40px !important;
+  }
+
+  .mic-fab {
+    bottom: 24px !important;
+    left: 24px !important;
+  }
+}
