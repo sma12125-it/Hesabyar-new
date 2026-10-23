@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>جهت‌های طراحی حساب‌یار</title>
+  <link rel="stylesheet" href="fonts.css" />
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Vazirmatn, sans-serif; background: #f4f1ec; color: #1c1916; }
+    header { padding: 36px 40px 8px; }
+    h1 { margin: 0; font-size: 32px; }
+    header p { max-width: 720px; color: #5c5348; }
+    table { width: min(1100px, calc(100% - 80px)); margin: 8px 40px 28px; border-collapse: collapse; background: white; }
+    th, td { text-align: right; padding: 10px 12px; border-bottom: 1px solid #eee; font-size: 14px; vertical-align: top; }
+    th { background: #1c1916; color: white; }
+    section { padding: 8px 40px 32px; }
+    h2 { margin: 0 0 8px; }
+    .row { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 8px; }
+    figure { margin: 0; }
+    img.phone { height: 420px; width: auto; border-radius: 18px; background: #111; }
+    img.desk { height: 220px; width: auto; border-radius: 12px; }
+    figcaption { font-size: 12px; margin-top: 6px; color: #5c5348; }
+    a { color: inherit; }
+    .board { width: min(1200px, 100%); border-radius: 12px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>سه جهت برای حساب‌یار</h1>
+    <p>ماکت ثابت برای مقایسه. برنامهٔ اصلی دست نخورده است. هر نمای موبایل ۳۹۰×۸۴۴ است. دادهٔ نمونه: سارا نادری، ۳۰ مهر ۱۴۰۵، تومان.</p>
+  </header>
+  <table>
+    <thead><tr><th></th><th>زرنگار</th><th>کاشی</th><th>نسیم</th></tr></thead>
+    <tbody>
+      <tr><td>حس</td><td>دفتر خصوصی شب</td><td>کارگاه روشن روز</td><td>همراه آرام خانه</td></tr>
+      <tr><td>قوت</td><td>اعتماد، سبد، اعداد درشت</td><td>سرعت، شبکه، خوانایی داده</td><td>ثبت روزمره، اضطراب کمتر</td></tr>
+      <tr><td>ریسک</td><td>برای خرید روزمره رسمی است</td><td>نقش کاشی نباید شلوغ شود</td><td>برای سبد سنگین ممکن است سبک باشد</td></tr>
+    </tbody>
+  </table>
+  <section>
+    <h2>زرنگار</h2>
+    <p>دفتر خصوصی شب؛ مرکب، طلای شامپاین، اعداد نسخ.</p>
+    <img class="board" src="screenshots/zarnegar-board.png" alt="نمای کلی زرنگار" />
+  </section>
+  <section>
+    <h2>کاشی</h2>
+    <p>کارگاه روز؛ گچ، فیروزه، انار و شبکهٔ هندسی.</p>
+    <img class="board" src="screenshots/kashi-board.png" alt="نمای کلی کاشی" />
+  </section>
+  <section>
+    <h2>نسیم</h2>
+    <p>همراه خانه؛ شن گرم، سبز مریم، گوشه‌های نرم.</p>
+    <img class="board" src="screenshots/nasim-board.png" alt="نمای کلی نسیم" />
+  </section>
+  <section>
+    <h2>فایل هر نما</h2>
+    <div class="row">
+      <figure><a href="zarnegar/login.html"><img class="phone" src="screenshots/zarnegar-login.png" alt="" /></a><figcaption>زرنگار · ورود</figcaption></figure>
+      <figure><a href="kashi/login.html"><img class="phone" src="screenshots/kashi-login.png" alt="" /></a><figcaption>کاشی · ورود</figcaption></figure>
+      <figure><a href="nasim/login.html"><img class="phone" src="screenshots/nasim-login.png" alt="" /></a><figcaption>نسیم · ورود</figcaption></figure>
+      <figure><a href="zarnegar/desktop.html"><img class="desk" src="screenshots/zarnegar-desktop.png" alt="" /></a><figcaption>زرنگار · دسکتاپ</figcaption></figure>
+      <figure><a href="kashi/desktop.html"><img class="desk" src="screenshots/kashi-desktop.png" alt="" /></a><figcaption>کاشی · دسکتاپ</figcaption></figure>
+      <figure><a href="nasim/desktop.html"><img class="desk" src="screenshots/nasim-desktop.png" alt="" /></a><figcaption>نسیم · دسکتاپ</figcaption></figure>
+    </div>
+  </section>
+</body>
+</html>
