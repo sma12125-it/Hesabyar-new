@@ -1,19 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
 import { categoriesFor } from '../lib/categories'
 import { monthKey, expenseByCategory, spentInCategory } from '../lib/reports'
 import { todayIso } from '../lib/iso'
 import { createId } from '../lib/ids'
 import { digitsOnly, formatSeparatedNumber, toFaDigits } from '../lib/money'
 import { SettingsButton } from '../components/SettingsButton'
-import { DateField } from '../components/DateField'
 import { WindowPopup } from '../components/WindowPopup'
 import { useExtras } from '../store/Extras'
 import { useStore } from '../store/Store'
 import { notifyUser } from '../lib/sync'
-import { COST_BASIS_METHOD_FA, defaultKindForMarket, formatQuantity, parseQuantity } from '../lib/investments'
 import { TSE_INSTRUMENTS, normalizePersian } from '../lib/tseCatalog'
-import type { CardMarket, InvestmentMarket, DongEvent, DongExpenseItem, InvestmentAsset, InvestmentTxKind } from '../types'
+import { formatPersianDateFull } from '../lib/dates'
+import type {
+  CardMarket,
+  InvestmentMarket,
+  DongEvent,
+  DongExpenseItem,
+  InvestmentAsset,
+  InvestmentTransaction,
+  InvestmentTransactionType,
+} from '../types'
 
 export interface SettlementTransfer {
   id: string
@@ -33,16 +39,36 @@ export interface DongParticipantBalance {
   net: number // paid - share (positive = creditor, negative = debtor)
 }
 
+export interface DongGroupBalance {
+  id: string
+  name: string
+  memberIds: string[]
+  paid: number
+  share: number
+  net: number
+  memberBalances: DongParticipantBalance[]
+}
+
 export interface DongCalculationSummary {
   transfers: SettlementTransfer[]
   balances: DongParticipantBalance[]
+  groupBalances: DongGroupBalance[]
+  ungroupedBalances: DongParticipantBalance[]
+  groupTransfers: SettlementTransfer[]
   totalCost: number
 }
 
 export function computeDongSettlement(event: DongEvent): DongCalculationSummary {
   const participants = event.participants
   if (participants.length === 0) {
-    return { transfers: [], balances: [], totalCost: 0 }
+    return {
+      transfers: [],
+      balances: [],
+      groupBalances: [],
+      ungroupedBalances: [],
+      groupTransfers: [],
+      totalCost: 0,
+    }
   }
 
   const paidMap = new Map<string, number>()
@@ -163,7 +189,139 @@ export function computeDongSettlement(event: DongEvent): DongCalculationSummary 
     if (creditor.remaining < 1) cIdx++
   }
 
-  return { transfers, balances, totalCost }
+  // Group aggregates
+  const groupBalances: DongGroupBalance[] = []
+  let ungroupedBalances: DongParticipantBalance[] = []
+  const groupTransfers: SettlementTransfer[] = []
+
+  if (event.groups && event.groups.length > 0) {
+    const groupedMemberIdSet = new Set<string>()
+
+    for (const g of event.groups) {
+      const members = g.memberIds
+        .map((mid) => balances.find((b) => b.id === mid))
+        .filter((b): b is DongParticipantBalance => Boolean(b))
+
+      members.forEach((m) => groupedMemberIdSet.add(m.id))
+
+      const gPaid = members.reduce((s, m) => s + m.paid, 0)
+      const gShare = members.reduce((s, m) => s + m.share, 0)
+      const gNet = gPaid - gShare
+
+      groupBalances.push({
+        id: g.id,
+        name: g.name,
+        memberIds: g.memberIds,
+        paid: gPaid,
+        share: gShare,
+        net: gNet,
+        memberBalances: members,
+      })
+    }
+
+    ungroupedBalances = balances.filter((b) => !groupedMemberIdSet.has(b.id))
+
+    // Entities for group-level settlement: each group + each ungrouped person
+    type SettleEntity = { id: string; name: string; remaining: number }
+    const groupDebtors: SettleEntity[] = []
+    const groupCreditors: SettleEntity[] = []
+
+    for (const gb of groupBalances) {
+      if (gb.net < -5) groupDebtors.push({ id: gb.id, name: `گروه ${gb.name}`, remaining: -gb.net })
+      else if (gb.net > 5) groupCreditors.push({ id: gb.id, name: `گروه ${gb.name}`, remaining: gb.net })
+    }
+    for (const ub of ungroupedBalances) {
+      if (ub.net < -5) groupDebtors.push({ id: ub.id, name: ub.name, remaining: -ub.net })
+      else if (ub.net > 5) groupCreditors.push({ id: ub.id, name: ub.name, remaining: ub.net })
+    }
+
+    groupDebtors.sort((a, b) => b.remaining - a.remaining)
+    groupCreditors.sort((a, b) => b.remaining - a.remaining)
+
+    let gdIdx = 0
+    let gcIdx = 0
+    while (gdIdx < groupDebtors.length && gcIdx < groupCreditors.length) {
+      const d = groupDebtors[gdIdx]
+      const c = groupCreditors[gcIdx]
+      const pay = Math.min(d.remaining, c.remaining)
+      if (pay >= 1) {
+        const trId = `grp_${d.id}_to_${c.id}`
+        groupTransfers.push({
+          id: trId,
+          fromId: d.id,
+          fromName: d.name,
+          toId: c.id,
+          toName: c.name,
+          amount: Math.round(pay),
+          settled: settledSet.has(trId),
+        })
+      }
+      d.remaining -= pay
+      c.remaining -= pay
+      if (d.remaining < 1) gdIdx++
+      if (c.remaining < 1) gcIdx++
+    }
+  }
+
+  return { transfers, balances, groupBalances, ungroupedBalances, groupTransfers, totalCost }
+}
+
+export function recomputeAssetFromTransactions(
+  asset: InvestmentAsset,
+  txs: InvestmentTransaction[],
+  currentUnitPrice?: number
+): InvestmentAsset {
+  const sorted = [...txs].sort((a, b) => {
+    const da = a.date || ''
+    const db = b.date || ''
+    if (da !== db) return da.localeCompare(db)
+    return (a.createdAt || 0) - (b.createdAt || 0)
+  })
+
+  let qty = 0
+  let totalCost = 0
+  let totalRealized = 0
+
+  const processedTxs: InvestmentTransaction[] = []
+
+  for (const t of sorted) {
+    if (t.type === 'buy') {
+      qty += t.quantity
+      totalCost += t.quantity * t.unitPrice
+      processedTxs.push({
+        ...t,
+        realizedProfit: undefined,
+        avgCostAtSale: undefined,
+      })
+    } else {
+      const avgCostAtSale = qty > 0 ? totalCost / qty : t.unitPrice
+      const profit = t.quantity * (t.unitPrice - avgCostAtSale)
+      totalRealized += profit
+      qty = Math.max(0, qty - t.quantity)
+      totalCost = qty * avgCostAtSale
+      processedTxs.push({
+        ...t,
+        avgCostAtSale: Math.round(avgCostAtSale),
+        realizedProfit: Math.round(profit),
+      })
+    }
+  }
+
+  const finalAvgUnitPrice = qty > 0 ? Math.round(totalCost / qty) : (asset.unitPrice || 0)
+  const effectiveCurrentUnitPrice = currentUnitPrice ?? asset.currentUnitPrice ?? finalAvgUnitPrice
+  const currentValue = Math.round(qty * effectiveCurrentUnitPrice)
+
+  return {
+    ...asset,
+    transactions: processedTxs,
+    quantity: qty,
+    unitPrice: finalAvgUnitPrice,
+    currentUnitPrice: effectiveCurrentUnitPrice,
+    purchaseAmount: Math.round(totalCost),
+    currentValue,
+    realizedProfit: Math.round(totalRealized),
+    updatedAt: Date.now(),
+  }
 }
 
 const DEFAULT_MARKETS: { id: CardMarket; label: string; icon: string }[] = [
@@ -215,8 +373,6 @@ const DEFAULT_POPULAR_SYMBOLS: TseInstrumentSummary[] = TSE_INSTRUMENTS as unkno
 type ActiveTab = 'budget' | 'goals' | 'investments' | 'dong'
 
 export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void }) {
-  const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
   const { transactions, customCategories, createCategory, renameCategory } = useStore()
   const {
     budgets,
@@ -237,10 +393,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
     currencyUnit,
   } = useExtras()
 
-  const requestedTab = searchParams.get('tab')
-  const [activeTab, setActiveTab] = useState<ActiveTab>(
-    requestedTab === 'goals' || requestedTab === 'investments' || requestedTab === 'dong' ? requestedTab : 'budget',
-  )
+  const [activeTab, setActiveTab] = useState<ActiveTab>('budget')
   const today = todayIso()
   const month = monthKey(today) ?? ''
   const bars = expenseByCategory(transactions, month, customCategories)
@@ -269,10 +422,6 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
 
   const totalInvestmentCost = useMemo(() => investments.reduce((sum, i) => sum + i.purchaseAmount, 0), [investments])
   const totalInvestmentValue = useMemo(() => investments.reduce((sum, i) => sum + i.currentValue, 0), [investments])
-  const totalRealizedProfit = useMemo(
-    () => investments.reduce((sum, i) => sum + (i.realizedProfit || 0), 0),
-    [investments],
-  )
   const totalInvestmentProfit = totalInvestmentValue - totalInvestmentCost
   const totalInvestmentRoi =
     totalInvestmentCost > 0 ? ((totalInvestmentProfit / totalInvestmentCost) * 100).toFixed(1) : '0'
@@ -331,7 +480,6 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
   const [invBuyPrice, setInvBuyPrice] = useState('')
   const [invCurrentValue, setInvCurrentValue] = useState('')
   const [invNote, setInvNote] = useState('')
-  const [invPurchaseDate, setInvPurchaseDate] = useState(todayIso())
   const [tseLoading, setTseLoading] = useState(false)
   const [tseInfo, setTseInfo] = useState<string | null>(null)
   const [isRefreshingTse, setIsRefreshingTse] = useState(false)
@@ -375,6 +523,19 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
     if (invMarketFilter === 'all') return investments
     return investments.filter((i) => i.market === invMarketFilter)
   }, [investments, invMarketFilter])
+
+  // Dedicated Asset Detail View & Transactions State
+  const [selectedAssetId, setSelectedAssetId] = useState<string | null>(null)
+  const selectedAsset = useMemo(
+    () => (selectedAssetId ? investments.find((i) => i.id === selectedAssetId) || null : null),
+    [investments, selectedAssetId]
+  )
+  const [isTxModalOpen, setIsTxModalOpen] = useState(false)
+  const [txType, setTxType] = useState<InvestmentTransactionType>('buy')
+  const [txDate, setTxDate] = useState(() => todayIso())
+  const [txQuantity, setTxQuantity] = useState('')
+  const [txUnitPrice, setTxUnitPrice] = useState('')
+  const [txNote, setTxNote] = useState('')
 
   const [isTseLoadingCatalog, setIsTseLoadingCatalog] = useState(false)
 
@@ -677,10 +838,35 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
     [dongEvents, selectedDongId]
   )
   const dongSummary = useMemo(() => {
-    if (!selectedDongEvent) return { transfers: [], balances: [], totalCost: 0 }
+    if (!selectedDongEvent) {
+      return {
+        transfers: [],
+        balances: [],
+        groupBalances: [],
+        ungroupedBalances: [],
+        groupTransfers: [],
+        totalCost: 0,
+      }
+    }
     return computeDongSettlement(selectedDongEvent)
   }, [selectedDongEvent])
-  const activeDongTransfers = dongSummary.transfers
+
+  const [settlementViewMode, setSettlementViewMode] = useState<'group' | 'individual'>('group')
+  const activeDongTransfers = useMemo(() => {
+    if (settlementViewMode === 'group' && (selectedDongEvent?.groups?.length || 0) > 0) {
+      return dongSummary.groupTransfers
+    }
+    return dongSummary.transfers
+  }, [dongSummary, settlementViewMode, selectedDongEvent])
+
+  // Dong Modals & Grouping UI State
+  const [isDongExpenseModalOpen, setIsDongExpenseModalOpen] = useState(false)
+  const [isDongMembersAndGroupsModalOpen, setIsDongMembersAndGroupsModalOpen] = useState(false)
+  const [membersModalTab, setMembersModalTab] = useState<'members' | 'groups'>('members')
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set())
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
+  const [groupNameInput, setGroupNameInput] = useState('')
+  const [groupSelectedMemberIds, setGroupSelectedMemberIds] = useState<string[]>([])
 
   const [editingParticipantId, setEditingParticipantId] = useState<string | null>(null)
   const [editingParticipantName, setEditingParticipantName] = useState('')
@@ -859,13 +1045,8 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
               }}
             >
               {totalInvestmentProfit >= 0 ? '+' : ''}
-              {toFaDigits(totalInvestmentRoi)}% بازدهی مانده
+              {toFaDigits(totalInvestmentRoi)}% بازدهی کل
             </div>
-            {totalRealizedProfit !== 0 ? (
-              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
-                سود تحقق‌یافته: {formatCompactMoney(totalRealizedProfit)}
-              </div>
-            ) : null}
           </div>
         </div>
       </div>
@@ -1640,7 +1821,518 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
       {/* ────────────────── 3. INVESTMENTS TAB ────────────────── */}
       {activeTab === 'investments' && (
         <div>
-          {/* Top action row */}
+          {selectedAsset ? (
+            /* DEDICATED ASSET DETAIL VIEW (صفحه اختصاصی دارایی) */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Back breadcrumb and top actions */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                <button
+                  type="button"
+                  className="cat-mini"
+                  onClick={() => setSelectedAssetId(null)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '6px 12px', background: 'rgba(255,255,255,0.08)' }}
+                >
+                  <span>←</span>
+                  <span>بازگشت به سبد سرمایه‌گذاری</span>
+                </button>
+
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    className="cta-confirm"
+                    style={{ background: 'var(--hy-income)', color: '#fff', fontSize: 12, height: 34, padding: '0 12px' }}
+                    onClick={() => {
+                      setTxType('buy')
+                      setTxDate(todayIso())
+                      setTxQuantity('')
+                      const defaultPrice = selectedAsset.currentUnitPrice || selectedAsset.unitPrice || 0
+                      const displayPrice = currencyUnit === 'IRT' ? Math.round(defaultPrice / 10) : defaultPrice
+                      setTxUnitPrice(displayPrice > 0 ? formatSeparatedNumber(displayPrice) : '')
+                      setTxNote('')
+                      setIsTxModalOpen(true)
+                    }}
+                  >
+                    ＋ ثبت خرید / صدور
+                  </button>
+                  <button
+                    type="button"
+                    className="cat-mini"
+                    style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.4)', fontSize: 12, height: 34, padding: '0 12px', fontWeight: 700 }}
+                    onClick={() => {
+                      setTxType('sell')
+                      setTxDate(todayIso())
+                      setTxQuantity('')
+                      const defaultPrice = selectedAsset.currentUnitPrice || selectedAsset.unitPrice || 0
+                      const displayPrice = currencyUnit === 'IRT' ? Math.round(defaultPrice / 10) : defaultPrice
+                      setTxUnitPrice(displayPrice > 0 ? formatSeparatedNumber(displayPrice) : '')
+                      setTxNote('')
+                      setIsTxModalOpen(true)
+                    }}
+                  >
+                    − ثبت فروش / ابطال
+                  </button>
+                  <button
+                    type="button"
+                    className="cat-mini"
+                    disabled={isRefreshingTse}
+                    title="استعلام آخرین قیمت روز بازار"
+                    onClick={async () => {
+                      if (selectedAsset.symbol || selectedAsset.inscode) {
+                        setIsRefreshingTse(true)
+                        try {
+                          const quote = await fetchTseQuote(selectedAsset.symbol || '', selectedAsset.inscode)
+                          if (quote && quote.price > 0) {
+                            const newPrice = quote.lastPrice || quote.price
+                            const updated = recomputeAssetFromTransactions(
+                              selectedAsset,
+                              selectedAsset.transactions || [],
+                              newPrice
+                            )
+                            await saveInvestment(updated)
+                            notifyUser(`ارزش روز هر واحد نماد «${selectedAsset.name}» به ${formatMoney(newPrice)} به‌روز شد`)
+                          } else {
+                            notifyUser('قیمت روز از بورس دریافت نشد')
+                          }
+                        } finally {
+                          setIsRefreshingTse(false)
+                        }
+                      } else {
+                        const curDisplay = selectedAsset.currentUnitPrice
+                          ? (currencyUnit === 'IRT' ? Math.round(selectedAsset.currentUnitPrice / 10) : selectedAsset.currentUnitPrice)
+                          : 0
+                        const input = prompt(`ارزش روز هر واحد دارایی (${unitLabel}) را وارد کنید:`, String(curDisplay))
+                        if (input && Number(digitsOnly(input)) > 0) {
+                          const p = Number(digitsOnly(input))
+                          const rials = currencyUnit === 'IRT' ? p * 10 : p
+                          const updated = recomputeAssetFromTransactions(
+                            selectedAsset,
+                            selectedAsset.transactions || [],
+                            rials
+                          )
+                          await saveInvestment(updated)
+                          notifyUser('ارزش روز دارایی به‌روزرسانی شد')
+                        }
+                      }
+                    }}
+                    style={{ fontSize: 11, background: 'rgba(37, 99, 235, 0.15)', color: 'var(--hy-accent)' }}
+                  >
+                    {isRefreshingTse ? 'در حال دریافت...' : '🔄 به‌روزرسانی قیمت'}
+                  </button>
+                  <button
+                    type="button"
+                    className="cat-mini"
+                    onClick={() => {
+                      setEditingInv(selectedAsset)
+                      setInvName(selectedAsset.name)
+                      setInvSymbol(selectedAsset.symbol || '')
+                      setInvInscode(selectedAsset.inscode || '')
+                      setInvMarket(selectedAsset.market)
+                      setInvQuantity(selectedAsset.quantity ? String(selectedAsset.quantity) : '')
+                      setInvUnitPrice(
+                        selectedAsset.unitPrice
+                          ? String(currencyUnit === 'IRT' ? Math.round(selectedAsset.unitPrice / 10) : selectedAsset.unitPrice)
+                          : ''
+                      )
+                      setInvCurrentUnitPrice(
+                        selectedAsset.currentUnitPrice
+                          ? String(
+                              currencyUnit === 'IRT'
+                                ? Math.round(selectedAsset.currentUnitPrice / 10)
+                                : selectedAsset.currentUnitPrice
+                            )
+                          : ''
+                      )
+                      setInvBuyPrice(
+                        currencyUnit === 'IRT'
+                          ? String(Math.floor(selectedAsset.purchaseAmount / 10))
+                          : String(selectedAsset.purchaseAmount)
+                      )
+                      setInvCurrentValue(
+                        currencyUnit === 'IRT'
+                          ? String(Math.floor(selectedAsset.currentValue / 10))
+                          : String(selectedAsset.currentValue)
+                      )
+                      setInvNote(selectedAsset.note || '')
+                      setTseInfo(null)
+                      setIsCreateInvOpen(true)
+                    }}
+                  >
+                    ویرایش
+                  </button>
+                  <button
+                    type="button"
+                    className="cat-mini danger"
+                    onClick={() => {
+                      if (confirm(`آیا از حذف دارایی «${selectedAsset.name}» و کلیه سوابق معاملات آن اطمینان دارید؟`)) {
+                        void deleteInvestment(selectedAsset.id)
+                        setSelectedAssetId(null)
+                        notifyUser('دارایی از سبد حذف شد')
+                      }
+                    }}
+                  >
+                    حذف
+                  </button>
+                </div>
+              </div>
+
+              {/* Asset Title & Market Meta Banner */}
+              <div
+                className="report-card lg"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.12) 0%, rgba(15, 118, 110, 0.1) 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
+                  borderRadius: 18,
+                  padding: '16px 20px',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 28 }}>
+                      {DEFAULT_INVESTMENT_MARKETS.find((m) => m.id === selectedAsset.market)?.icon || '📈'}
+                    </span>
+                    <div>
+                      <h1 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>{selectedAsset.name}</h1>
+                      <div style={{ display: 'flex', gap: 6, marginTop: 4, alignItems: 'center' }}>
+                        {selectedAsset.symbol && (
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'rgba(37, 99, 235, 0.25)', color: 'var(--hy-accent)' }}>
+                            نماد: {selectedAsset.symbol}
+                          </span>
+                        )}
+                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'rgba(255, 255, 255, 0.08)', color: 'var(--hy-text-secondary)' }}>
+                          {DEFAULT_INVESTMENT_MARKETS.find((m) => m.id === selectedAsset.market)?.label}
+                        </span>
+                        {selectedAsset.note && (
+                          <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
+                            · {selectedAsset.note}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Total Profit badge */}
+                  {(() => {
+                    const remainingProfit = selectedAsset.currentValue - selectedAsset.purchaseAmount
+                    const realizedProfit = selectedAsset.realizedProfit || 0
+                    const totalProfit = realizedProfit + remainingProfit
+                    const isGain = totalProfit > 0
+                    const isLoss = totalProfit < 0
+                    const totalCostBasis = selectedAsset.purchaseAmount > 0 ? selectedAsset.purchaseAmount : 1
+                    const totalRoi = ((totalProfit / totalCostBasis) * 100).toFixed(1)
+
+                    return (
+                      <div
+                        style={{
+                          textAlign: 'left',
+                          background: isGain ? 'rgba(16, 185, 129, 0.15)' : isLoss ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255,255,255,0.06)',
+                          padding: '8px 14px',
+                          borderRadius: 12,
+                          border: `1px solid ${isGain ? 'rgba(16, 185, 129, 0.3)' : isLoss ? 'rgba(239, 68, 68, 0.3)' : 'rgba(255,255,255,0.1)'}`,
+                        }}
+                      >
+                        <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)' }}>مجموع کل سود / زیان دارایی</div>
+                        <div style={{ fontSize: 16, fontWeight: 900, color: isGain ? '#10b981' : isLoss ? '#ef4444' : 'var(--hy-text)', marginTop: 2 }}>
+                          {isGain ? '+' : ''}{formatMoney(totalProfit)}
+                          <span style={{ fontSize: 12, fontWeight: 800, marginRight: 6, direction: 'ltr' }}>
+                            ({isGain ? '+' : isLoss ? '-' : ''}{toFaDigits(Math.abs(Number(totalRoi)))}٪)
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </div>
+              </div>
+
+              {/* KPI Cards Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+                {/* 1. مقدار باقی‌مانده */}
+                <div className="report-card sm" style={{ padding: '12px 14px', borderRadius: 14 }}>
+                  <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>مقدار باقیمانده</div>
+                  <div style={{ fontSize: 18, fontWeight: 900, marginTop: 4, color: 'var(--hy-text)' }}>
+                    {toFaDigits(selectedAsset.quantity || 0)}{' '}
+                    <span style={{ fontSize: 11, fontWeight: 500, color: 'var(--hy-text-secondary)' }}>سهم / واحد</span>
+                  </div>
+                </div>
+
+                {/* 2. میانگین بهای خرید هر واحد */}
+                <div className="report-card sm" style={{ padding: '12px 14px', borderRadius: 14 }}>
+                  <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>میانگین بهای خرید هر واحد</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, marginTop: 4, color: 'var(--hy-text)' }}>
+                    {formatMoney(selectedAsset.unitPrice || 0)}
+                  </div>
+                </div>
+
+                {/* 3. ارزش روز هر واحد */}
+                <div className="report-card sm" style={{ padding: '12px 14px', borderRadius: 14 }}>
+                  <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>ارزش روز هر واحد (قیمت لحظه‌ای)</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, marginTop: 4, color: 'var(--hy-accent)' }}>
+                    {formatMoney(selectedAsset.currentUnitPrice || selectedAsset.unitPrice || 0)}
+                  </div>
+                </div>
+
+                {/* 4. بهای تمام‌شده باقیمانده */}
+                <div className="report-card sm" style={{ padding: '12px 14px', borderRadius: 14 }}>
+                  <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>بهای تمام‌شده باقیمانده</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, marginTop: 4, color: 'var(--hy-text)' }}>
+                    {formatMoney(selectedAsset.purchaseAmount)}
+                  </div>
+                </div>
+
+                {/* 5. ارزش روز باقیمانده */}
+                <div className="report-card sm" style={{ padding: '12px 14px', borderRadius: 14 }}>
+                  <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>ارزش روز مقدار باقیمانده</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, marginTop: 4, color: 'var(--hy-accent)' }}>
+                    {formatMoney(selectedAsset.currentValue)}
+                  </div>
+                </div>
+
+                {/* 6. سود حاصل از فروش (Realized Profit) */}
+                {(() => {
+                  const rp = selectedAsset.realizedProfit || 0
+                  const isGain = rp > 0
+                  const isLoss = rp < 0
+                  return (
+                    <div
+                      className="report-card sm"
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: 14,
+                        background: isGain ? 'rgba(16, 185, 129, 0.08)' : isLoss ? 'rgba(239, 68, 68, 0.08)' : undefined,
+                        border: isGain ? '1px solid rgba(16, 185, 129, 0.25)' : isLoss ? '1px solid rgba(239, 68, 68, 0.25)' : undefined,
+                      }}
+                    >
+                      <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>سود حاصل از فروش</span>
+                        <span style={{ fontSize: 10, color: isGain ? 'var(--hy-income)' : 'var(--hy-text-secondary)' }}>(قطعی)</span>
+                      </div>
+                      <div style={{ fontSize: 15, fontWeight: 800, marginTop: 4, color: isGain ? '#10b981' : isLoss ? '#ef4444' : 'var(--hy-text)' }}>
+                        {isGain ? '+' : ''}{formatMoney(rp)}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* 7. سود حاصل از مقدار باقیمانده (Unrealized Profit) */}
+                {(() => {
+                  const up = selectedAsset.currentValue - selectedAsset.purchaseAmount
+                  const isGain = up > 0
+                  const isLoss = up < 0
+                  const roi = selectedAsset.purchaseAmount > 0 ? ((up / selectedAsset.purchaseAmount) * 100).toFixed(1) : '0'
+                  return (
+                    <div
+                      className="report-card sm"
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: 14,
+                        background: isGain ? 'rgba(16, 185, 129, 0.08)' : isLoss ? 'rgba(239, 68, 68, 0.08)' : undefined,
+                        border: isGain ? '1px solid rgba(16, 185, 129, 0.25)' : isLoss ? '1px solid rgba(239, 68, 68, 0.25)' : undefined,
+                      }}
+                    >
+                      <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>سود مقدار باقیمانده</span>
+                        <span style={{ fontSize: 10, color: isGain ? 'var(--hy-income)' : isLoss ? '#ef4444' : 'var(--hy-text-secondary)', direction: 'ltr' }}>
+                          ({isGain ? '+' : isLoss ? '-' : ''}{toFaDigits(Math.abs(Number(roi)))}٪)
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 15, fontWeight: 800, marginTop: 4, color: isGain ? '#10b981' : isLoss ? '#ef4444' : 'var(--hy-text)' }}>
+                        {isGain ? '+' : ''}{formatMoney(up)}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* 8. مجموع کل سود دارایی */}
+                {(() => {
+                  const totalP = (selectedAsset.realizedProfit || 0) + (selectedAsset.currentValue - selectedAsset.purchaseAmount)
+                  const isGain = totalP > 0
+                  const isLoss = totalP < 0
+                  return (
+                    <div
+                      className="report-card sm"
+                      style={{
+                        padding: '12px 14px',
+                        borderRadius: 14,
+                        background: isGain ? 'rgba(16, 185, 129, 0.14)' : isLoss ? 'rgba(239, 68, 68, 0.14)' : undefined,
+                        border: isGain ? '1.5px solid rgba(16, 185, 129, 0.4)' : isLoss ? '1.5px solid rgba(239, 68, 68, 0.4)' : undefined,
+                      }}
+                    >
+                      <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>کل سود (فروش + باقیمانده)</div>
+                      <div style={{ fontSize: 15, fontWeight: 900, marginTop: 4, color: isGain ? '#10b981' : isLoss ? '#ef4444' : 'var(--hy-text)' }}>
+                        {isGain ? '+' : ''}{formatMoney(totalP)}
+                      </div>
+                    </div>
+                  )
+                })()}
+              </div>
+
+              {/* Explanatory Summary Note */}
+              <div
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: 14,
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  fontSize: 12,
+                  lineHeight: '1.9',
+                  color: 'var(--hy-text)',
+                }}
+              >
+                📊 <strong>خلاصه وضعیت دارایی:</strong> مقدار باقیمانده شما{' '}
+                <strong>{toFaDigits(selectedAsset.quantity || 0)} واحد</strong> با بهای میانگین تمام‌شده{' '}
+                <strong>{formatMoney(selectedAsset.unitPrice || 0)}</strong> است. تاکنون مبلغ{' '}
+                <strong style={{ color: (selectedAsset.realizedProfit || 0) >= 0 ? '#10b981' : '#ef4444' }}>
+                  {formatMoney(selectedAsset.realizedProfit || 0)}
+                </strong>{' '}
+                سود قطعی از فروش‌های گذشته محقق شده و واحدهای موجود در سبد نیز دارای{' '}
+                <strong style={{ color: (selectedAsset.currentValue - selectedAsset.purchaseAmount) >= 0 ? '#10b981' : '#ef4444' }}>
+                  {formatMoney(selectedAsset.currentValue - selectedAsset.purchaseAmount)}
+                </strong>{' '}
+                سود لحظه‌ای می‌باشند.
+              </div>
+
+              {/* Transaction History Section */}
+              <section className="lg report-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>
+                    📜 سابقه معاملات و تراکنش‌ها ({toFaDigits(selectedAsset.transactions?.length || 0)})
+                  </h2>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      type="button"
+                      className="cat-mini"
+                      style={{ background: 'rgba(16, 185, 129, 0.15)', color: 'var(--hy-income)', fontWeight: 700 }}
+                      onClick={() => {
+                        setTxType('buy')
+                        setTxDate(todayIso())
+                        setTxQuantity('')
+                        const defaultPrice = selectedAsset.currentUnitPrice || selectedAsset.unitPrice || 0
+                        const displayPrice = currencyUnit === 'IRT' ? Math.round(defaultPrice / 10) : defaultPrice
+                        setTxUnitPrice(displayPrice > 0 ? formatSeparatedNumber(displayPrice) : '')
+                        setTxNote('')
+                        setIsTxModalOpen(true)
+                      }}
+                    >
+                      ＋ ثبت خرید / صدور
+                    </button>
+                    <button
+                      type="button"
+                      className="cat-mini"
+                      style={{ background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', fontWeight: 700 }}
+                      onClick={() => {
+                        setTxType('sell')
+                        setTxDate(todayIso())
+                        setTxQuantity('')
+                        const defaultPrice = selectedAsset.currentUnitPrice || selectedAsset.unitPrice || 0
+                        const displayPrice = currencyUnit === 'IRT' ? Math.round(defaultPrice / 10) : defaultPrice
+                        setTxUnitPrice(displayPrice > 0 ? formatSeparatedNumber(displayPrice) : '')
+                        setTxNote('')
+                        setIsTxModalOpen(true)
+                      }}
+                    >
+                      − ثبت فروش / ابطال
+                    </button>
+                  </div>
+                </div>
+
+                {(!selectedAsset.transactions || selectedAsset.transactions.length === 0) ? (
+                  <div style={{ textAlign: 'center', padding: '30px 14px', color: 'var(--hy-text-secondary)' }}>
+                    <span style={{ fontSize: 28 }}>📝</span>
+                    <p style={{ marginTop: 8 }}>هنوز تراکنش یا معامله‌ای برای این دارایی ثبت نشده است.</p>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {selectedAsset.transactions.map((tx) => {
+                      const isBuy = tx.type === 'buy'
+                      return (
+                        <div
+                          key={tx.id}
+                          style={{
+                            padding: '12px 14px',
+                            borderRadius: 12,
+                            background: isBuy ? 'rgba(16, 185, 129, 0.05)' : 'rgba(239, 68, 68, 0.05)',
+                            border: `1px solid ${isBuy ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                            gap: 10,
+                          }}
+                        >
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span
+                                style={{
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  padding: '2px 8px',
+                                  borderRadius: 6,
+                                  background: isBuy ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)',
+                                  color: isBuy ? 'var(--hy-income)' : '#ef4444',
+                                }}
+                              >
+                                {isBuy ? 'خرید / صدور' : 'فروش / ابطال'}
+                              </span>
+                              <span style={{ fontSize: 13, fontWeight: 700 }}>
+                                {toFaDigits(tx.quantity)} واحد
+                              </span>
+                              <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
+                                به ارزش هر واحد {formatMoney(tx.unitPrice)}
+                              </span>
+                            </div>
+
+                            <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4 }}>
+                              <span>تاریخ: <b>{formatPersianDateFull(tx.date) || tx.date}</b></span>
+                              <span style={{ margin: '0 6px', opacity: 0.5 }}>·</span>
+                              <span>ارزش کل معامله: <b>{formatMoney(tx.totalAmount)}</b></span>
+                              {tx.type === 'sell' && tx.realizedProfit !== undefined && (
+                                <>
+                                  <span style={{ margin: '0 6px', opacity: 0.5 }}>·</span>
+                                  <span style={{ color: tx.realizedProfit >= 0 ? '#10b981' : '#ef4444', fontWeight: 800 }}>
+                                    سود حاصل از فروش: {tx.realizedProfit >= 0 ? '+' : ''}{formatMoney(tx.realizedProfit)}
+                                  </span>
+                                  {tx.avgCostAtSale ? (
+                                    <span style={{ fontSize: 10, opacity: 0.8, marginRight: 4 }}>
+                                      (مبنای میانگین: {formatMoney(tx.avgCostAtSale)})
+                                    </span>
+                                  ) : null}
+                                </>
+                              )}
+                              {tx.note && (
+                                <>
+                                  <span style={{ margin: '0 6px', opacity: 0.5 }}>·</span>
+                                  <span>{tx.note}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <div>
+                            <button
+                              type="button"
+                              className="cat-mini danger"
+                              style={{ fontSize: 11, padding: '3px 8px' }}
+                              onClick={() => {
+                                if (confirm('آیا از حذف این معامله اطمینان دارید؟ دارایی مجدداً بر اساس باقیمانده سوابق محاسبه خواهد شد.')) {
+                                  const updatedTxs = (selectedAsset.transactions || []).filter((t) => t.id !== tx.id)
+                                  const recomputed = recomputeAssetFromTransactions(selectedAsset, updatedTxs)
+                                  void saveInvestment(recomputed)
+                                  notifyUser('معامله حذف و سبد دارایی بازتراز شد')
+                                }
+                              }}
+                            >
+                              حذف
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
+            </div>
+          ) : (
+            <div>
+              {/* Top action row */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             {/* Filter buttons: ONLY existing markets in user portfolio + all */}
             <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
@@ -1693,7 +2385,6 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                   setInvBuyPrice('')
                   setInvCurrentValue('')
                   setInvNote('')
-                  setInvPurchaseDate(todayIso())
                   setTseInfo(null)
                   setTseDetails(null)
                   setIsCreateInvOpen(true)
@@ -1710,12 +2401,8 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
               <h2>سبد دارایی‌ها ({toFaDigits(filteredInvestments.length)})</h2>
               <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
                 ارزش روز کل: <strong>{formatMoney(totalInvestmentValue)}</strong>
-                {totalRealizedProfit !== 0 ? ` · تحقق‌یافته: ${formatCompactMoney(totalRealizedProfit)}` : ''}
               </span>
             </div>
-            <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', margin: '0 0 10px' }}>
-              بهای تمام‌شده با روش {COST_BASIS_METHOD_FA} است. برای خرید، فروش، صدور و ابطال روی دارایی بزنید.
-            </p>
 
             {filteredInvestments.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '36px 14px', color: 'var(--hy-text-secondary)' }}>
@@ -1743,19 +2430,15 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                   return (
                     <div
                       key={asset.id}
-                      className="home-card lg inv-hit"
-                      role="link"
-                      tabIndex={0}
-                      onClick={() => navigate(`/reports/investments/${asset.id}`)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') navigate(`/reports/investments/${asset.id}`)
-                      }}
+                      className="home-card lg"
                       style={{
                         padding: '14px 16px',
                         borderRadius: 16,
-                        border: isLoss ? '1.5px solid var(--hy-expense)' : '1px solid var(--hy-border)',
-                        background: isLoss ? 'var(--hy-danger-soft)' : 'transparent',
+                        border: isLoss ? '1.5px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.12)',
+                        background: isLoss ? 'rgba(239, 68, 68, 0.04)' : 'rgba(255, 255, 255, 0.03)',
+                        cursor: 'pointer',
                       }}
+                      onClick={() => setSelectedAssetId(asset.id)}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
                         <div>
@@ -1814,10 +2497,14 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
 
                           {asset.quantity ? (
                             <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4 }}>
-                              تعداد مانده: <b>{formatQuantity(asset.quantity)}</b>
-                              {asset.unitPrice ? ` · میانگین بها: ${formatMoney(asset.unitPrice)}` : ''}
-                              {asset.currentUnitPrice ? ` · قیمت روز: ${formatMoney(asset.currentUnitPrice)}` : ''}
-                              {asset.realizedProfit ? ` · تحقق‌یافته: ${formatMoney(asset.realizedProfit)}` : ''}
+                              تعداد باقیمانده: <b>{toFaDigits(asset.quantity)}</b>
+                              {asset.unitPrice ? ` · میانگین خرید: ${formatMoney(asset.unitPrice)}` : ''}
+                              {asset.currentUnitPrice ? ` · ارزش روز: ${formatMoney(asset.currentUnitPrice)}` : ''}
+                              {asset.realizedProfit ? (
+                                <span style={{ marginRight: 6, color: asset.realizedProfit >= 0 ? '#10b981' : '#ef4444', fontWeight: 700 }}>
+                                  · سود فروش گذشته: {asset.realizedProfit >= 0 ? '+' : ''}{formatMoney(asset.realizedProfit)}
+                                </span>
+                              ) : null}
                             </div>
                           ) : null}
                           {asset.note ? (
@@ -1827,13 +2514,14 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           ) : null}
                         </div>
 
-                        <div style={{ display: 'flex', gap: 6 }} onClick={(event) => event.stopPropagation()}>
+                        <div style={{ display: 'flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
                           <button
                             className="cat-mini"
                             type="button"
-                            onClick={() => navigate(`/reports/investments/${asset.id}`)}
+                            style={{ background: 'rgba(37, 99, 235, 0.2)', color: 'var(--hy-accent)', fontWeight: 800, fontSize: 11 }}
+                            onClick={() => setSelectedAssetId(asset.id)}
                           >
-                            معاملات
+                            🔍 سوابق و معاملات
                           </button>
                           <button
                             className="cat-mini"
@@ -1902,7 +2590,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                         }}
                       >
                         <div>
-                          <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)' }}>بهای تمام‌شده مانده</div>
+                          <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)' }}>بهای کل خرید</div>
                           <div style={{ fontSize: 13, fontWeight: 700, marginTop: 2 }}>
                             {formatCompactMoney(asset.purchaseAmount)}
                           </div>
@@ -1914,13 +2602,13 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           </div>
                         </div>
                         <div>
-                          <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)' }}>سود و زیان تحقق‌نیافته</div>
+                          <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)' }}>اختلاف با بهای خرید</div>
                           <div
                             style={{
                               fontSize: 13,
                               fontWeight: 900,
                               marginTop: 2,
-                              color: isLoss ? 'var(--hy-expense)' : isGain ? 'var(--hy-income)' : 'var(--hy-text-secondary)',
+                              color: isLoss ? '#ef4444' : isGain ? '#10b981' : 'var(--hy-text-secondary)',
                             }}
                           >
                             {isLoss ? '-' : isGain ? '+' : ''}
@@ -1934,6 +2622,8 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
               </div>
             )}
           </section>
+        </div>
+      )}
 
           {/* Modal for Creating / Editing Investment */}
           {isCreateInvOpen && (
@@ -2238,8 +2928,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                       </label>
                       <input
                         className="field-input"
-                        inputMode="decimal"
-                        readOnly={Boolean(editingInv)}
+                        inputMode="numeric"
                         placeholder="تعداد واحد یا سهم (مثلاً: ۱۰۰۰)"
                         value={invQuantity}
                         onChange={(e) => {
@@ -2262,7 +2951,6 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                       <input
                         className="field-input"
                         inputMode="numeric"
-                        readOnly={Boolean(editingInv)}
                         placeholder={`بهای خرید هر واحد (${unitLabel})`}
                         value={invUnitPrice}
                         onChange={(e) => {
@@ -2381,14 +3069,6 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                     )
                   })()}
 
-                  {!editingInv ? (
-                    <DateField label="تاریخ اولین معامله" value={invPurchaseDate} onChange={setInvPurchaseDate} />
-                  ) : (
-                    <p style={{ fontSize: 12, color: 'var(--hy-text-secondary)', lineHeight: 1.7 }}>
-                      تعداد و بهای تمام‌شده از تاریخچه معاملات با روش {COST_BASIS_METHOD_FA} محاسبه می‌شود. خرید، فروش، صدور و ابطال در صفحه معاملات همین دارایی ثبت می‌شود.
-                    </p>
-                  )}
-
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 700 }}>یادداشت یا کارگزاری (اختیاری):</label>
                     <input
@@ -2405,35 +3085,15 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                     style={{ marginTop: 10 }}
                     onClick={() => {
                       const name = (invSymbol || invName).trim()
+                      const q = Number(digitsOnly(invQuantity))
+                      const buyUnitPriceNum = Number(digitsOnly(invUnitPrice))
+                      const currUnitPriceNum = Number(digitsOnly(invCurrentUnitPrice)) || buyUnitPriceNum
+
+                      // فیلدهای اجباری: نام نماد، تعداد واحد و سهم، بهای خرید هر واحد
                       if (!name) {
                         notifyUser('وارد کردن نام یا نماد دارایی الزامی است')
                         return
                       }
-
-                      if (editingInv) {
-                        const currRaw = Number(digitsOnly(invCurrentUnitPrice))
-                        const currentUnitPrice = currRaw > 0
-                          ? currencyUnit === 'IRT' ? currRaw * 10 : currRaw
-                          : editingInv.currentUnitPrice
-                        void saveInvestment({
-                          ...editingInv,
-                          name,
-                          market: invMarket,
-                          symbol: invSymbol.trim() || undefined,
-                          inscode: invInscode.trim() || undefined,
-                          note: invNote.trim() || undefined,
-                          currentUnitPrice,
-                          transactions: editingInv.transactions,
-                        })
-                        notifyUser('مشخصات دارایی ذخیره شد')
-                        setIsCreateInvOpen(false)
-                        setEditingInv(null)
-                        return
-                      }
-
-                      const q = parseQuantity(invQuantity)
-                      const buyUnitPriceNum = Number(digitsOnly(invUnitPrice))
-                      const currUnitPriceNum = Number(digitsOnly(invCurrentUnitPrice)) || buyUnitPriceNum
                       if (!q || q <= 0) {
                         notifyUser('وارد کردن تعداد واحد و سهم الزامی است')
                         return
@@ -2443,43 +3103,51 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                         return
                       }
 
+                      // تبدیل مبالغ به ریال برای ذخیره‌سازی استاندارد در پایگاه داده
                       const buyUnitPriceRials = currencyUnit === 'IRT' ? buyUnitPriceNum * 10 : buyUnitPriceNum
                       const currUnitPriceRials = currencyUnit === 'IRT' ? currUnitPriceNum * 10 : currUnitPriceNum
+
                       const defaultBuyTotal = q * buyUnitPriceRials
                       const defaultCurrTotal = q * currUnitPriceRials
+
                       const purchaseAmount = invBuyPrice ? parseAmountToRials(invBuyPrice) : defaultBuyTotal
                       const currentValue = invCurrentValue ? parseAmountToRials(invCurrentValue) : defaultCurrTotal
-                      const unitPrice = q > 0 ? purchaseAmount / q : buyUnitPriceRials
-                      const id = createId('inv')
-                      const kind: InvestmentTxKind = defaultKindForMarket(invMarket)
+
+                      const existingTxs = editingInv?.transactions
+                      let updatedTxs = existingTxs
+                      if (!updatedTxs || updatedTxs.length === 0) {
+                        updatedTxs = [
+                          {
+                            id: createId('itx'),
+                            assetId: editingInv?.id || '',
+                            type: 'buy',
+                            date: todayIso(),
+                            quantity: q,
+                            unitPrice: buyUnitPriceRials,
+                            totalAmount: purchaseAmount,
+                            note: 'خرید اولیه دارایی',
+                            createdAt: Date.now(),
+                          },
+                        ]
+                      }
 
                       void saveInvestment({
-                        id,
+                        id: editingInv?.id || undefined,
                         name,
                         market: invMarket,
                         symbol: invSymbol.trim() || undefined,
                         inscode: invInscode.trim() || undefined,
-                        purchaseAmount,
-                        currentValue,
+                        purchaseAmount, // بهای کل خرید بر اساس زمان خرید (ثابت می‌ماند)
+                        currentValue,   // ارزش روز دارایی (با به‌روزرسانی قیمت تغییر می‌کند)
                         quantity: q,
-                        unitPrice,
-                        currentUnitPrice: currUnitPriceRials > 0 ? currUnitPriceRials : undefined,
-                        purchaseDate: invPurchaseDate,
+                        unitPrice: buyUnitPriceRials, // بهای خرید هر واحد در زمان خرید
+                        currentUnitPrice: currUnitPriceRials, // ارزش روز هر واحد بر اساس آخرین قیمت روز
                         note: invNote.trim() || undefined,
-                        transactions: [
-                          {
-                            id: createId('itx'),
-                            assetId: id,
-                            kind,
-                            quantity: q,
-                            unitPrice,
-                            date: invPurchaseDate,
-                            createdAt: Date.now(),
-                          },
-                        ],
+                        realizedProfit: editingInv?.realizedProfit || 0,
+                        transactions: updatedTxs,
                       })
 
-                      notifyUser('دارایی با اولین معامله و ارزش روز ثبت شد')
+                      notifyUser(editingInv ? 'دارایی با موفقیت ویرایش شد' : 'دارایی با بهای خرید زمان معامله و ارزش روز ثبت شد')
                       setIsCreateInvOpen(false)
                       setEditingInv(null)
                     }}
@@ -2711,6 +3379,265 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                       )
                     })
                   )}
+                </div>
+              </div>
+            </WindowPopup>
+          )}
+
+          {/* Modal for Buy / Sell Transaction (صدور / ابطال یا خرید و فروش) */}
+          {isTxModalOpen && selectedAsset && (
+            <WindowPopup
+              isOpen={isTxModalOpen}
+              title={txType === 'buy' ? `ثبت خرید / صدور نماد ${selectedAsset.name}` : `ثبت فروش / ابطال نماد ${selectedAsset.name}`}
+              icon={txType === 'buy' ? '📈' : '📉'}
+              onClose={() => setIsTxModalOpen(false)}
+              defaultWidth={460}
+              defaultHeight={540}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {/* Buy vs Sell segmented toggle */}
+                <div className="seg" style={{ margin: '0 0 6px' }}>
+                  <button
+                    type="button"
+                    className={`seg-btn${txType === 'buy' ? ' active' : ''}`}
+                    onClick={() => setTxType('buy')}
+                    style={{
+                      background: txType === 'buy' ? 'var(--hy-income)' : undefined,
+                      color: txType === 'buy' ? '#fff' : undefined,
+                      fontWeight: 800,
+                    }}
+                  >
+                    ＋ خرید / صدور
+                  </button>
+                  <button
+                    type="button"
+                    className={`seg-btn${txType === 'sell' ? ' active' : ''}`}
+                    onClick={() => setTxType('sell')}
+                    style={{
+                      background: txType === 'sell' ? '#ef4444' : undefined,
+                      color: txType === 'sell' ? '#fff' : undefined,
+                      fontWeight: 800,
+                    }}
+                  >
+                    − فروش / ابطال
+                  </button>
+                </div>
+
+                <div className="field-stack">
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700 }}>تاریخ معامله:</label>
+                    <input
+                      className="field-input"
+                      value={txDate}
+                      onChange={(e) => setTxDate(e.target.value)}
+                      placeholder="YYYY-MM-DD"
+                    />
+                    <span style={{ fontSize: 10, color: 'var(--hy-text-secondary)', display: 'block', marginTop: 2 }}>
+                      تاریخ شمسی: {formatPersianDateFull(txDate) || 'امروز'}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 700 }}>
+                        {txType === 'buy' ? 'تعداد خرید / صدور:' : 'تعداد فروش / ابطال:'}
+                      </label>
+                      <input
+                        className="field-input"
+                        inputMode="numeric"
+                        placeholder="مثلاً: ۲۵۰"
+                        value={txQuantity}
+                        onChange={(e) => setTxQuantity(formatSeparatedNumber(e.target.value))}
+                      />
+                      {txType === 'sell' && (
+                        <span style={{ fontSize: 10, color: 'var(--hy-text-secondary)', display: 'block', marginTop: 2 }}>
+                          موجودی فعلی: {toFaDigits(selectedAsset.quantity || 0)} واحد
+                        </span>
+                      )}
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 11, fontWeight: 700 }}>
+                        قیمت هر واحد ({unitLabel}):
+                      </label>
+                      <input
+                        className="field-input"
+                        inputMode="numeric"
+                        placeholder={`قیمت هر واحد (${unitLabel})`}
+                        value={txUnitPrice}
+                        onChange={(e) => setTxUnitPrice(formatSeparatedNumber(e.target.value))}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Real-time transaction simulation */}
+                  {(() => {
+                    const q = Number(digitsOnly(txQuantity))
+                    const p = Number(digitsOnly(txUnitPrice))
+                    if (!q || !p) return null
+
+                    const unitMultiplier = currencyUnit === 'IRT' ? 10 : 1
+                    const totalRials = q * p * unitMultiplier
+                    const remainingQty = selectedAsset.quantity || 0
+                    const avgCost = selectedAsset.unitPrice || 0
+                    const pRials = p * unitMultiplier
+
+                    if (txType === 'sell') {
+                      const isOverSell = q > remainingQty
+                      const profitRials = q * (pRials - avgCost)
+                      const isGain = profitRials > 0
+                      const isLoss = profitRials < 0
+                      const newRemaining = Math.max(0, remainingQty - q)
+
+                      return (
+                        <div
+                          style={{
+                            padding: '10px 14px',
+                            borderRadius: 12,
+                            background: isOverSell ? 'rgba(239, 68, 68, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                            border: `1px solid ${isOverSell ? 'rgba(239, 68, 68, 0.3)' : 'rgba(255, 255, 255, 0.1)'}`,
+                            fontSize: 12,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4,
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>ارزش کل فروش:</span>
+                            <b>{formatMoney(totalRials)}</b>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: isGain ? '#10b981' : isLoss ? '#ef4444' : undefined }}>
+                            <span>سود حاصل از این فروش:</span>
+                            <b>{isGain ? '+' : ''}{formatMoney(profitRials)}</b>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--hy-text-secondary)', fontSize: 11 }}>
+                            <span>مقدار باقیمانده پس از فروش:</span>
+                            <b>{toFaDigits(newRemaining)} واحد</b>
+                          </div>
+                          {isOverSell && (
+                            <div style={{ color: '#ef4444', fontWeight: 800, marginTop: 4 }}>
+                              ⚠️ تعداد فروش نمی‌تواند بیشتر از موجودی باقیمانده ({toFaDigits(remainingQty)} واحد) باشد.
+                            </div>
+                          )}
+                        </div>
+                      )
+                    } else {
+                      // Buy simulation
+                      const newTotalQty = remainingQty + q
+                      const currentTotalCost = selectedAsset.purchaseAmount || 0
+                      const newTotalCost = currentTotalCost + totalRials
+                      const newAvgPrice = newTotalQty > 0 ? Math.round(newTotalCost / newTotalQty) : 0
+
+                      return (
+                        <div
+                          style={{
+                            padding: '10px 14px',
+                            borderRadius: 12,
+                            background: 'rgba(16, 185, 129, 0.08)',
+                            border: '1px solid rgba(16, 185, 129, 0.25)',
+                            fontSize: 12,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 4,
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>ارزش کل خرید:</span>
+                            <b>{formatMoney(totalRials)}</b>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                            <span>کل تعداد پس از خرید:</span>
+                            <b>{toFaDigits(newTotalQty)} واحد</b>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--hy-teal)' }}>
+                            <span>میانگین موزون بهای خرید جدید:</span>
+                            <b>{formatMoney(newAvgPrice)}</b>
+                          </div>
+                        </div>
+                      )
+                    }
+                  })()}
+
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700 }}>یادداشت / بابت معامله (اختیاری):</label>
+                    <input
+                      className="field-input"
+                      placeholder="اختیاری (مثلاً: خرید پله‌ای، شناسایی سود)"
+                      value={txNote}
+                      onChange={(e) => setTxNote(e.target.value)}
+                    />
+                  </div>
+
+                  <button
+                    className="cta-confirm"
+                    type="button"
+                    style={{
+                      marginTop: 8,
+                      background: txType === 'buy' ? 'var(--hy-income)' : '#ef4444',
+                    }}
+                    disabled={
+                      txType === 'sell' &&
+                      Number(digitsOnly(txQuantity)) > (selectedAsset.quantity || 0)
+                    }
+                    onClick={() => {
+                      const q = Number(digitsOnly(txQuantity))
+                      const p = Number(digitsOnly(txUnitPrice))
+                      if (!q || q <= 0 || !p || p <= 0) {
+                        notifyUser('تعداد و قیمت هر واحد الزامی است')
+                        return
+                      }
+                      if (txType === 'sell' && q > (selectedAsset.quantity || 0)) {
+                        notifyUser('تعداد فروش نمی‌تواند بیشتر از موجودی باقیمانده باشد')
+                        return
+                      }
+
+                      const unitMultiplier = currencyUnit === 'IRT' ? 10 : 1
+                      const pRials = p * unitMultiplier
+                      const totalRials = q * pRials
+
+                      const newTx: InvestmentTransaction = {
+                        id: createId('itx'),
+                        assetId: selectedAsset.id,
+                        type: txType,
+                        date: txDate.trim() || todayIso(),
+                        quantity: q,
+                        unitPrice: pRials,
+                        totalAmount: totalRials,
+                        note: txNote.trim() || undefined,
+                        createdAt: Date.now(),
+                      }
+
+                      let currentTxs = selectedAsset.transactions || []
+                      if (currentTxs.length === 0 && (selectedAsset.quantity || 0) > 0) {
+                        currentTxs = [
+                          {
+                            id: createId('itx'),
+                            assetId: selectedAsset.id,
+                            type: 'buy',
+                            date: selectedAsset.purchaseDate || todayIso(new Date(selectedAsset.createdAt)),
+                            quantity: selectedAsset.quantity || 1,
+                            unitPrice: selectedAsset.unitPrice || 0,
+                            totalAmount: selectedAsset.purchaseAmount || 0,
+                            note: 'خرید اولیه دارایی',
+                            createdAt: selectedAsset.createdAt || Date.now(),
+                          },
+                        ]
+                      }
+
+                      const allTxs = [...currentTxs, newTx]
+                      const recomputed = recomputeAssetFromTransactions(selectedAsset, allTxs)
+
+                      void saveInvestment(recomputed)
+                      setIsTxModalOpen(false)
+                      notifyUser(
+                        txType === 'buy'
+                          ? `خرید ${toFaDigits(q)} واحد نماد «${selectedAsset.name}» ثبت شد`
+                          : `فروش ${toFaDigits(q)} واحد نماد «${selectedAsset.name}» ثبت و سود قطعی محاسبه شد`
+                      )
+                    }}
+                  >
+                    {txType === 'buy' ? 'ثبت خرید / صدور' : 'ثبت فروش / ابطال'}
+                  </button>
                 </div>
               </div>
             </WindowPopup>
@@ -3076,527 +4003,158 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                 </button>
               </div>
 
-              {/* Participants Section */}
+              {/* Quick Actions & Event Summary Bar */}
               <div
                 style={{
-                  padding: '12px 16px',
-                  borderRadius: 14,
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                  gap: 10,
+                  alignItems: 'stretch',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--hy-text-secondary)' }}>
-                    👥 افراد حاضر ({toFaDigits(selectedDongEvent.participants.length)} نفر):
-                  </span>
-                </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-                  {selectedDongEvent.participants.map((p) => (
-                    <span
-                      key={p.id}
-                      style={{
-                        fontSize: 11,
-                        padding: '3px 8px',
-                        borderRadius: 8,
-                        background: 'rgba(37, 99, 235, 0.2)',
-                        color: 'var(--hy-text)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 4,
-                      }}
-                    >
-                      {editingParticipantId === p.id ? (
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          <input
-                            className="field-input"
-                            style={{ height: 22, fontSize: 11, padding: '2px 4px', width: 80 }}
-                            value={editingParticipantName}
-                            autoFocus
-                            onChange={(e) => setEditingParticipantName(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && editingParticipantName.trim()) {
-                                e.preventDefault()
-                                const updatedParticipants = selectedDongEvent.participants.map((item) =>
-                                  item.id === p.id ? { ...item, name: editingParticipantName.trim() } : item
-                                )
-                                void saveDongEvent({ ...selectedDongEvent, participants: updatedParticipants })
-                                setEditingParticipantId(null)
-                                notifyUser('نام فرد ویرایش شد')
-                              } else if (e.key === 'Escape') {
-                                setEditingParticipantId(null)
-                              }
-                            }}
-                          />
-                          <button
-                            type="button"
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--hy-income)' }}
-                            onClick={() => {
-                              if (editingParticipantName.trim()) {
-                                const updatedParticipants = selectedDongEvent.participants.map((item) =>
-                                  item.id === p.id ? { ...item, name: editingParticipantName.trim() } : item
-                                )
-                                void saveDongEvent({ ...selectedDongEvent, participants: updatedParticipants })
-                                notifyUser('نام فرد ویرایش شد')
-                              }
-                              setEditingParticipantId(null)
-                            }}
-                          >
-                            ✓
-                          </button>
-                        </div>
-                      ) : (
-                        <>
-                          <span>👤 {p.name}</span>
-                          <button
-                            type="button"
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, opacity: 0.8 }}
-                            title="ویرایش نام"
-                            onClick={() => {
-                              setEditingParticipantId(p.id)
-                              setEditingParticipantName(p.name)
-                            }}
-                          >
-                            ✏️
-                          </button>
-                          {selectedDongEvent.participants.length > 1 &&
-                          !selectedDongEvent.expenses.some((e) => e.paidById === p.id || e.splitAmongIds.includes(p.id)) ? (
-                            <button
-                              type="button"
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, opacity: 0.7 }}
-                              title="حذف فرد"
-                              onClick={() => {
-                                const updatedParticipants = selectedDongEvent.participants.filter((x) => x.id !== p.id)
-                                void saveDongEvent({ ...selectedDongEvent, participants: updatedParticipants })
-                                notifyUser('فرد از رویداد حذف شد')
-                              }}
-                            >
-                              ✕
-                            </button>
-                          ) : null}
-                        </>
-                      )}
-                    </span>
-                  ))}
-                </div>
+                {/* Button: Add Expense */}
+                <button
+                  type="button"
+                  className="cta-confirm"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    fontSize: 14,
+                    fontWeight: 800,
+                    padding: '12px 18px',
+                    borderRadius: 14,
+                    background: 'linear-gradient(135deg, var(--hy-accent) 0%, #1d4ed8 100%)',
+                    boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setEditingExpId(null)
+                    setNewExpTitle('')
+                    setNewExpAmount('')
+                    setNewExpPayer(selectedDongEvent.participants[0]?.id || '')
+                    setNewExpSplits(selectedDongEvent.participants.map((p) => p.id))
+                    setNewExpSplitMode('equal')
+                    setNewExpCustomAmounts({})
+                    setManualEditedIds(new Set())
+                    setIsDongExpenseModalOpen(true)
+                  }}
+                >
+                  <span style={{ fontSize: 18 }}>＋</span>
+                  <span>ثبت خرج جدید</span>
+                </button>
 
-                {/* Add new member to ongoing event */}
-                <div style={{ display: 'flex', gap: 6, maxWidth: 280 }}>
-                  <input
-                    className="field-input"
-                    style={{ height: 28, fontSize: 11, flex: 1 }}
-                    placeholder="افزودن فرد جدید به این رویداد…"
-                    value={eventNewMemberInput}
-                    onChange={(e) => setEventNewMemberInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && eventNewMemberInput.trim()) {
-                        e.preventDefault()
-                        const newName = eventNewMemberInput.trim()
-                        const newId = `p_${Date.now()}`
-                        const updated = [...selectedDongEvent.participants, { id: newId, name: newName }]
-                        void saveDongEvent({ ...selectedDongEvent, participants: updated })
-                        setEventNewMemberInput('')
-                        notifyUser(`${newName} اضافه شد`)
-                      }
-                    }}
-                  />
-                  <button
-                    className="cat-mini"
-                    type="button"
-                    style={{ fontSize: 11, padding: '2px 8px' }}
-                    onClick={() => {
-                      if (eventNewMemberInput.trim()) {
-                        const newName = eventNewMemberInput.trim()
-                        const newId = `p_${Date.now()}`
-                        const updated = [...selectedDongEvent.participants, { id: newId, name: newName }]
-                        void saveDongEvent({ ...selectedDongEvent, participants: updated })
-                        setEventNewMemberInput('')
-                        notifyUser(`${newName} اضافه شد`)
-                      }
-                    }}
-                  >
-                    + افزودن
-                  </button>
-                </div>
+                {/* Button: Manage Members & Groups */}
+                <button
+                  type="button"
+                  className="cat-mini"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    padding: '12px 18px',
+                    borderRadius: 14,
+                    background: 'rgba(255, 255, 255, 0.07)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    cursor: 'pointer',
+                    color: 'var(--hy-text)',
+                  }}
+                  onClick={() => {
+                    setMembersModalTab('members')
+                    setIsDongMembersAndGroupsModalOpen(true)
+                  }}
+                >
+                  <span style={{ fontSize: 16 }}>👥</span>
+                  <span>
+                    افراد و گروه‌ها ({toFaDigits(selectedDongEvent.participants.length)} نفر
+                    {selectedDongEvent.groups && selectedDongEvent.groups.length > 0
+                      ? ` · ${toFaDigits(selectedDongEvent.groups.length)} گروه`
+                      : ''}
+                    )
+                  </span>
+                </button>
               </div>
 
-              {/* Add / Edit Expense Box */}
+              {/* Event KPI Strip */}
               <div
                 style={{
-                  padding: 16,
-                  borderRadius: 16,
-                  background: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                  gap: 8,
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>
-                    {editingExpId ? '✏️ اصلاح هزینه ثبت‌شده' : '+ ثبت خرج جدید در این رویداد'}
-                  </h3>
-                  {editingExpId ? (
-                    <button
-                      className="cat-mini"
-                      type="button"
-                      onClick={() => {
-                        setEditingExpId(null)
-                        setNewExpTitle('')
-                        setNewExpAmount('')
-                        setNewExpSplits([])
-                        setNewExpCustomAmounts({})
-                        setManualEditedIds(new Set())
-                        setNewExpSplitMode('equal')
-                      }}
-                    >
-                      انصراف از ویرایش
-                    </button>
-                  ) : null}
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                  }}
+                >
+                  <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)', marginBottom: 2 }}>مجموع مخارج کل</div>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--hy-text)' }}>
+                    {formatMoney(dongSummary.totalCost)}
+                  </div>
                 </div>
 
-                <div className="field-stack">
-                  <input
-                    className="field-input"
-                    placeholder="عنوان خرج (مثلاً: بنزین، ناهار رستوران، خرید گوشت)"
-                    value={newExpTitle}
-                    onChange={(e) => setNewExpTitle(e.target.value)}
-                  />
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    <input
-                      className="field-input"
-                      inputMode="numeric"
-                      placeholder={`مبلغ کل خرج (${unitLabel})`}
-                      value={newExpAmount}
-                      onChange={(e) => handleExpenseAmountChange(e.target.value)}
-                    />
-                    <select
-                      className="field-input"
-                      value={newExpPayer || selectedDongEvent.participants[0]?.id}
-                      onChange={(e) => setNewExpPayer(e.target.value)}
-                      aria-label="پرداخت‌کننده"
-                    >
-                      {selectedDongEvent.participants.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          پرداخت توسط: {p.name}
-                        </option>
-                      ))}
-                    </select>
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setMembersModalTab('members')
+                    setIsDongMembersAndGroupsModalOpen(true)
+                  }}
+                  title="مدیریت اعضا"
+                >
+                  <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)', marginBottom: 2 }}>تعداد افراد حاضر</div>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--hy-accent)' }}>
+                    {toFaDigits(selectedDongEvent.participants.length)} نفر
                   </div>
+                </div>
 
-                  {/* Participant Selection Checkboxes */}
-                  <div
-                    style={{
-                      margin: '6px 0',
-                      padding: '10px 12px',
-                      borderRadius: 12,
-                      background: 'rgba(0, 0, 0, 0.18)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--hy-text)' }}>
-                        👥 این هزینه مربوط به چه کسانی است؟
-                      </span>
-                      <button
-                        type="button"
-                        className="cat-mini"
-                        style={{ fontSize: 10, padding: '2px 8px' }}
-                        onClick={() => {
-                          const allIds = selectedDongEvent.participants.map((p) => p.id)
-                          const current = newExpSplits.length > 0 ? newExpSplits : allIds
-                          if (current.length === allIds.length) {
-                            setNewExpSplits([])
-                          } else {
-                            setNewExpSplits(allIds)
-                          }
-                        }}
-                      >
-                        {newExpSplits.length === 0 || newExpSplits.length === selectedDongEvent.participants.length
-                          ? 'لغو انتخاب همه'
-                          : 'انتخاب همه'}
-                      </button>
-                    </div>
-
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {selectedDongEvent.participants.map((p) => {
-                        const effectiveSplits =
-                          newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((x) => x.id)
-                        const isChecked = effectiveSplits.includes(p.id)
-                        return (
-                          <label
-                            key={p.id}
-                            style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 6,
-                              padding: '5px 10px',
-                              borderRadius: 10,
-                              background: isChecked ? 'rgba(15, 118, 110, 0.25)' : 'rgba(255, 255, 255, 0.05)',
-                              border: isChecked ? '1px solid var(--hy-teal)' : '1px solid rgba(255, 255, 255, 0.1)',
-                              cursor: 'pointer',
-                              fontSize: 12,
-                              fontWeight: isChecked ? 700 : 500,
-                            }}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={(e) => {
-                                const allIds = selectedDongEvent.participants.map((x) => x.id)
-                                const current = newExpSplits.length > 0 ? [...newExpSplits] : allIds
-                                let next: string[]
-                                if (e.target.checked) {
-                                  next = current.includes(p.id) ? current : [...current, p.id]
-                                } else {
-                                  next = current.filter((id) => id !== p.id)
-                                }
-                                setNewExpSplits(next)
-                                if (newExpSplitMode === 'custom') {
-                                  const totalUnits = Number(digitsOnly(newExpAmount)) || 0
-                                  const updated = recalculateManualDistribution(totalUnits, next, manualEditedIds, newExpCustomAmounts)
-                                  setNewExpCustomAmounts(updated)
-                                }
-                              }}
-                            />
-                            <span>{p.name}</span>
-                          </label>
-                        )
-                      })}
-                    </div>
-
-                    {/* Split Mode Toggle: Equal vs Manual Split */}
-                    <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--hy-text-secondary)' }}>
-                          نحوه تقسیم سهم افراد:
-                        </span>
-                        <div className="seg" style={{ margin: 0, padding: 2 }}>
-                          <button
-                            type="button"
-                            className={`seg-btn${newExpSplitMode === 'equal' ? ' active' : ''}`}
-                            onClick={() => setNewExpSplitMode('equal')}
-                            style={{ fontSize: 11, padding: '3px 10px' }}
-                          >
-                            ⚖️ تقسیم مساوی
-                          </button>
-                          <button
-                            type="button"
-                            className={`seg-btn${newExpSplitMode === 'custom' ? ' active' : ''}`}
-                            onClick={() => {
-                              setNewExpSplitMode('custom')
-                              const splits =
-                                newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((p) => p.id)
-                              const totalUnits = Number(digitsOnly(newExpAmount)) || 0
-                              const updated = recalculateManualDistribution(totalUnits, splits, manualEditedIds, newExpCustomAmounts)
-                              setNewExpCustomAmounts(updated)
-                            }}
-                            style={{ fontSize: 11, padding: '3px 10px' }}
-                          >
-                            تقسیم دستی
-                          </button>
-                        </div>
-                      </div>
-
-                      {newExpSplitMode === 'equal' ? (
-                        <div
-                          style={{
-                            fontSize: 11,
-                            color: 'var(--hy-teal)',
-                            background: 'rgba(15, 118, 110, 0.1)',
-                            padding: '6px 10px',
-                            borderRadius: 8,
-                          }}
-                        >
-                          {(() => {
-                            const effectiveSplits =
-                              newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((p) => p.id)
-                            const totalRials = parseAmountToRials(newExpAmount)
-                            if (effectiveSplits.length === 0) return 'هیچ فردی انتخاب نشده است.'
-                            if (totalRials <= 0)
-                              return `هزینه به صورت برابر بین ${toFaDigits(effectiveSplits.length)} نفر تقسیم می‌شود.`
-                            const perShare = Math.round(totalRials / effectiveSplits.length)
-                            return `سهم مساوی هر نفر: ${formatMoney(perShare)} (${toFaDigits(effectiveSplits.length)} نفر)`
-                          })()}
-                        </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--hy-text-secondary)', marginBottom: 2 }}>
-                            <span>مبالغ دستی ثابت می‌مانند و باقیمانده به طور مساوی بین بقیه تقسیم می‌شود:</span>
-                            <button
-                              type="button"
-                              className="cat-mini"
-                              style={{ fontSize: 10, padding: '1px 8px' }}
-                              onClick={resetCustomAmountsToEqual}
-                              title="توزیع مجدد مبلغ کل به طور مساوی"
-                            >
-                              ↺ توزیع مساوی مجدد
-                            </button>
-                          </div>
-                          {selectedDongEvent.participants.map((p) => {
-                            const effectiveSplits =
-                              newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((x) => x.id)
-                            if (!effectiveSplits.includes(p.id)) return null
-                            const isManuallySet = manualEditedIds.has(p.id)
-
-                            return (
-                              <div
-                                key={p.id}
-                                style={{
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'space-between',
-                                  gap: 10,
-                                  padding: '5px 8px',
-                                  borderRadius: 8,
-                                  background: isManuallySet ? 'rgba(37, 99, 235, 0.15)' : 'rgba(0, 0, 0, 0.2)',
-                                  border: isManuallySet ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid transparent',
-                                }}
-                              >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <span style={{ fontSize: 12, fontWeight: 700 }}>{p.name}:</span>
-                                  {isManuallySet ? (
-                                    <span style={{ fontSize: 10, color: 'var(--hy-accent)' }}>(دستی)</span>
-                                  ) : (
-                                    <span style={{ fontSize: 10, color: 'var(--hy-text-secondary)' }}>(توزیع خودکار)</span>
-                                  )}
-                                </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, maxWidth: 190 }}>
-                                  <input
-                                    className="field-input"
-                                    inputMode="numeric"
-                                    style={{ height: 32, fontSize: 12, textAlign: 'left', direction: 'rtl' }}
-                                    placeholder="مبلغ"
-                                    value={newExpCustomAmounts[p.id] ?? ''}
-                                    onChange={(e) => handleUserCustomAmountChange(p.id, e.target.value)}
-                                  />
-                                  <span style={{ fontSize: 10, opacity: 0.7 }}>{unitLabel}</span>
-                                </div>
-                              </div>
-                            )
-                          })}
-
-                          {/* Balance difference badge */}
-                          {(() => {
-                            const effectiveSplits =
-                              newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((p) => p.id)
-                            const sumCustomRials = effectiveSplits.reduce((acc, id) => {
-                              return acc + parseAmountToRials(newExpCustomAmounts[id] ?? '0')
-                            }, 0)
-                            const totalRials = parseAmountToRials(newExpAmount)
-                            const diff = totalRials - sumCustomRials
-                            return (
-                              <div
-                                style={{
-                                  fontSize: 11,
-                                  marginTop: 4,
-                                  padding: '6px 10px',
-                                  borderRadius: 8,
-                                  background: Math.abs(diff) < 100 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                                  color: Math.abs(diff) < 100 ? 'var(--hy-income)' : 'var(--hy-expense)',
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  fontWeight: 700,
-                                }}
-                              >
-                                <span>مجموع سهم‌ها: {formatMoney(sumCustomRials)}</span>
-                                {diff !== 0 && totalRials > 0 ? (
-                                  <span>
-                                    {diff > 0 ? `باقی‌مانده: ${formatMoney(diff)}` : `اضافه بر کل: ${formatMoney(-diff)}`}
-                                  </span>
-                                ) : (
-                                  <span>✓ تراز دقیق با کل هزینه (بدون کسری/مازاد)</span>
-                                )}
-                              </div>
-                            )
-                          })()}
-                        </div>
-                      )}
-                    </div>
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setMembersModalTab('groups')
+                    setIsDongMembersAndGroupsModalOpen(true)
+                  }}
+                  title="مدیریت گروه‌ها"
+                >
+                  <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)', marginBottom: 2 }}>گروه‌های تعریف‌شده</div>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: '#38bdf8' }}>
+                    {selectedDongEvent.groups && selectedDongEvent.groups.length > 0
+                      ? `${toFaDigits(selectedDongEvent.groups.length)} گروه`
+                      : 'بدون گروه (تعریف گروه +)'}
                   </div>
+                </div>
 
-                  <button
-                    className="cta-confirm"
-                    type="button"
-                    style={{ marginTop: 8 }}
-                    onClick={() => {
-                      const amount = parseAmountToRials(newExpAmount)
-                      if (!newExpTitle.trim() || !amount) {
-                        notifyUser('عنوان و مبلغ خرج الزامی است')
-                        return
-                      }
-                      const payerId = newExpPayer || selectedDongEvent.participants[0]?.id
-                      const targetSplits =
-                        newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((p) => p.id)
-
-                      if (targetSplits.length === 0) {
-                        notifyUser('حداقل یک نفر را برای پرداخت دونگ انتخاب کنید')
-                        return
-                      }
-
-                      let customShares: Record<string, number> | undefined
-                      if (newExpSplitMode === 'custom') {
-                        customShares = {}
-                        let sumCustom = 0
-                        for (const id of targetSplits) {
-                          const val = parseAmountToRials(newExpCustomAmounts[id] ?? '0')
-                          customShares[id] = val
-                          sumCustom += val
-                        }
-                        if (sumCustom > 0 && sumCustom !== amount) {
-                          const diff = amount - sumCustom
-                          const firstId = targetSplits[0]
-                          if (firstId) {
-                            customShares[firstId] = Math.max(0, (customShares[firstId] || 0) + diff)
-                          }
-                        }
-                      }
-
-                      const updatedExpenses = [...selectedDongEvent.expenses]
-                      if (editingExpId) {
-                        // Edit existing expense
-                        const idx = updatedExpenses.findIndex((e) => e.id === editingExpId)
-                        if (idx >= 0) {
-                          updatedExpenses[idx] = {
-                            ...updatedExpenses[idx],
-                            title: newExpTitle.trim(),
-                            amount,
-                            paidById: payerId,
-                            splitAmongIds: targetSplits,
-                            splitMode: newExpSplitMode,
-                            customShares,
-                          }
-                        }
-                        notifyUser('خرج ویرایش و اصلاح شد')
-                      } else {
-                        // Add new expense
-                        const newItem: DongExpenseItem = {
-                          id: createId('dexp'),
-                          title: newExpTitle.trim(),
-                          amount,
-                          paidById: payerId,
-                          splitAmongIds: targetSplits,
-                          splitMode: newExpSplitMode,
-                          customShares,
-                          date: todayIso(),
-                        }
-                        updatedExpenses.push(newItem)
-                        notifyUser('خرج ثبت شد و دونگ‌ها محاسبه شدند')
-                      }
-
-                      void saveDongEvent({
-                        ...selectedDongEvent,
-                        expenses: updatedExpenses,
-                      })
-
-                      setEditingExpId(null)
-                      setNewExpTitle('')
-                      setNewExpAmount('')
-                      setNewExpSplits([])
-                      setNewExpCustomAmounts({})
-                      setManualEditedIds(new Set())
-                      setNewExpSplitMode('equal')
-                    }}
-                  >
-                    {editingExpId ? 'ذخیره اصلاح خرج' : 'افزودن خرج'}
-                  </button>
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                  }}
+                >
+                  <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)', marginBottom: 2 }}>تعداد تراکنش‌های تسویه</div>
+                  <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--hy-income)' }}>
+                    {toFaDigits(activeDongTransfers.length)} پرداخت
+                  </div>
                 </div>
               </div>
 
@@ -3694,6 +4252,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                                   setNewExpCustomAmounts({})
                                   setManualEditedIds(new Set())
                                 }
+                                setIsDongExpenseModalOpen(true)
                                 notifyUser(`در حال ویرایش: ${exp.title}`)
                               }}
                             >
@@ -3723,7 +4282,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                 )}
               </div>
 
-              {/* Participant Balances & Transparency Overview */}
+              {/* Participant & Group Balances Section */}
               <div
                 style={{
                   padding: 16,
@@ -3732,87 +4291,394 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                   border: '1px solid rgba(255, 255, 255, 0.08)',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span>📊</span>
-                    <span>تراز و سهم اعضا در این رویداد</span>
-                  </h3>
-                  <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
-                    مجموع مخارج کل: <b>{formatMoney(dongSummary.totalCost)}</b>
-                  </span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 16 }}>📊</span>
+                    <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>
+                      تراز و سهم اعضا و گروه‌ها در این رویداد
+                    </h3>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
+                      مجموع مخارج کل: <b>{formatMoney(dongSummary.totalCost)}</b>
+                    </span>
+                    <button
+                      type="button"
+                      className="cat-mini"
+                      style={{ fontSize: 11, padding: '3px 10px' }}
+                      onClick={() => {
+                        setMembersModalTab('groups')
+                        setIsDongMembersAndGroupsModalOpen(true)
+                      }}
+                    >
+                      ⚙️ مدیریت گروه‌ها
+                    </button>
+                  </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
-                  {dongSummary.balances.map((b) => {
-                    const isCreditor = b.net > 5
-                    const isDebtor = b.net < -5
-                    return (
-                      <div
-                        key={b.id}
-                        style={{
-                          padding: '10px 12px',
-                          borderRadius: 12,
-                          background: isCreditor
-                            ? 'rgba(16, 185, 129, 0.1)'
-                            : isDebtor
-                            ? 'rgba(239, 68, 68, 0.1)'
-                            : 'rgba(255, 255, 255, 0.04)',
-                          border: isCreditor
-                            ? '1px solid rgba(16, 185, 129, 0.25)'
-                            : isDebtor
-                            ? '1px solid rgba(239, 68, 68, 0.25)'
-                            : '1px solid rgba(255, 255, 255, 0.08)',
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                          <span style={{ fontWeight: 800, fontSize: 13 }}>{b.name}</span>
-                          <span
+                {/* If Groups are Defined: Render Groups First with Accordion, then Ungrouped */}
+                {selectedDongEvent.groups && selectedDongEvent.groups.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--hy-text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>👥 تراز تجمیعی گروه‌ها</span>
+                      <span style={{ fontSize: 11, opacity: 0.8 }}>(برای مشاهده تفکیک اعضا، روی هر گروه کلیک کنید)</span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 10 }}>
+                      {dongSummary.groupBalances.map((gb) => {
+                        const isCreditor = gb.net > 5
+                        const isDebtor = gb.net < -5
+                        const isExpanded = expandedGroupIds.has(gb.id)
+
+                        return (
+                          <div
+                            key={gb.id}
                             style={{
-                              fontSize: 10,
-                              fontWeight: 700,
-                              padding: '1px 6px',
-                              borderRadius: 6,
+                              padding: '12px 14px',
+                              borderRadius: 14,
                               background: isCreditor
-                                ? 'rgba(16, 185, 129, 0.2)'
+                                ? 'rgba(16, 185, 129, 0.1)'
                                 : isDebtor
-                                ? 'rgba(239, 68, 68, 0.2)'
-                                : 'rgba(255, 255, 255, 0.1)',
-                              color: isCreditor ? 'var(--hy-income)' : isDebtor ? 'var(--hy-expense)' : 'var(--hy-text-secondary)',
+                                ? 'rgba(239, 68, 68, 0.1)'
+                                : 'rgba(255, 255, 255, 0.04)',
+                              border: isCreditor
+                                ? '1px solid rgba(16, 185, 129, 0.3)'
+                                : isDebtor
+                                ? '1px solid rgba(239, 68, 68, 0.3)'
+                                : '1px solid rgba(255, 255, 255, 0.1)',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s ease',
+                            }}
+                            onClick={() => {
+                              setExpandedGroupIds((prev) => {
+                                const next = new Set(prev)
+                                if (next.has(gb.id)) next.delete(gb.id)
+                                else next.add(gb.id)
+                                return next
+                              })
                             }}
                           >
-                            {isCreditor ? 'طلبکار' : isDebtor ? 'بدهکار' : 'بی‌حساب'}
-                          </span>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ fontWeight: 800, fontSize: 14 }}>گروه {gb.name}</span>
+                                <span
+                                  style={{
+                                    fontSize: 10,
+                                    padding: '1px 6px',
+                                    borderRadius: 6,
+                                    background: 'rgba(37, 99, 235, 0.2)',
+                                    color: 'var(--hy-accent)',
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  {toFaDigits(gb.memberIds.length)} عضو
+                                </span>
+                              </div>
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  padding: '2px 8px',
+                                  borderRadius: 6,
+                                  background: isCreditor
+                                    ? 'rgba(16, 185, 129, 0.2)'
+                                    : isDebtor
+                                    ? 'rgba(239, 68, 68, 0.2)'
+                                    : 'rgba(255, 255, 255, 0.1)',
+                                  color: isCreditor ? 'var(--hy-income)' : isDebtor ? 'var(--hy-expense)' : 'var(--hy-text-secondary)',
+                                }}
+                              >
+                                {isCreditor ? 'طلبکار' : isDebtor ? 'بدهکار' : 'بی‌حساب'}
+                              </span>
+                            </div>
+
+                            <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
+                              <span>مجموع پرداختی گروه:</span>
+                              <b>{formatMoney(gb.paid)}</b>
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                              <span>مجموع سهم مصرفی گروه:</span>
+                              <b>{formatMoney(gb.share)}</b>
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 800,
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                marginTop: 6,
+                                paddingTop: 6,
+                                borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                                color: isCreditor ? 'var(--hy-income)' : isDebtor ? 'var(--hy-expense)' : 'var(--hy-text-secondary)',
+                              }}
+                            >
+                              <span>تراز نهایی کل گروه:</span>
+                              <span>
+                                {isCreditor ? '+' : ''}
+                                {formatMoney(gb.net)}
+                              </span>
+                            </div>
+
+                            {/* Accordion Toggle Prompt */}
+                            <div
+                              style={{
+                                marginTop: 8,
+                                paddingTop: 6,
+                                borderTop: '1px dashed rgba(255, 255, 255, 0.08)',
+                                fontSize: 10,
+                                color: 'var(--hy-accent)',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                              }}
+                            >
+                              <span>{isExpanded ? '▲ بستن تفکیک اعضا' : '▼ کلیک برای نمایش هزینه‌ها به تفکیک اعضای گروه'}</span>
+                              <span style={{ opacity: 0.7 }}>{isExpanded ? 'پنهان‌سازی' : 'نمایش'}</span>
+                            </div>
+
+                            {/* Detailed Member Breakdown Accordion Content */}
+                            {isExpanded && (
+                              <div
+                                style={{
+                                  marginTop: 8,
+                                  paddingTop: 8,
+                                  borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 6,
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--hy-text-secondary)', marginBottom: 2 }}>
+                                  👤 هزینه‌های گروه به تفکیک اعضا:
+                                </div>
+                                {gb.memberBalances.map((mb) => {
+                                  const mCreditor = mb.net > 5
+                                  const mDebtor = mb.net < -5
+                                  return (
+                                    <div
+                                      key={mb.id}
+                                      style={{
+                                        padding: '6px 10px',
+                                        borderRadius: 8,
+                                        background: 'rgba(0, 0, 0, 0.25)',
+                                        border: '1px solid rgba(255, 255, 255, 0.05)',
+                                        fontSize: 11,
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 2,
+                                      }}
+                                    >
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800 }}>
+                                        <span>👤 {mb.name}</span>
+                                        <span
+                                          style={{
+                                            color: mCreditor ? 'var(--hy-income)' : mDebtor ? 'var(--hy-expense)' : 'var(--hy-text-secondary)',
+                                          }}
+                                        >
+                                          تراز: {mCreditor ? '+' : ''}{formatMoney(mb.net)}
+                                        </span>
+                                      </div>
+                                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--hy-text-secondary)', fontSize: 10 }}>
+                                        <span>پرداخت: {formatMoney(mb.paid)}</span>
+                                        <span>سهم: {formatMoney(mb.share)}</span>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Ungrouped Participants (سایر افراد مستقل) */}
+                    {dongSummary.ungroupedBalances.length > 0 && (
+                      <div style={{ marginTop: 10 }}>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--hy-text-secondary)', marginBottom: 8 }}>
+                          👤 سایر اعضای مستقل (خارج از گروه‌ها):
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
-                          <span>پرداخت کرده:</span>
-                          <b>{formatMoney(b.paid)}</b>
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
-                          <span>سهم مصرفی:</span>
-                          <b>{formatMoney(b.share)}</b>
-                        </div>
-                        <div
-                          style={{
-                            fontSize: 12,
-                            fontWeight: 800,
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            marginTop: 4,
-                            paddingTop: 4,
-                            borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-                            color: isCreditor ? 'var(--hy-income)' : isDebtor ? 'var(--hy-expense)' : 'var(--hy-text-secondary)',
-                          }}
-                        >
-                          <span>تراز نهایی:</span>
-                          <span>
-                            {isCreditor ? '+' : ''}
-                            {formatMoney(b.net)}
-                          </span>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
+                          {dongSummary.ungroupedBalances.map((b) => {
+                            const isCreditor = b.net > 5
+                            const isDebtor = b.net < -5
+                            return (
+                              <div
+                                key={b.id}
+                                style={{
+                                  padding: '10px 12px',
+                                  borderRadius: 12,
+                                  background: isCreditor
+                                    ? 'rgba(16, 185, 129, 0.1)'
+                                    : isDebtor
+                                    ? 'rgba(239, 68, 68, 0.1)'
+                                    : 'rgba(255, 255, 255, 0.04)',
+                                  border: isCreditor
+                                    ? '1px solid rgba(16, 185, 129, 0.25)'
+                                    : isDebtor
+                                    ? '1px solid rgba(239, 68, 68, 0.25)'
+                                    : '1px solid rgba(255, 255, 255, 0.08)',
+                                }}
+                              >
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                                  <span style={{ fontWeight: 800, fontSize: 13 }}>{b.name}</span>
+                                  <span
+                                    style={{
+                                      fontSize: 10,
+                                      fontWeight: 700,
+                                      padding: '1px 6px',
+                                      borderRadius: 6,
+                                      background: isCreditor
+                                        ? 'rgba(16, 185, 129, 0.2)'
+                                        : isDebtor
+                                        ? 'rgba(239, 68, 68, 0.2)'
+                                        : 'rgba(255, 255, 255, 0.1)',
+                                      color: isCreditor ? 'var(--hy-income)' : isDebtor ? 'var(--hy-expense)' : 'var(--hy-text-secondary)',
+                                    }}
+                                  >
+                                    {isCreditor ? 'طلبکار' : isDebtor ? 'بدهکار' : 'بی‌حساب'}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
+                                  <span>پرداخت کرده:</span>
+                                  <b>{formatMoney(b.paid)}</b>
+                                </div>
+                                <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                                  <span>سهم مصرفی:</span>
+                                  <b>{formatMoney(b.share)}</b>
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: 12,
+                                    fontWeight: 800,
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    marginTop: 4,
+                                    paddingTop: 4,
+                                    borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                                    color: isCreditor ? 'var(--hy-income)' : isDebtor ? 'var(--hy-expense)' : 'var(--hy-text-secondary)',
+                                  }}
+                                >
+                                  <span>تراز نهایی:</span>
+                                  <span>
+                                    {isCreditor ? '+' : ''}
+                                    {formatMoney(b.net)}
+                                  </span>
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
-                    )
-                  })}
-                </div>
+                    )}
+                  </div>
+                ) : (
+                  /* When No Groups Defined Yet: Display Individual Balances with Option to Group */
+                  <div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
+                      {dongSummary.balances.map((b) => {
+                        const isCreditor = b.net > 5
+                        const isDebtor = b.net < -5
+                        return (
+                          <div
+                            key={b.id}
+                            style={{
+                              padding: '10px 12px',
+                              borderRadius: 12,
+                              background: isCreditor
+                                ? 'rgba(16, 185, 129, 0.1)'
+                                : isDebtor
+                                ? 'rgba(239, 68, 68, 0.1)'
+                                : 'rgba(255, 255, 255, 0.04)',
+                              border: isCreditor
+                                ? '1px solid rgba(16, 185, 129, 0.25)'
+                                : isDebtor
+                                ? '1px solid rgba(239, 68, 68, 0.25)'
+                                : '1px solid rgba(255, 255, 255, 0.08)',
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                              <span style={{ fontWeight: 800, fontSize: 13 }}>{b.name}</span>
+                              <span
+                                style={{
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  padding: '1px 6px',
+                                  borderRadius: 6,
+                                  background: isCreditor
+                                    ? 'rgba(16, 185, 129, 0.2)'
+                                    : isDebtor
+                                    ? 'rgba(239, 68, 68, 0.2)'
+                                    : 'rgba(255, 255, 255, 0.1)',
+                                  color: isCreditor ? 'var(--hy-income)' : isDebtor ? 'var(--hy-expense)' : 'var(--hy-text-secondary)',
+                                }}
+                              >
+                                {isCreditor ? 'طلبکار' : isDebtor ? 'بدهکار' : 'بی‌حساب'}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'flex', justifyContent: 'space-between' }}>
+                              <span>پرداخت کرده:</span>
+                              <b>{formatMoney(b.paid)}</b>
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
+                              <span>سهم مصرفی:</span>
+                              <b>{formatMoney(b.share)}</b>
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 12,
+                                fontWeight: 800,
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                marginTop: 4,
+                                paddingTop: 4,
+                                borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+                                color: isCreditor ? 'var(--hy-income)' : isDebtor ? 'var(--hy-expense)' : 'var(--hy-text-secondary)',
+                              }}
+                            >
+                              <span>تراز نهایی:</span>
+                              <span>
+                                {isCreditor ? '+' : ''}
+                                {formatMoney(b.net)}
+                              </span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <div
+                      style={{
+                        marginTop: 12,
+                        padding: '10px 14px',
+                        borderRadius: 12,
+                        background: 'rgba(37, 99, 235, 0.1)',
+                        border: '1px dashed rgba(56, 189, 248, 0.3)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: 8,
+                      }}
+                    >
+                      <div style={{ fontSize: 11, color: 'var(--hy-text)' }}>
+                        💡 <b>گروه‌بندی افراد:</b> آیا برخی از حاضرین با هم هستند (مثلاً اعضای یک خانواده یا هم‌اتاقی‌ها)؟ می‌توانید آنها را گروه‌بندی کنید تا هزینه‌هایشان تجمیع شود.
+                      </div>
+                      <button
+                        type="button"
+                        className="cat-mini"
+                        style={{ fontSize: 11, padding: '3px 10px', fontWeight: 700 }}
+                        onClick={() => {
+                          setMembersModalTab('groups')
+                          setIsDongMembersAndGroupsModalOpen(true)
+                        }}
+                      >
+                        👥 ایجاد گروه جدید
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Settlement Calculator Box: Who pays whom? */}
@@ -3824,7 +4690,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                   border: '1px solid rgba(255, 255, 255, 0.15)',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
                   <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span>⚖️</span>
                     <span>فرمول تسویه حساب نهایی (چه کسی به چه کسی بدهد؟)</span>
@@ -3835,6 +4701,33 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                     </span>
                   ) : null}
                 </div>
+
+                {/* Group vs Individual Settlement Toggle (when groups exist) */}
+                {selectedDongEvent.groups && selectedDongEvent.groups.length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0 12px' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--hy-text-secondary)' }}>
+                      حالت تسویه:
+                    </span>
+                    <div className="seg" style={{ margin: 0, padding: 2 }}>
+                      <button
+                        type="button"
+                        className={`seg-btn${settlementViewMode === 'group' ? ' active' : ''}`}
+                        onClick={() => setSettlementViewMode('group')}
+                        style={{ fontSize: 11, padding: '3px 10px' }}
+                      >
+                        👥 تسویه تجمیعی گروه‌ها ({toFaDigits(dongSummary.groupTransfers.length)})
+                      </button>
+                      <button
+                        type="button"
+                        className={`seg-btn${settlementViewMode === 'individual' ? ' active' : ''}`}
+                        onClick={() => setSettlementViewMode('individual')}
+                        style={{ fontSize: 11, padding: '3px 10px' }}
+                      >
+                        👤 تسویه فردی مستقیم ({toFaDigits(dongSummary.transfers.length)})
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {activeDongTransfers.length === 0 ? (
                   <p style={{ fontSize: 12, color: 'var(--hy-income)', margin: '8px 0 0' }}>
@@ -3858,7 +4751,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           opacity: tr.settled ? 0.85 : 1,
                         }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, flexWrap: 'wrap' }}>
                           <span style={{ fontWeight: 800, color: tr.settled ? 'var(--hy-text-secondary)' : 'var(--hy-expense)', textDecoration: tr.settled ? 'line-through' : 'none' }}>
                             {tr.fromName}
                           </span>
@@ -3917,6 +4810,971 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                   </div>
                 )}
               </div>
+
+              {/* ────────────────── Modal 1: Add / Edit Dong Expense Modal ────────────────── */}
+              {isDongExpenseModalOpen && (
+                <WindowPopup
+                  title={editingExpId ? 'ویرایش خرج رویداد' : 'ثبت خرج جدید در رویداد'}
+                  subtitle={selectedDongEvent.title}
+                  icon="💸"
+                  isOpen={true}
+                  onClose={() => {
+                    setIsDongExpenseModalOpen(false)
+                    setEditingExpId(null)
+                    setNewExpTitle('')
+                    setNewExpAmount('')
+                    setNewExpSplits([])
+                    setNewExpCustomAmounts({})
+                    setManualEditedIds(new Set())
+                    setNewExpSplitMode('equal')
+                  }}
+                  defaultWidth={540}
+                  defaultHeight={640}
+                >
+                  <div className="sheet-body-scroll" style={{ padding: '6px 0 20px' }}>
+                    <div className="field-stack">
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, display: 'block' }}>
+                          عنوان خرج:
+                        </label>
+                        <input
+                          className="field-input"
+                          placeholder="مثلاً: بنزین، ناهار رستوران، خرید سوپرمارکت"
+                          value={newExpTitle}
+                          autoFocus
+                          onChange={(e) => setNewExpTitle(e.target.value)}
+                        />
+                      </div>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div>
+                          <label style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, display: 'block' }}>
+                            مبلغ کل خرج ({unitLabel}):
+                          </label>
+                          <input
+                            className="field-input"
+                            inputMode="numeric"
+                            placeholder={`مبلغ کل (${unitLabel})`}
+                            value={newExpAmount}
+                            onChange={(e) => handleExpenseAmountChange(e.target.value)}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, display: 'block' }}>
+                            پرداخت‌کننده:
+                          </label>
+                          <select
+                            className="field-input"
+                            value={newExpPayer || selectedDongEvent.participants[0]?.id}
+                            onChange={(e) => setNewExpPayer(e.target.value)}
+                            aria-label="پرداخت‌کننده"
+                          >
+                            {selectedDongEvent.participants.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                پرداخت توسط: {p.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Participant Selection Checkboxes & Group Shortcuts */}
+                      <div
+                        style={{
+                          margin: '6px 0',
+                          padding: '12px 14px',
+                          borderRadius: 14,
+                          background: 'rgba(0, 0, 0, 0.22)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--hy-text)' }}>
+                            👥 این هزینه مربوط به چه کسانی است؟
+                          </span>
+                          <button
+                            type="button"
+                            className="cat-mini"
+                            style={{ fontSize: 10, padding: '2px 8px' }}
+                            onClick={() => {
+                              const allIds = selectedDongEvent.participants.map((p) => p.id)
+                              const current = newExpSplits.length > 0 ? newExpSplits : allIds
+                              if (current.length === allIds.length) {
+                                setNewExpSplits([])
+                              } else {
+                                setNewExpSplits(allIds)
+                              }
+                            }}
+                          >
+                            {newExpSplits.length === 0 || newExpSplits.length === selectedDongEvent.participants.length
+                              ? 'لغو انتخاب همه'
+                              : 'انتخاب همه'}
+                          </button>
+                        </div>
+
+                        {/* Quick Group Select Shortcuts if Groups Exist */}
+                        {selectedDongEvent.groups && selectedDongEvent.groups.length > 0 && (
+                          <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 10, color: 'var(--hy-text-secondary)', fontWeight: 700 }}>
+                              انتخاب سریع بر اساس گروه:
+                            </span>
+                            {selectedDongEvent.groups.map((g) => {
+                              const allGroupInSplits = g.memberIds.every((mid) =>
+                                (newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((x) => x.id)).includes(mid)
+                              )
+                              return (
+                                <button
+                                  key={g.id}
+                                  type="button"
+                                  className="cat-mini"
+                                  style={{
+                                    fontSize: 10,
+                                    padding: '2px 8px',
+                                    borderRadius: 8,
+                                    background: allGroupInSplits ? 'rgba(37, 99, 235, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                                    color: allGroupInSplits ? 'var(--hy-accent)' : 'var(--hy-text-secondary)',
+                                  }}
+                                  onClick={() => {
+                                    const effective = newExpSplits.length > 0 ? [...newExpSplits] : selectedDongEvent.participants.map((x) => x.id)
+                                    if (allGroupInSplits) {
+                                      // Remove group members
+                                      setNewExpSplits(effective.filter((id) => !g.memberIds.includes(id)))
+                                    } else {
+                                      // Add group members
+                                      const next = Array.from(new Set([...effective, ...g.memberIds]))
+                                      setNewExpSplits(next)
+                                    }
+                                  }}
+                                >
+                                  {allGroupInSplits ? `✓ اعضای گروه ${g.name}` : `+ اعضای گروه ${g.name}`}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                          {selectedDongEvent.participants.map((p) => {
+                            const effectiveSplits =
+                              newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((x) => x.id)
+                            const isChecked = effectiveSplits.includes(p.id)
+                            return (
+                              <label
+                                key={p.id}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 6,
+                                  padding: '5px 10px',
+                                  borderRadius: 10,
+                                  background: isChecked ? 'rgba(15, 118, 110, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                                  border: isChecked ? '1px solid var(--hy-teal)' : '1px solid rgba(255, 255, 255, 0.1)',
+                                  cursor: 'pointer',
+                                  fontSize: 12,
+                                  fontWeight: isChecked ? 700 : 500,
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    const allIds = selectedDongEvent.participants.map((x) => x.id)
+                                    const current = newExpSplits.length > 0 ? [...newExpSplits] : allIds
+                                    let next: string[]
+                                    if (e.target.checked) {
+                                      next = current.includes(p.id) ? current : [...current, p.id]
+                                    } else {
+                                      next = current.filter((id) => id !== p.id)
+                                    }
+                                    setNewExpSplits(next)
+                                    if (newExpSplitMode === 'custom') {
+                                      const totalUnits = Number(digitsOnly(newExpAmount)) || 0
+                                      const updated = recalculateManualDistribution(totalUnits, next, manualEditedIds, newExpCustomAmounts)
+                                      setNewExpCustomAmounts(updated)
+                                    }
+                                  }}
+                                />
+                                <span>{p.name}</span>
+                              </label>
+                            )
+                          })}
+                        </div>
+
+                        {/* Split Mode Toggle: Equal vs Manual Split */}
+                        <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--hy-text-secondary)' }}>
+                              نحوه تقسیم سهم افراد:
+                            </span>
+                            <div className="seg" style={{ margin: 0, padding: 2 }}>
+                              <button
+                                type="button"
+                                className={`seg-btn${newExpSplitMode === 'equal' ? ' active' : ''}`}
+                                onClick={() => setNewExpSplitMode('equal')}
+                                style={{ fontSize: 11, padding: '3px 10px' }}
+                              >
+                                ⚖️ تقسیم مساوی
+                              </button>
+                              <button
+                                type="button"
+                                className={`seg-btn${newExpSplitMode === 'custom' ? ' active' : ''}`}
+                                onClick={() => {
+                                  setNewExpSplitMode('custom')
+                                  const splits =
+                                    newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((p) => p.id)
+                                  const totalUnits = Number(digitsOnly(newExpAmount)) || 0
+                                  const updated = recalculateManualDistribution(totalUnits, splits, manualEditedIds, newExpCustomAmounts)
+                                  setNewExpCustomAmounts(updated)
+                                }}
+                                style={{ fontSize: 11, padding: '3px 10px' }}
+                              >
+                                تقسیم دستی
+                              </button>
+                            </div>
+                          </div>
+
+                          {newExpSplitMode === 'equal' ? (
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: 'var(--hy-teal)',
+                                background: 'rgba(15, 118, 110, 0.1)',
+                                padding: '6px 10px',
+                                borderRadius: 8,
+                              }}
+                            >
+                              {(() => {
+                                const effectiveSplits =
+                                  newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((p) => p.id)
+                                const totalRials = parseAmountToRials(newExpAmount)
+                                if (effectiveSplits.length === 0) return 'هیچ فردی انتخاب نشده است.'
+                                if (totalRials <= 0)
+                                  return `هزینه به صورت برابر بین ${toFaDigits(effectiveSplits.length)} نفر تقسیم می‌شود.`
+                                const perShare = Math.round(totalRials / effectiveSplits.length)
+                                return `سهم مساوی هر نفر: ${formatMoney(perShare)} (${toFaDigits(effectiveSplits.length)} نفر)`
+                              })()}
+                            </div>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--hy-text-secondary)', marginBottom: 2 }}>
+                                <span>مبالغ دستی ثابت می‌مانند و باقیمانده به طور مساوی بین بقیه تقسیم می‌شود:</span>
+                                <button
+                                  type="button"
+                                  className="cat-mini"
+                                  style={{ fontSize: 10, padding: '1px 8px' }}
+                                  onClick={resetCustomAmountsToEqual}
+                                  title="توزیع مجدد مبلغ کل به طور مساوی"
+                                >
+                                  ↺ توزیع مساوی مجدد
+                                </button>
+                              </div>
+                              {selectedDongEvent.participants.map((p) => {
+                                const effectiveSplits =
+                                  newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((x) => x.id)
+                                if (!effectiveSplits.includes(p.id)) return null
+                                const isManuallySet = manualEditedIds.has(p.id)
+
+                                return (
+                                  <div
+                                    key={p.id}
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      gap: 10,
+                                      padding: '5px 8px',
+                                      borderRadius: 8,
+                                      background: isManuallySet ? 'rgba(37, 99, 235, 0.15)' : 'rgba(0, 0, 0, 0.2)',
+                                      border: isManuallySet ? '1px solid rgba(56, 189, 248, 0.3)' : '1px solid transparent',
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      <span style={{ fontSize: 12, fontWeight: 700 }}>{p.name}:</span>
+                                      {isManuallySet ? (
+                                        <span style={{ fontSize: 10, color: 'var(--hy-accent)' }}>(دستی)</span>
+                                      ) : (
+                                        <span style={{ fontSize: 10, color: 'var(--hy-text-secondary)' }}>(توزیع خودکار)</span>
+                                      )}
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, maxWidth: 190 }}>
+                                      <input
+                                        className="field-input"
+                                        inputMode="numeric"
+                                        style={{ height: 32, fontSize: 12, textAlign: 'left', direction: 'rtl' }}
+                                        placeholder="مبلغ"
+                                        value={newExpCustomAmounts[p.id] ?? ''}
+                                        onChange={(e) => handleUserCustomAmountChange(p.id, e.target.value)}
+                                      />
+                                      <span style={{ fontSize: 10, opacity: 0.7 }}>{unitLabel}</span>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+
+                              {/* Balance difference badge */}
+                              {(() => {
+                                const effectiveSplits =
+                                  newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((p) => p.id)
+                                const sumCustomRials = effectiveSplits.reduce((acc, id) => {
+                                  return acc + parseAmountToRials(newExpCustomAmounts[id] ?? '0')
+                                }, 0)
+                                const totalRials = parseAmountToRials(newExpAmount)
+                                const diff = totalRials - sumCustomRials
+                                return (
+                                  <div
+                                    style={{
+                                      fontSize: 11,
+                                      marginTop: 4,
+                                      padding: '6px 10px',
+                                      borderRadius: 8,
+                                      background: Math.abs(diff) < 100 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                      color: Math.abs(diff) < 100 ? 'var(--hy-income)' : 'var(--hy-expense)',
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    <span>مجموع سهم‌ها: {formatMoney(sumCustomRials)}</span>
+                                    {diff !== 0 && totalRials > 0 ? (
+                                      <span>
+                                        {diff > 0 ? `باقی‌مانده: ${formatMoney(diff)}` : `اضافه بر کل: ${formatMoney(-diff)}`}
+                                      </span>
+                                    ) : (
+                                      <span>✓ تراز دقیق با کل هزینه (بدون کسری/مازاد)</span>
+                                    )}
+                                  </div>
+                                )
+                              })()}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                        <button
+                          className="cta-confirm"
+                          type="button"
+                          style={{ flex: 1 }}
+                          onClick={() => {
+                            const amount = parseAmountToRials(newExpAmount)
+                            if (!newExpTitle.trim() || !amount) {
+                              notifyUser('عنوان و مبلغ خرج الزامی است')
+                              return
+                            }
+                            const payerId = newExpPayer || selectedDongEvent.participants[0]?.id
+                            const targetSplits =
+                              newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((p) => p.id)
+
+                            if (targetSplits.length === 0) {
+                              notifyUser('حداقل یک نفر را برای پرداخت دونگ انتخاب کنید')
+                              return
+                            }
+
+                            let customShares: Record<string, number> | undefined
+                            if (newExpSplitMode === 'custom') {
+                              customShares = {}
+                              let sumCustom = 0
+                              for (const id of targetSplits) {
+                                const val = parseAmountToRials(newExpCustomAmounts[id] ?? '0')
+                                customShares[id] = val
+                                sumCustom += val
+                              }
+                              if (sumCustom > 0 && sumCustom !== amount) {
+                                const diff = amount - sumCustom
+                                const firstId = targetSplits[0]
+                                if (firstId) {
+                                  customShares[firstId] = Math.max(0, (customShares[firstId] || 0) + diff)
+                                }
+                              }
+                            }
+
+                            const updatedExpenses = [...selectedDongEvent.expenses]
+                            if (editingExpId) {
+                              // Edit existing expense
+                              const idx = updatedExpenses.findIndex((e) => e.id === editingExpId)
+                              if (idx >= 0) {
+                                updatedExpenses[idx] = {
+                                  ...updatedExpenses[idx],
+                                  title: newExpTitle.trim(),
+                                  amount,
+                                  paidById: payerId,
+                                  splitAmongIds: targetSplits,
+                                  splitMode: newExpSplitMode,
+                                  customShares,
+                                }
+                              }
+                              notifyUser('خرج ویرایش و اصلاح شد')
+                            } else {
+                              // Add new expense
+                              const newItem: DongExpenseItem = {
+                                id: createId('dexp'),
+                                title: newExpTitle.trim(),
+                                amount,
+                                paidById: payerId,
+                                splitAmongIds: targetSplits,
+                                splitMode: newExpSplitMode,
+                                customShares,
+                                date: todayIso(),
+                              }
+                              updatedExpenses.push(newItem)
+                              notifyUser('خرج ثبت شد و دونگ‌ها محاسبه شدند')
+                            }
+
+                            void saveDongEvent({
+                              ...selectedDongEvent,
+                              expenses: updatedExpenses,
+                            })
+
+                            setIsDongExpenseModalOpen(false)
+                            setEditingExpId(null)
+                            setNewExpTitle('')
+                            setNewExpAmount('')
+                            setNewExpSplits([])
+                            setNewExpCustomAmounts({})
+                            setManualEditedIds(new Set())
+                            setNewExpSplitMode('equal')
+                          }}
+                        >
+                          {editingExpId ? 'ذخیره تغییرات خرج' : 'ثبت خرج در رویداد'}
+                        </button>
+                        <button
+                          type="button"
+                          className="cat-mini"
+                          style={{ padding: '0 16px' }}
+                          onClick={() => {
+                            setIsDongExpenseModalOpen(false)
+                            setEditingExpId(null)
+                            setNewExpTitle('')
+                            setNewExpAmount('')
+                          }}
+                        >
+                          انصراف
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </WindowPopup>
+              )}
+
+              {/* ────────────────── Modal 2: Manage Participants & Groups Modal ────────────────── */}
+              {isDongMembersAndGroupsModalOpen && (
+                <WindowPopup
+                  title="مدیریت افراد حاضر و گروه‌بندی"
+                  subtitle={selectedDongEvent.title}
+                  icon="👥"
+                  isOpen={true}
+                  onClose={() => {
+                    setIsDongMembersAndGroupsModalOpen(false)
+                    setEditingGroupId(null)
+                    setGroupNameInput('')
+                    setGroupSelectedMemberIds([])
+                    setEditingParticipantId(null)
+                    setEventNewMemberInput('')
+                  }}
+                  defaultWidth={560}
+                  defaultHeight={640}
+                >
+                  <div className="sheet-body-scroll" style={{ padding: '6px 0 20px' }}>
+                    {/* Modal Tab Switcher */}
+                    <div className="seg" style={{ marginBottom: 14 }}>
+                      <button
+                        type="button"
+                        className={`seg-btn${membersModalTab === 'members' ? ' active' : ''}`}
+                        onClick={() => setMembersModalTab('members')}
+                      >
+                        👤 افراد حاضر ({toFaDigits(selectedDongEvent.participants.length)} نفر)
+                      </button>
+                      <button
+                        type="button"
+                        className={`seg-btn${membersModalTab === 'groups' ? ' active' : ''}`}
+                        onClick={() => setMembersModalTab('groups')}
+                      >
+                        👥 گروه‌بندی ({toFaDigits(selectedDongEvent.groups?.length || 0)} گروه)
+                      </button>
+                    </div>
+
+                    {/* TAB 1: MEMBERS */}
+                    {membersModalTab === 'members' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        {/* Add new member form */}
+                        <div
+                          style={{
+                            padding: '12px 14px',
+                            borderRadius: 14,
+                            background: 'rgba(255, 255, 255, 0.04)',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                          }}
+                        >
+                          <label style={{ fontSize: 11, fontWeight: 700, marginBottom: 6, display: 'block' }}>
+                            افزودن فرد جدید به این رویداد:
+                          </label>
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <input
+                              className="field-input"
+                              style={{ flex: 1 }}
+                              placeholder="نام فرد جدید (مثلاً: علی رضایی)"
+                              value={eventNewMemberInput}
+                              onChange={(e) => setEventNewMemberInput(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && eventNewMemberInput.trim()) {
+                                  e.preventDefault()
+                                  const newName = eventNewMemberInput.trim()
+                                  const newId = `p_${Date.now()}`
+                                  const updated = [...selectedDongEvent.participants, { id: newId, name: newName }]
+                                  void saveDongEvent({ ...selectedDongEvent, participants: updated })
+                                  setEventNewMemberInput('')
+                                  notifyUser(`${newName} اضافه شد`)
+                                }
+                              }}
+                            />
+                            <button
+                              className="cta-confirm"
+                              type="button"
+                              style={{ width: 'auto', padding: '0 16px', fontSize: 12 }}
+                              onClick={() => {
+                                if (eventNewMemberInput.trim()) {
+                                  const newName = eventNewMemberInput.trim()
+                                  const newId = `p_${Date.now()}`
+                                  const updated = [...selectedDongEvent.participants, { id: newId, name: newName }]
+                                  void saveDongEvent({ ...selectedDongEvent, participants: updated })
+                                  setEventNewMemberInput('')
+                                  notifyUser(`${newName} اضافه شد`)
+                                }
+                              }}
+                            >
+                              + افزودن فرد
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* List of current members with inline edit and delete */}
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--hy-text-secondary)', marginBottom: 8 }}>
+                            لیست افراد حاضر در رویداد ({toFaDigits(selectedDongEvent.participants.length)} نفر):
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {selectedDongEvent.participants.map((p) => {
+                              const userGroups = (selectedDongEvent.groups || []).filter((g) => g.memberIds.includes(p.id))
+                              const isReferencedInExpenses = selectedDongEvent.expenses.some(
+                                (e) => e.paidById === p.id || e.splitAmongIds.includes(p.id)
+                              )
+
+                              return (
+                                <div
+                                  key={p.id}
+                                  style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    padding: '8px 12px',
+                                    borderRadius: 10,
+                                    background: 'rgba(0, 0, 0, 0.2)',
+                                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                                  }}
+                                >
+                                  {editingParticipantId === p.id ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1 }}>
+                                      <input
+                                        className="field-input"
+                                        style={{ height: 30, fontSize: 12, flex: 1 }}
+                                        value={editingParticipantName}
+                                        autoFocus
+                                        onChange={(e) => setEditingParticipantName(e.target.value)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter' && editingParticipantName.trim()) {
+                                            e.preventDefault()
+                                            const updatedParticipants = selectedDongEvent.participants.map((item) =>
+                                              item.id === p.id ? { ...item, name: editingParticipantName.trim() } : item
+                                            )
+                                            void saveDongEvent({ ...selectedDongEvent, participants: updatedParticipants })
+                                            setEditingParticipantId(null)
+                                            notifyUser('نام فرد ویرایش شد')
+                                          } else if (e.key === 'Escape') {
+                                            setEditingParticipantId(null)
+                                          }
+                                        }}
+                                      />
+                                      <button
+                                        type="button"
+                                        className="cat-mini"
+                                        style={{ color: 'var(--hy-income)', fontWeight: 800 }}
+                                        onClick={() => {
+                                          if (editingParticipantName.trim()) {
+                                            const updatedParticipants = selectedDongEvent.participants.map((item) =>
+                                              item.id === p.id ? { ...item, name: editingParticipantName.trim() } : item
+                                            )
+                                            void saveDongEvent({ ...selectedDongEvent, participants: updatedParticipants })
+                                            notifyUser('نام فرد ویرایش شد')
+                                          }
+                                          setEditingParticipantId(null)
+                                        }}
+                                      >
+                                        ✓ ذخیره
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="cat-mini"
+                                        onClick={() => setEditingParticipantId(null)}
+                                      >
+                                        انصراف
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <span style={{ fontSize: 13, fontWeight: 700 }}>👤 {p.name}</span>
+                                        {userGroups.map((g) => (
+                                          <span
+                                            key={g.id}
+                                            style={{
+                                              fontSize: 10,
+                                              padding: '1px 6px',
+                                              borderRadius: 6,
+                                              background: 'rgba(37, 99, 235, 0.2)',
+                                              color: 'var(--hy-accent)',
+                                              fontWeight: 700,
+                                            }}
+                                          >
+                                            عضو گروه {g.name}
+                                          </span>
+                                        ))}
+                                      </div>
+
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <button
+                                          type="button"
+                                          className="cat-mini"
+                                          style={{ fontSize: 11 }}
+                                          title="ویرایش نام"
+                                          onClick={() => {
+                                            setEditingParticipantId(p.id)
+                                            setEditingParticipantName(p.name)
+                                          }}
+                                        >
+                                          ✏️ ویرایش
+                                        </button>
+                                        {selectedDongEvent.participants.length > 1 && !isReferencedInExpenses ? (
+                                          <button
+                                            type="button"
+                                            className="cat-mini danger"
+                                            style={{ fontSize: 11 }}
+                                            title="حذف فرد"
+                                            onClick={() => {
+                                              if (confirm(`آیا از حذف «${p.name}» اطمینان دارید؟`)) {
+                                                const updatedParticipants = selectedDongEvent.participants.filter(
+                                                  (x) => x.id !== p.id
+                                                )
+                                                // Also remove from any groups
+                                                const updatedGroups = (selectedDongEvent.groups || []).map((g) => ({
+                                                  ...g,
+                                                  memberIds: g.memberIds.filter((mid) => mid !== p.id),
+                                                }))
+                                                void saveDongEvent({
+                                                  ...selectedDongEvent,
+                                                  participants: updatedParticipants,
+                                                  groups: updatedGroups,
+                                                })
+                                                notifyUser(`${p.name} از رویداد حذف شد`)
+                                              }
+                                            }}
+                                          >
+                                            ✕ حذف
+                                          </button>
+                                        ) : null}
+                                      </div>
+                                    </>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            padding: '10px 14px',
+                            borderRadius: 12,
+                            background: 'rgba(37, 99, 235, 0.08)',
+                            fontSize: 11,
+                            color: 'var(--hy-text-secondary)',
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          💡 <b>راهنمایی:</b> پس از افزودن اعضا، می‌توانید به تب <b>«گروه‌بندی»</b> در بالا مراجعه کرده و افرادی که هزینه‌هایشان باید با هم جمع شود (مانند اعضای یک خانواده) را به یک گروه تبدیل کنید.
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TAB 2: GROUPS */}
+                    {membersModalTab === 'groups' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        <div
+                          style={{
+                            padding: '10px 14px',
+                            borderRadius: 12,
+                            background: 'rgba(37, 99, 235, 0.08)',
+                            border: '1px solid rgba(56, 189, 248, 0.2)',
+                            fontSize: 11,
+                            color: 'var(--hy-text)',
+                            lineHeight: 1.6,
+                          }}
+                        >
+                          💡 <b>چرا گروه‌بندی کنیم؟</b> در سفرهای دوستانه یا خانوادگی، می‌توانید اعضای یک خانواده یا هم‌اتاقی‌ها را در یک گروه قرار دهید. در این حالت، سهم و پرداخت‌های کل گروه با هم جمع شده و تسویه حساب نهایی بر اساس کل گروه انجام می‌شود. همچنین با کلیک روی هر گروه، هزینه‌ها به تفکیک اعضا نیز نمایش داده می‌شود.
+                        </div>
+
+                        {/* Group Add / Edit Form */}
+                        <div
+                          style={{
+                            padding: 14,
+                            borderRadius: 14,
+                            background: 'rgba(255, 255, 255, 0.04)',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                            <h4 style={{ fontSize: 13, fontWeight: 800, margin: 0 }}>
+                              {editingGroupId ? '✏️ ویرایش مشخصات گروه' : '＋ تعریف گروه جدید'}
+                            </h4>
+                            {editingGroupId ? (
+                              <button
+                                type="button"
+                                className="cat-mini"
+                                onClick={() => {
+                                  setEditingGroupId(null)
+                                  setGroupNameInput('')
+                                  setGroupSelectedMemberIds([])
+                                }}
+                              >
+                                انصراف از ویرایش
+                              </button>
+                            ) : null}
+                          </div>
+
+                          <div className="field-stack">
+                            <div>
+                              <label style={{ fontSize: 11, fontWeight: 700, marginBottom: 4, display: 'block' }}>
+                                نام گروه:
+                              </label>
+                              <input
+                                className="field-input"
+                                placeholder="مثلاً: خانواده احمدی، اتاق ۱۰۲، تیم فنی"
+                                value={groupNameInput}
+                                onChange={(e) => setGroupNameInput(e.target.value)}
+                              />
+                            </div>
+
+                            <div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                <label style={{ fontSize: 11, fontWeight: 700 }}>
+                                  اعضای این گروه را انتخاب کنید:
+                                </label>
+                                <button
+                                  type="button"
+                                  className="cat-mini"
+                                  style={{ fontSize: 10, padding: '2px 8px' }}
+                                  onClick={() => {
+                                    if (groupSelectedMemberIds.length === selectedDongEvent.participants.length) {
+                                      setGroupSelectedMemberIds([])
+                                    } else {
+                                      setGroupSelectedMemberIds(selectedDongEvent.participants.map((p) => p.id))
+                                    }
+                                  }}
+                                >
+                                  {groupSelectedMemberIds.length === selectedDongEvent.participants.length
+                                    ? 'لغو همه'
+                                    : 'انتخاب همه'}
+                                </button>
+                              </div>
+
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                                {selectedDongEvent.participants.map((p) => {
+                                  const isSelected = groupSelectedMemberIds.includes(p.id)
+                                  return (
+                                    <label
+                                      key={p.id}
+                                      style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: 6,
+                                        padding: '5px 10px',
+                                        borderRadius: 10,
+                                        background: isSelected ? 'rgba(37, 99, 235, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                                        border: isSelected ? '1px solid var(--hy-accent)' : '1px solid rgba(255, 255, 255, 0.1)',
+                                        cursor: 'pointer',
+                                        fontSize: 12,
+                                        fontWeight: isSelected ? 700 : 500,
+                                      }}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setGroupSelectedMemberIds([...groupSelectedMemberIds, p.id])
+                                          } else {
+                                            setGroupSelectedMemberIds(groupSelectedMemberIds.filter((id) => id !== p.id))
+                                          }
+                                        }}
+                                      />
+                                      <span>{p.name}</span>
+                                    </label>
+                                  )
+                                })}
+                              </div>
+                            </div>
+
+                            <button
+                              type="button"
+                              className="cta-confirm"
+                              style={{ marginTop: 6 }}
+                              onClick={() => {
+                                if (!groupNameInput.trim()) {
+                                  notifyUser('لطفاً نام گروه را وارد کنید')
+                                  return
+                                }
+                                if (groupSelectedMemberIds.length === 0) {
+                                  notifyUser('حداقل یک نفر را به عنوان عضو گروه انتخاب کنید')
+                                  return
+                                }
+
+                                const existingGroups = [...(selectedDongEvent.groups || [])]
+                                if (editingGroupId) {
+                                  const idx = existingGroups.findIndex((g) => g.id === editingGroupId)
+                                  if (idx >= 0) {
+                                    existingGroups[idx] = {
+                                      ...existingGroups[idx],
+                                      name: groupNameInput.trim(),
+                                      memberIds: groupSelectedMemberIds,
+                                    }
+                                  }
+                                  notifyUser(`گروه «${groupNameInput.trim()}» با موفقیت ویرایش شد`)
+                                } else {
+                                  existingGroups.push({
+                                    id: createId('dgrp'),
+                                    name: groupNameInput.trim(),
+                                    memberIds: groupSelectedMemberIds,
+                                  })
+                                  notifyUser(`گروه «${groupNameInput.trim()}» ایجاد شد`)
+                                }
+
+                                void saveDongEvent({
+                                  ...selectedDongEvent,
+                                  groups: existingGroups,
+                                })
+
+                                setEditingGroupId(null)
+                                setGroupNameInput('')
+                                setGroupSelectedMemberIds([])
+                              }}
+                            >
+                              {editingGroupId ? 'ذخیره اصلاحات گروه' : '+ ایجاد گروه جدید'}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* List of Defined Groups */}
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--hy-text-secondary)', marginBottom: 8 }}>
+                            گروه‌های تعریف‌شده در این رویداد:
+                          </div>
+
+                          {!selectedDongEvent.groups || selectedDongEvent.groups.length === 0 ? (
+                            <p className="sheet-sub" style={{ margin: 0 }}>
+                              هنوز هیچ گروهی تعریف نشده است. می‌توانید از فرم بالا اولین گروه را بسازید.
+                            </p>
+                          ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                              {selectedDongEvent.groups.map((g) => {
+                                const members = g.memberIds
+                                  .map((mid) => selectedDongEvent.participants.find((p) => p.id === mid)?.name)
+                                  .filter(Boolean)
+
+                                return (
+                                  <div
+                                    key={g.id}
+                                    style={{
+                                      padding: '10px 14px',
+                                      borderRadius: 12,
+                                      background: 'rgba(0, 0, 0, 0.22)',
+                                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'center',
+                                      flexWrap: 'wrap',
+                                      gap: 8,
+                                    }}
+                                  >
+                                    <div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                        <span style={{ fontWeight: 800, fontSize: 14 }}>👥 {g.name}</span>
+                                        <span
+                                          style={{
+                                            fontSize: 10,
+                                            padding: '1px 6px',
+                                            borderRadius: 6,
+                                            background: 'rgba(37, 99, 235, 0.2)',
+                                            color: 'var(--hy-accent)',
+                                            fontWeight: 700,
+                                          }}
+                                        >
+                                          {toFaDigits(g.memberIds.length)} عضو
+                                        </span>
+                                      </div>
+                                      <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4 }}>
+                                        اعضا: {members.join('، ') || 'بدون عضو'}
+                                      </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: 6 }}>
+                                      <button
+                                        type="button"
+                                        className="cat-mini"
+                                        style={{ fontSize: 11 }}
+                                        onClick={() => {
+                                          setEditingGroupId(g.id)
+                                          setGroupNameInput(g.name)
+                                          setGroupSelectedMemberIds(g.memberIds)
+                                        }}
+                                      >
+                                        ✏️ ویرایش
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="cat-mini danger"
+                                        style={{ fontSize: 11 }}
+                                        onClick={() => {
+                                          if (confirm(`آیا از حذف گروه «${g.name}» اطمینان دارید؟ (افراد حذف نمی‌شوند)`)) {
+                                            const updatedGroups = (selectedDongEvent.groups || []).filter(
+                                              (item) => item.id !== g.id
+                                            )
+                                            void saveDongEvent({
+                                              ...selectedDongEvent,
+                                              groups: updatedGroups,
+                                            })
+                                            if (editingGroupId === g.id) {
+                                              setEditingGroupId(null)
+                                              setGroupNameInput('')
+                                              setGroupSelectedMemberIds([])
+                                            }
+                                            notifyUser(`گروه «${g.name}» حذف شد`)
+                                          }
+                                        }}
+                                      >
+                                        حذف
+                                      </button>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </WindowPopup>
+              )}
             </div>
           )}
         </div>
