@@ -54,6 +54,7 @@ const PER_USER_LOCAL_KEYS = [
   'hy_cheques_manual_order',
   'hy-goal-markets',
   'hy-inv-markets',
+  'hy-profile-dirty',
 ]
 
 function clearAccountResidue() {

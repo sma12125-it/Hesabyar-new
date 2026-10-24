@@ -13,6 +13,7 @@ export function TabBar({ onQuickEntry }: TabBarProps) {
   const installmentsActive = pathname.startsWith('/installments')
   const reportsActive = pathname.startsWith('/reports')
   const settingsActive = pathname.startsWith('/settings')
+  const profileActive = pathname.startsWith('/profile')
 
   // وضعیت باز یا بسته بودن ناوبری همبرگری دسکتاپ در سمت راست
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
@@ -127,6 +128,15 @@ export function TabBar({ onQuickEntry }: TabBarProps) {
           >
             <span className="desk-nav-icon">📈</span>
             {!isCollapsed && <span className="desk-nav-label">سرمایه‌گذاری و بودجه</span>}
+          </NavLink>
+
+          <NavLink
+            to="/profile"
+            className={() => `desk-nav-item${profileActive ? ' active' : ''}`}
+            title="پروفایل و شناسه اختصاصی"
+          >
+            <span className="desk-nav-icon">👤</span>
+            {!isCollapsed && <span className="desk-nav-label">پروفایل و شناسه</span>}
           </NavLink>
 
           {/* ۵. تنظیمات */}

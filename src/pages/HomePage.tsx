@@ -127,6 +127,24 @@ export function HomePage({ onScroll, onQuickEntry, onTransfer, onAll, onSettings
                 </span>
               ) : null}
             </Link>
+            <Link
+              to="/profile"
+              className="icon-btn settings-inline"
+              aria-label="پروفایل"
+              title="پروفایل و شناسه"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                textDecoration: 'none',
+                flexShrink: 0,
+              }}
+            >
+              <span style={{ fontSize: 18, lineHeight: 1 }}>👤</span>
+            </Link>
             <SettingsButton showLabel={true} />
           </div>
         </div>

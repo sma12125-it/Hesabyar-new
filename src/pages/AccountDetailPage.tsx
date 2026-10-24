@@ -7,6 +7,8 @@ import { SettingsButton } from '../components/SettingsButton'
 import { useUiActions } from '../components/UiActions'
 import { useExtras } from '../store/Extras'
 import { notifyUser } from '../lib/sync'
+import { shareableAccount } from '../lib/profile'
+import { ShareByHandle } from '../components/ShareByHandle'
 import { toWesternDigits, toFaDigits } from '../lib/money'
 import { getCategory } from '../lib/categories'
 
@@ -181,6 +183,8 @@ export function AccountDetailPage({
           </button>
         )}
       </div>
+
+      <ShareByHandle kind="account" localId={account.id} title={account.name} payload={shareableAccount(account)} />
 
       {linkedCard ? (
         <div
