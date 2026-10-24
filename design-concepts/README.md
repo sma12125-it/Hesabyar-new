@@ -1,6 +1,8 @@
-# سه جهت طراحی برای حساب‌یار
+# جهت‌های طراحی حساب‌یار
 
-Static, high-fidelity concepts for a future App Store pass. Nothing in `src/` is changed. Open `index.html` in a browser, or the HTML file for a single screen. Mobile screens are an iPhone logical frame, **390×844**. Each concept also has one desktop view at **1440×900**.
+The current set is **v2**, three minimal neobank directions: سپید، اُنیکس، هاله. See `v2/README.md` and `v2/screenshots/`. زرنگار، کاشی، and نسیم stay below as the first round.
+
+Nothing in `src/` is changed. Mobile frames are **390×844**. Each concept has one desktop view at **1440×900**.
 
 PNG renders live in `screenshots/`. Each `*-board.png` places that concept’s screens side by side.
 
