@@ -209,21 +209,24 @@ export interface SavingsGoal {
 
 export type InvestmentMarket = 'gold' | 'stock' | 'fund' | 'crypto' | 'bank' | 'property' | 'other' | (string & {})
 
-export type InvestmentTransactionType = 'buy' | 'sell'
+export type InvestmentTxKind = 'buy' | 'sell' | 'issue' | 'redeem'
+export type InvestmentTransactionType = InvestmentTxKind
 
 export interface InvestmentTransaction {
   id: string
   assetId: string
-  type: InvestmentTransactionType
+  kind: InvestmentTxKind
+  type?: InvestmentTransactionType
   date: string
   quantity: number
   unitPrice: number
-  totalAmount: number
+  totalAmount?: number
   realizedProfit?: number
   avgCostAtSale?: number
   fee?: number
   note?: string
   createdAt: number
+  updatedAt?: number
 }
 
 export interface InvestmentAsset {

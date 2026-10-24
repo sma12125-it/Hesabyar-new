@@ -1,4 +1,4 @@
-const CACHE = 'hesabyar-v1'
+const CACHE = 'hesabyar-v0.3.0'
 
 self.addEventListener('install', () => {
   self.skipWaiting()

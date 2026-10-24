@@ -2283,8 +2283,8 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                             <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4 }}>
                               <span>تاریخ: <b>{formatPersianDateFull(tx.date) || tx.date}</b></span>
                               <span style={{ margin: '0 6px', opacity: 0.5 }}>·</span>
-                              <span>ارزش کل معامله: <b>{formatMoney(tx.totalAmount)}</b></span>
-                              {tx.type === 'sell' && tx.realizedProfit !== undefined && (
+                              <span>ارزش کل معامله: <b>{formatMoney(tx.totalAmount ?? (tx.quantity * tx.unitPrice))}</b></span>
+                              {(tx.type === 'sell' || tx.kind === 'sell' || tx.kind === 'redeem') && tx.realizedProfit !== undefined && (
                                 <>
                                   <span style={{ margin: '0 6px', opacity: 0.5 }}>·</span>
                                   <span style={{ color: tx.realizedProfit >= 0 ? '#10b981' : '#ef4444', fontWeight: 800 }}>
@@ -3120,6 +3120,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           {
                             id: createId('itx'),
                             assetId: editingInv?.id || '',
+                            kind: 'buy',
                             type: 'buy',
                             date: todayIso(),
                             quantity: q,
@@ -3598,6 +3599,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                       const newTx: InvestmentTransaction = {
                         id: createId('itx'),
                         assetId: selectedAsset.id,
+                        kind: txType,
                         type: txType,
                         date: txDate.trim() || todayIso(),
                         quantity: q,
@@ -3613,6 +3615,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           {
                             id: createId('itx'),
                             assetId: selectedAsset.id,
+                            kind: 'buy',
                             type: 'buy',
                             date: selectedAsset.purchaseDate || todayIso(new Date(selectedAsset.createdAt)),
                             quantity: selectedAsset.quantity || 1,
