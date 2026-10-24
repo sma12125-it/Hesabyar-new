@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <title>سنج — نمای کلی</title>
+  <style>
+    @font-face {
+      font-family: Estedad;
+      src: url("../fonts/Estedad-wght.woff2") format("woff2");
+      font-weight: 100 900;
+      font-display: block;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: #101614; }
+    body {
+      width: 2520px;
+      height: 2140px;
+      color: #e7f0eb;
+      font-family: Estedad, "Noto Sans Arabic", sans-serif;
+      background:
+        radial-gradient(900px 420px at 100% 0%, rgba(60, 186, 148, 0.08), transparent 60%),
+        #101614;
+      padding: 52px 64px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+    .hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 40px; }
+    .copy { max-width: 760px; }
+    .eyebrow { margin: 0; color: #8ea099; font-size: 18px; font-weight: 600; }
+    h1 { margin: 8px 0 0; font-size: 88px; font-weight: 560; letter-spacing: 0; line-height: 1; }
+    .rule { width: 64px; height: 3px; background: #3cba94; border-radius: 2px; margin: 18px 0; }
+    .lede { margin: 0; font-size: 24px; line-height: 1.75; color: #c5d5cd; font-weight: 450; }
+    .meta { margin: 18px 0 0; color: #8ea099; font-size: 16px; font-weight: 550; }
+    .desk {
+      width: 1040px;
+      height: 650px;
+      border-radius: 18px;
+      overflow: hidden;
+      border: 1px solid rgba(231, 240, 235, 0.14);
+      background: #0c1210;
+      flex: none;
+      position: relative;
+    }
+    .desk img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .desk span {
+      position: absolute; top: 14px; right: 16px;
+      background: rgba(16, 22, 20, 0.72); color: #e7f0eb;
+      border-radius: 999px; padding: 4px 10px; font-size: 13px; font-weight: 650;
+    }
+    .rows { display: flex; flex-direction: column; gap: 22px; margin-top: 4px; }
+    .row { display: flex; justify-content: center; gap: 22px; }
+    .cell { width: 268px; }
+    .shot {
+      width: 268px;
+      aspect-ratio: 390 / 844;
+      border-radius: 24px;
+      overflow: hidden;
+      border: 1px solid rgba(231, 240, 235, 0.16);
+      background: #0c1210;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.28);
+    }
+    .shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .cell p { margin: 10px 0 0; text-align: center; font-size: 16px; font-weight: 620; color: #d5e3db; }
+  </style>
+</head>
+<body>
+  <div class="hero">
+    <div class="copy">
+      <p class="eyebrow">حساب‌یار · نسخهٔ ۱.۰.۰</p>
+      <h1>سنج</h1>
+      <div class="rule"></div>
+      <p class="lede">خرج ماه با خط بودجه سنجیده می‌شود. همان خط، تیک امروز روی هر دسته است و میانگین خرید روی قیمت دارایی.</p>
+      <p class="meta">سارا نادری · ۱۸ مهر ۱۴۰۵ · تومان · موبایل ۳۹۰×۸۴۴ · دسکتاپ ۱۴۴۰×۹۰۰</p>
+    </div>
+    <div class="desk">
+      <span>دسکتاپ</span>
+      <img src="../screenshots/sanj-desktop.png" alt="نمای دسکتاپ سنج">
+    </div>
+  </div>
+  <div class="rows">
+    <div class="row">
+      <div class="cell"><div class="shot"><img src="../screenshots/sanj-onboarding.png" alt=""></div><p>آشنایی</p></div>
+      <div class="cell"><div class="shot"><img src="../screenshots/sanj-login.png" alt=""></div><p>ورود</p></div>
+      <div class="cell"><div class="shot"><img src="../screenshots/sanj-home.png" alt=""></div><p>خانه</p></div>
+      <div class="cell"><div class="shot"><img src="../screenshots/sanj-add-filled.png" alt=""></div><p>ثبت</p></div>
+      <div class="cell"><div class="shot"><img src="../screenshots/sanj-ledger.png" alt=""></div><p>دفتر</p></div>
+      <div class="cell"><div class="shot"><img src="../screenshots/sanj-accounts.png" alt=""></div><p>حساب‌ها</p></div>
+    </div>
+    <div class="row">
+      <div class="cell"><div class="shot"><img src="../screenshots/sanj-budgets.png" alt=""></div><p>بودجه</p></div>
+      <div class="cell"><div class="shot"><img src="../screenshots/sanj-investments.png" alt=""></div><p>سرمایه‌گذاری</p></div>
+      <div class="cell"><div class="shot"><img src="../screenshots/sanj-asset.png" alt=""></div><p>دارایی</p></div>
+      <div class="cell"><div class="shot"><img src="../screenshots/sanj-reports.png" alt=""></div><p>گزارش</p></div>
+      <div class="cell"><div class="shot"><img src="../screenshots/sanj-settings.png" alt=""></div><p>تنظیمات</p></div>
+    </div>
+  </div>
+<script>document.fonts.ready.then(() => document.documentElement.classList.add("ready"));</script>
+</body>
+</html>
