@@ -1,6 +1,6 @@
 import * as db from '../db/db'
 import { clearLock } from './applock'
-import { clearCloudDirty, loadSession, saveSession, withoutSync } from './sync'
+import { clearCloudDirty, loadSession, saveSession, signOutCloud, withoutSync } from './sync'
 
 const VERIFIER = 'hy-account-verifier'
 let rememberedPassword = ''
@@ -43,18 +43,46 @@ export async function checkPasswordVerifier(password: string): Promise<boolean> 
   }
 }
 
+const PER_USER_LOCAL_KEYS = [
+  'hy-cloud-seen',
+  'hy-cloud-dirty',
+  VERIFIER,
+  'hy_accounts_manual_order',
+  'hy_cards_manual_order',
+  'hy_plans_manual_order',
+  'hy_debts_manual_order',
+  'hy_cheques_manual_order',
+  'hy-goal-markets',
+  'hy-inv-markets',
+]
+
+function clearAccountResidue() {
+  clearCloudDirty()
+  for (const key of PER_USER_LOCAL_KEYS) localStorage.removeItem(key)
+  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+    const key = localStorage.key(i)
+    if (key?.startsWith('hy-share-seen:')) localStorage.removeItem(key)
+  }
+  clearLock()
+  saveSession(null)
+  rememberedPassword = ''
+  sessionStorage.removeItem('hy-device')
+}
+
 export async function logoutCompletely() {
-  await withoutSync(async () => {
-    clearCloudDirty()
-    localStorage.removeItem('hy-cloud-seen')
-    localStorage.removeItem('hy-cloud-dirty')
-    localStorage.removeItem(VERIFIER)
-    clearLock()
-    saveSession(null)
-    rememberedPassword = ''
-    await db.clearAllData()
-  })
-  window.location.reload()
+  try {
+    await withoutSync(async () => {
+      await signOutCloud('local')
+      clearAccountResidue()
+      try {
+        await db.clearAllData()
+      } catch {
+        // A busy database must not keep the previous account on this device.
+      }
+    })
+  } finally {
+    window.location.reload()
+  }
 }
 
 export function hasCloudAccount() {
