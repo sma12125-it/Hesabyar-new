@@ -6,6 +6,8 @@ import { useExtras } from '../store/Extras'
 import { CardFormSheet } from '../components/CardFormSheet'
 import { AccountRow } from '../components/TxRow'
 import { SettingsButton } from '../components/SettingsButton'
+import { IncomingShares, ShareByHandle } from '../components/ShareByHandle'
+import { shareableCard } from '../lib/profile'
 import { BankCardFace } from '../components/BankCardFace'
 import { VaultRecover } from '../components/VaultRecover'
 import type { AccountClassification } from '../types'
@@ -252,6 +254,8 @@ export function AccountsPage({
         </div>
         <SettingsButton showLabel={true} />
       </div>
+
+      <IncomingShares />
 
       {/* KPI Cards */}
       <div
@@ -827,6 +831,7 @@ export function AccountsPage({
                             اشتراک
                           </button>
                         ) : null}
+                        <ShareByHandle kind="card" localId={card.id} title={card.bankName || 'کارت'} payload={shareableCard(card)} />
                         <button className="cat-mini" type="button" onClick={() => setCardId(card.id)}>
                           ویرایش
                         </button>

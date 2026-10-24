@@ -5,6 +5,13 @@ import { loadSession, signIn } from '../lib/sync'
 import { openCards, sealCards, unwrapText, validateCard, wrapText } from '../lib/vault'
 import { createId } from '../lib/ids'
 import {
+  collectDeletedExpenseIds,
+  isDongGuest,
+  isSharedDong,
+  mergeSharedDong,
+  stampDongExpenses,
+} from '../lib/profile'
+import {
   migrateInvestmentAsset,
   prepareInvestments,
   recomputeAsset,
@@ -61,6 +68,7 @@ interface ExtrasValue {
   deleteInvestmentTransaction: (assetId: string, txId: string) => Promise<InvestmentAsset>
   saveDongEvent: (event: Omit<DongEvent, 'id' | 'createdAt'> & { id?: string }) => Promise<DongEvent>
   deleteDongEvent: (id: string) => Promise<void>
+  absorbSharedDong: (incoming: DongEvent[]) => Promise<void>
   saveCheque: (cheque: Omit<Cheque, 'id' | 'createdAt'> & { id?: string }) => Promise<Cheque>
   deleteCheque: (id: string) => Promise<void>
   updateChequeStatus: (id: string, status: ChequeStatus, clearedDate?: string) => Promise<void>
@@ -75,6 +83,18 @@ interface ExtrasValue {
 
 const ExtrasContext = createContext<ExtrasValue | null>(null)
 const emptyReminder: ReminderSettings = { enabled: false, leadDays: 2 }
+
+function structureSig(event: Partial<DongEvent>): string {
+  return JSON.stringify({
+    title: event.title ?? '',
+    date: event.date ?? '',
+    participants: event.participants ?? [],
+    groups: event.groups ?? [],
+    madreKharj: event.madreKharj ?? null,
+    settled: Boolean(event.settled),
+    note: event.note ?? '',
+  })
+}
 
 function compactDigits(value: number): string {
   const rounded = Math.round(value * 10) / 10
@@ -741,11 +761,39 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       saveDongEvent: async (event) => {
         const existing = event.id ? dongEventsRef.current.find((item) => item.id === event.id) : undefined
         const now = Date.now()
-        const row: DongEvent = {
-          ...event,
-          id: existing?.id ?? createId('dong'),
-          createdAt: existing?.createdAt ?? now,
-          updatedAt: now,
+        const shared = isSharedDong(existing) || isSharedDong(event)
+        const expenses = shared ? stampDongExpenses(existing?.expenses, event.expenses ?? [], now) : (event.expenses ?? [])
+        let row: DongEvent
+        if (existing && isDongGuest(existing)) {
+          row = {
+            ...existing,
+            expenses,
+            deletedExpenseIds: collectDeletedExpenseIds(existing, expenses),
+            note: event.note ?? existing.note,
+            updatedAt: now,
+          }
+        } else if (!shared) {
+          row = {
+            ...event,
+            id: existing?.id ?? createId('dong'),
+            createdAt: existing?.createdAt ?? now,
+            updatedAt: now,
+          }
+        } else {
+          const structureChanged = !existing || structureSig(existing) !== structureSig(event)
+          row = {
+            ...event,
+            expenses,
+            deletedExpenseIds: collectDeletedExpenseIds({ ...(existing ?? event), remoteId: event.remoteId ?? existing?.remoteId, shareRole: event.shareRole ?? existing?.shareRole, memberLinks: event.memberLinks ?? existing?.memberLinks } as DongEvent, expenses),
+            id: existing?.id ?? createId('dong'),
+            createdAt: existing?.createdAt ?? now,
+            updatedAt: now,
+            remoteId: event.remoteId ?? existing?.remoteId,
+            shareRole: event.shareRole ?? existing?.shareRole,
+            memberLinks: event.memberLinks !== undefined ? event.memberLinks : existing?.memberLinks,
+            linksUpdatedAt: event.linksUpdatedAt ?? existing?.linksUpdatedAt,
+            structureUpdatedAt: structureChanged ? now : existing?.structureUpdatedAt ?? existing?.updatedAt ?? now,
+          }
         }
         const next = dongEventsRef.current.some((item) => item.id === row.id)
           ? dongEventsRef.current.map((item) => (item.id === row.id ? row : item))
@@ -758,12 +806,55 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         return row
       },
       deleteDongEvent: async (id) => {
+        const existing = dongEventsRef.current.find((item) => item.id === id)
+        if (existing && isDongGuest(existing)) {
+          throw new Error('حذف این سفر فقط برای صاحب آن ممکن است')
+        }
         const next = dongEventsRef.current.filter((item) => item.id !== id)
         dongEventsRef.current = next
         setDongEvents(next)
         await db.setKv('dongEvents', next)
         const { notifyLocalChange } = await import('../lib/sync')
         notifyLocalChange()
+        if (existing?.remoteId) {
+          void import('../lib/profileApi').then(({ deleteRemoteDong }) => deleteRemoteDong(existing.remoteId as string)).catch(() => {
+            // The local copy is already gone. The next share refresh can retry.
+          })
+        }
+      },
+      absorbSharedDong: async (incoming) => {
+        const { withoutSync } = await import('../lib/sync')
+        await withoutSync(async () => {
+          const local = dongEventsRef.current
+          const memberRemoteIds = new Set(
+            incoming.filter((item) => item.shareRole === 'member' && item.remoteId).map((item) => item.remoteId),
+          )
+          let next = local.filter((item) => item.shareRole !== 'member' || (item.remoteId && memberRemoteIds.has(item.remoteId)))
+          let changed = next.length !== local.length
+          for (const remote of incoming) {
+            const idx = next.findIndex(
+              (item) =>
+                (remote.remoteId && item.remoteId === remote.remoteId) ||
+                (remote.shareRole !== 'member' && item.id === remote.id),
+            )
+            if (idx < 0) {
+              if (remote.shareRole === 'member') {
+                next = [...next, remote]
+                changed = true
+              }
+              continue
+            }
+            const merged = mergeSharedDong(next[idx], remote)
+            if (JSON.stringify(merged) !== JSON.stringify(next[idx])) {
+              next = next.map((item, index) => (index === idx ? merged : item))
+              changed = true
+            }
+          }
+          if (!changed) return
+          dongEventsRef.current = next
+          setDongEvents(next)
+          await db.setKv('dongEvents', next)
+        })
       },
       saveCheque,
       deleteCheque,

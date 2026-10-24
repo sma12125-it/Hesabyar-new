@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { PatternLock } from '../components/PatternLock'
 import { SyncSheet } from '../components/SyncSheet'
 import { SupabaseConfigSheet } from '../components/SupabaseConfigSheet'
@@ -915,6 +915,17 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
             </div>
             <span className="hero-chevron" aria-hidden="true">‹</span>
           </div>
+
+          <Link to="/profile" className="settings-hero-card lg" style={{ textDecoration: 'none', marginTop: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <span className="hero-theme-icon">👤</span>
+              <div>
+                <div className="hero-theme-title">پروفایل و شناسه اختصاصی</div>
+                <div className="hero-theme-sub">نام، تماس، تصویر و شناسه یکتا برای اشتراک دونگ و کارت</div>
+              </div>
+            </div>
+            <span className="hero-chevron" aria-hidden="true">‹</span>
+          </Link>
 
           {/* Categorized Settings Navigation List */}
           <div className="settings-groups-wrap">

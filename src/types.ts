@@ -268,6 +268,15 @@ export interface DongExpenseItem {
   splitMode?: 'equal' | 'custom'
   customShares?: Record<string, number>
   date?: string
+  /** Set when a shared دونگ edits this expense. Absent on older rows. */
+  updatedAt?: number
+}
+
+/** A دونگ participant linked to another Hesabyar user by handle. */
+export interface DongMemberLink {
+  participantId: string
+  handle: string
+  displayName: string
 }
 
 /** Extra money a member puts in the pot after the per-member amount. */
@@ -309,6 +318,17 @@ export interface DongEvent {
   settledTransfers?: string[]
   createdAt: number
   updatedAt?: number
+  /** Supabase id after the event is shared. Absent until the owner shares it. */
+  remoteId?: string
+  /** Missing means this device owns the event, including every event created before sharing. */
+  shareRole?: 'owner' | 'member'
+  memberLinks?: DongMemberLink[]
+  /** Bumped only when membership, groups, or مادرخرج change. */
+  structureUpdatedAt?: number
+  /** Bumped when member links change, so a revoked handle does not come back. */
+  linksUpdatedAt?: number
+  /** Expense ids removed after the event was shared. */
+  deletedExpenseIds?: string[]
 }
 
 export interface ReminderSettings {

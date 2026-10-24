@@ -2753,3 +2753,63 @@ button.cat-mini.active {
   font-weight: 700;
   color: var(--hy-accent);
 }
+
+.profile-card { display: flex; flex-direction: column; gap: 14px; margin-top: 12px; }
+.profile-head { display: flex; align-items: center; gap: 14px; }
+.profile-head strong { font-size: 16px; color: var(--hy-text); }
+.profile-avatar {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: var(--hy-input-bg);
+  border: 1px solid var(--hy-border-color);
+  color: var(--hy-text);
+  font-size: 28px;
+  font-weight: 800;
+  cursor: pointer;
+  position: relative;
+}
+.profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.profile-avatar input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.profile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+.profile-grid label, .profile-about { display: flex; flex-direction: column; gap: 6px; font-size: 12px; font-weight: 700; color: var(--hy-text-secondary); }
+.handle-ok, .handle-bad, .handle-wait { font-size: 11px; font-weight: 700; }
+.handle-ok { color: var(--hy-income); }
+.handle-bad { color: var(--hy-expense, #ef4444); }
+.handle-wait { color: var(--hy-text-secondary); }
+.share-handle-row, .share-note {
+  display: flex;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  font-size: 12px;
+  color: var(--hy-text);
+}
+.share-handle-row .field-input { flex: 1 1 140px; min-width: 0; height: 34px; }
+.share-handle-row .cat-mini { flex: 0 0 auto; }
+.share-handle-panel { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.share-by-handle { margin-top: 8px; }
+.share-incoming { margin-top: 14px; }
+.share-incoming h2 { margin: 0 0 4px; font-size: 15px; }
+.share-incoming-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-top: 8px; }
+.share-incoming-card {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--hy-border-color);
+  background: var(--hy-input-bg);
+  color: var(--hy-text);
+}
+.share-incoming-title { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 800; margin-bottom: 8px; }
+.share-incoming-title span { font-weight: 700; color: var(--hy-accent); }
+.share-incoming-card dl { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.share-incoming-card dl div { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+.share-incoming-card dt { color: var(--hy-text-secondary); }
+.share-incoming-card dd { margin: 0; font-weight: 700; }

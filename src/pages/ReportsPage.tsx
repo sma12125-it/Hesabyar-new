@@ -20,7 +20,9 @@ import {
   MADRE_KHARJ_PAYER_ID,
   memberHasPotRole,
 } from '../lib/dong'
+import { isDongGuest } from '../lib/profile'
 import { MadreKharjOverview, MadreKharjSetup, MemberPotFigures } from '../components/MadreKharjSetup'
+import { DongMemberShare } from '../components/DongMemberShare'
 import type {
   CardMarket,
   InvestmentMarket,
@@ -3502,6 +3504,16 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                                     مادرخرج
                                   </span>
                                 ) : null}
+                                {evt.shareRole === 'member' ? (
+                                  <span style={{ color: 'var(--hy-accent)', marginRight: 8, fontWeight: 700 }}>
+                                    اشتراکی
+                                  </span>
+                                ) : null}
+                                {evt.memberLinks && evt.memberLinks.length > 0 ? (
+                                  <span style={{ color: 'var(--hy-accent)', marginRight: 8, fontWeight: 700 }}>
+                                    شناسه
+                                  </span>
+                                ) : null}
                                 {evt.settled ? (
                                   <span style={{ color: 'var(--hy-income)', marginRight: 8, fontWeight: 700 }}>
                                     ✓ تسویه شده
@@ -3522,29 +3534,33 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                               >
                                 مشاهده و تسویه ←
                               </button>
-                              <button
-                                className="cat-mini"
-                                type="button"
-                                title={evt.settled ? 'بازگردانی به رویدادهای فعال' : 'اتمام و انتقال به تسویه شده'}
-                                onClick={() => {
-                                  void saveDongEvent({ ...evt, settled: !evt.settled })
-                                  notifyUser(evt.settled ? 'رویداد به حالت فعال برگشت' : 'رویداد پایان یافت و تسویه شد')
-                                }}
-                              >
-                                {evt.settled ? '↺ فعال کردن' : '✓ پایان و تسویه'}
-                              </button>
-                              <button
-                                className="cat-mini danger"
-                                type="button"
-                                onClick={() => {
-                                  if (confirm(`آیا از حذف رویداد «${evt.title}» اطمینان دارید؟`)) {
-                                    void deleteDongEvent(evt.id)
-                                    notifyUser('رویداد حذف شد')
-                                  }
-                                }}
-                              >
-                                حذف
-                              </button>
+                              {evt.shareRole === 'member' ? null : (
+                                <button
+                                  className="cat-mini"
+                                  type="button"
+                                  title={evt.settled ? 'بازگردانی به رویدادهای فعال' : 'اتمام و انتقال به تسویه شده'}
+                                  onClick={() => {
+                                    void saveDongEvent({ ...evt, settled: !evt.settled })
+                                    notifyUser(evt.settled ? 'رویداد به حالت فعال برگشت' : 'رویداد پایان یافت و تسویه شد')
+                                  }}
+                                >
+                                  {evt.settled ? '↺ فعال کردن' : '✓ پایان و تسویه'}
+                                </button>
+                              )}
+                              {evt.shareRole === 'member' ? null : (
+                                <button
+                                  className="cat-mini danger"
+                                  type="button"
+                                  onClick={() => {
+                                    if (confirm(`آیا از حذف رویداد «${evt.title}» اطمینان دارید؟`)) {
+                                      void deleteDongEvent(evt.id)
+                                      notifyUser('رویداد حذف شد')
+                                    }
+                                  }}
+                                >
+                                  حذف
+                                </button>
+                              )}
                             </div>
                           </div>
                         )
@@ -3753,20 +3769,24 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                   )}
                 </div>
 
-                <button
-                  className="cat-mini"
-                  type="button"
-                  style={{
-                    background: selectedDongEvent.settled ? 'rgba(16, 185, 129, 0.18)' : 'rgba(255,255,255,0.1)',
-                    color: selectedDongEvent.settled ? 'var(--hy-income)' : 'var(--hy-text)',
-                  }}
-                  onClick={() => {
-                    void saveDongEvent({ ...selectedDongEvent, settled: !selectedDongEvent.settled })
-                    notifyUser(selectedDongEvent.settled ? 'رویداد به حالت فعال بازگردانده شد' : 'رویداد تسویه اعلام شد')
-                  }}
-                >
-                  {selectedDongEvent.settled ? '↺ بازگردانی به فعال' : '✓ پایان و علامت تسویه'}
-                </button>
+                {isDongGuest(selectedDongEvent) ? (
+                  <span className="share-note">این سفر با شما به اشتراک گذاشته شده</span>
+                ) : (
+                  <button
+                    className="cat-mini"
+                    type="button"
+                    style={{
+                      background: selectedDongEvent.settled ? 'rgba(16, 185, 129, 0.18)' : 'rgba(255,255,255,0.1)',
+                      color: selectedDongEvent.settled ? 'var(--hy-income)' : 'var(--hy-text)',
+                    }}
+                    onClick={() => {
+                      void saveDongEvent({ ...selectedDongEvent, settled: !selectedDongEvent.settled })
+                      notifyUser(selectedDongEvent.settled ? 'رویداد به حالت فعال بازگردانده شد' : 'رویداد تسویه اعلام شد')
+                    }}
+                  >
+                    {selectedDongEvent.settled ? '↺ بازگردانی به فعال' : '✓ پایان و علامت تسویه'}
+                  </button>
+                )}
               </div>
 
               {/* Quick Actions & Event Summary Bar */}
@@ -5170,8 +5190,13 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                     {/* TAB 1: MEMBERS */}
                     {membersModalTab === 'members' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                        {isDongGuest(selectedDongEvent) ? (
+                          <p className="sheet-sub">
+                            این سفر با شما به اشتراک گذاشته شده. ثبت خرج برای شما باز است. تغییر افراد، گروه‌ها و مادرخرج فقط با صاحب سفر است.
+                          </p>
+                        ) : null}
                         {/* Add new member form */}
-                        <div
+                        {isDongGuest(selectedDongEvent) ? null : <div
                           style={{
                             padding: '12px 14px',
                             borderRadius: 14,
@@ -5219,7 +5244,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                               + افزودن فرد
                             </button>
                           </div>
-                        </div>
+                        </div>}
 
                         {/* List of current members with inline edit and delete */}
                         <div>
@@ -5241,6 +5266,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                                   key={p.id}
                                   style={{
                                     display: 'flex',
+                                    flexWrap: 'wrap',
                                     justifyContent: 'space-between',
                                     alignItems: 'center',
                                     padding: '8px 12px',
@@ -5317,7 +5343,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                                         ))}
                                       </div>
 
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      {isDongGuest(selectedDongEvent) ? null : <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                         <button
                                           type="button"
                                           className="cat-mini"
@@ -5374,9 +5400,10 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                                             ✕ حذف
                                           </button>
                                         ) : null}
-                                      </div>
+                                      </div>}
                                     </>
                                   )}
+                                  <DongMemberShare event={selectedDongEvent} participant={p} />
                                 </div>
                               )
                             })}
