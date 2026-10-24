@@ -11,6 +11,16 @@ import { useStore } from '../store/Store'
 import { notifyUser } from '../lib/sync'
 import { TSE_INSTRUMENTS, normalizePersian } from '../lib/tseCatalog'
 import { formatPersianDateFull } from '../lib/dates'
+import {
+  computeDongSettlement,
+  defaultDongPayerId,
+  dongPayerLabel,
+  emptyDongSummary,
+  isMadreKharjEnabled,
+  MADRE_KHARJ_PAYER_ID,
+  memberHasPotRole,
+} from '../lib/dong'
+import { MadreKharjOverview, MadreKharjSetup, MemberPotFigures } from '../components/MadreKharjSetup'
 import type {
   CardMarket,
   InvestmentMarket,
@@ -20,251 +30,6 @@ import type {
   InvestmentTransaction,
   InvestmentTransactionType,
 } from '../types'
-
-export interface SettlementTransfer {
-  id: string
-  fromId: string
-  fromName: string
-  toId: string
-  toName: string
-  amount: number
-  settled: boolean
-}
-
-export interface DongParticipantBalance {
-  id: string
-  name: string
-  paid: number
-  share: number
-  net: number // paid - share (positive = creditor, negative = debtor)
-}
-
-export interface DongGroupBalance {
-  id: string
-  name: string
-  memberIds: string[]
-  paid: number
-  share: number
-  net: number
-  memberBalances: DongParticipantBalance[]
-}
-
-export interface DongCalculationSummary {
-  transfers: SettlementTransfer[]
-  balances: DongParticipantBalance[]
-  groupBalances: DongGroupBalance[]
-  ungroupedBalances: DongParticipantBalance[]
-  groupTransfers: SettlementTransfer[]
-  totalCost: number
-}
-
-export function computeDongSettlement(event: DongEvent): DongCalculationSummary {
-  const participants = event.participants
-  if (participants.length === 0) {
-    return {
-      transfers: [],
-      balances: [],
-      groupBalances: [],
-      ungroupedBalances: [],
-      groupTransfers: [],
-      totalCost: 0,
-    }
-  }
-
-  const paidMap = new Map<string, number>()
-  const shareMap = new Map<string, number>()
-  for (const p of participants) {
-    paidMap.set(p.id, 0)
-    shareMap.set(p.id, 0)
-  }
-
-  let totalCost = 0
-
-  for (const exp of event.expenses) {
-    if (exp.amount <= 0) continue
-    totalCost += exp.amount
-
-    // Credit payer
-    paidMap.set(exp.paidById, (paidMap.get(exp.paidById) ?? 0) + exp.amount)
-
-    // Beneficiaries
-    const splits =
-      exp.splitAmongIds && exp.splitAmongIds.length > 0
-        ? exp.splitAmongIds
-        : participants.map((p) => p.id)
-
-    if (splits.length === 0) continue
-
-    if (exp.splitMode === 'custom' && exp.customShares) {
-      let sumCustom = 0
-      for (const id of splits) {
-        sumCustom += exp.customShares[id] ?? 0
-      }
-
-      if (sumCustom > 0) {
-        let allocated = 0
-        splits.forEach((id, idx) => {
-          if (idx === splits.length - 1) {
-            const lastShare = Math.max(0, exp.amount - allocated)
-            shareMap.set(id, (shareMap.get(id) ?? 0) + lastShare)
-          } else {
-            const rawRatio = (exp.customShares![id] ?? 0) / sumCustom
-            const share = Math.round(rawRatio * exp.amount)
-            allocated += share
-            shareMap.set(id, (shareMap.get(id) ?? 0) + share)
-          }
-        })
-      } else {
-        const count = splits.length
-        const baseShare = Math.floor(exp.amount / count)
-        const remainder = exp.amount % count
-        splits.forEach((id, idx) => {
-          const share = baseShare + (idx < remainder ? 1 : 0)
-          shareMap.set(id, (shareMap.get(id) ?? 0) + share)
-        })
-      }
-    } else {
-      // Equal split
-      const count = splits.length
-      const baseShare = Math.floor(exp.amount / count)
-      const remainder = exp.amount % count
-      splits.forEach((id, idx) => {
-        const share = baseShare + (idx < remainder ? 1 : 0)
-        shareMap.set(id, (shareMap.get(id) ?? 0) + share)
-      })
-    }
-  }
-
-  // Calculate net balances for all participants
-  const balances: DongParticipantBalance[] = participants.map((p) => {
-    const paid = paidMap.get(p.id) ?? 0
-    const share = shareMap.get(p.id) ?? 0
-    return {
-      id: p.id,
-      name: p.name,
-      paid,
-      share,
-      net: paid - share,
-    }
-  })
-
-  // Debtors (net < -5) and Creditors (net > 5)
-  const debtors = balances
-    .filter((b) => b.net < -5)
-    .map((b) => ({ id: b.id, name: b.name, remaining: -b.net }))
-    .sort((a, b) => b.remaining - a.remaining)
-
-  const creditors = balances
-    .filter((b) => b.net > 5)
-    .map((b) => ({ id: b.id, name: b.name, remaining: b.net }))
-    .sort((a, b) => b.remaining - a.remaining)
-
-  const transfers: SettlementTransfer[] = []
-  let dIdx = 0
-  let cIdx = 0
-  const settledSet = new Set(event.settledTransfers || [])
-
-  while (dIdx < debtors.length && cIdx < creditors.length) {
-    const debtor = debtors[dIdx]
-    const creditor = creditors[cIdx]
-    const pay = Math.min(debtor.remaining, creditor.remaining)
-
-    if (pay >= 1) {
-      const transferId = `${debtor.id}_to_${creditor.id}`
-      transfers.push({
-        id: transferId,
-        fromId: debtor.id,
-        fromName: debtor.name,
-        toId: creditor.id,
-        toName: creditor.name,
-        amount: Math.round(pay),
-        settled: settledSet.has(transferId),
-      })
-    }
-
-    debtor.remaining -= pay
-    creditor.remaining -= pay
-
-    if (debtor.remaining < 1) dIdx++
-    if (creditor.remaining < 1) cIdx++
-  }
-
-  // Group aggregates
-  const groupBalances: DongGroupBalance[] = []
-  let ungroupedBalances: DongParticipantBalance[] = []
-  const groupTransfers: SettlementTransfer[] = []
-
-  if (event.groups && event.groups.length > 0) {
-    const groupedMemberIdSet = new Set<string>()
-
-    for (const g of event.groups) {
-      const members = g.memberIds
-        .map((mid) => balances.find((b) => b.id === mid))
-        .filter((b): b is DongParticipantBalance => Boolean(b))
-
-      members.forEach((m) => groupedMemberIdSet.add(m.id))
-
-      const gPaid = members.reduce((s, m) => s + m.paid, 0)
-      const gShare = members.reduce((s, m) => s + m.share, 0)
-      const gNet = gPaid - gShare
-
-      groupBalances.push({
-        id: g.id,
-        name: g.name,
-        memberIds: g.memberIds,
-        paid: gPaid,
-        share: gShare,
-        net: gNet,
-        memberBalances: members,
-      })
-    }
-
-    ungroupedBalances = balances.filter((b) => !groupedMemberIdSet.has(b.id))
-
-    // Entities for group-level settlement: each group + each ungrouped person
-    type SettleEntity = { id: string; name: string; remaining: number }
-    const groupDebtors: SettleEntity[] = []
-    const groupCreditors: SettleEntity[] = []
-
-    for (const gb of groupBalances) {
-      if (gb.net < -5) groupDebtors.push({ id: gb.id, name: `گروه ${gb.name}`, remaining: -gb.net })
-      else if (gb.net > 5) groupCreditors.push({ id: gb.id, name: `گروه ${gb.name}`, remaining: gb.net })
-    }
-    for (const ub of ungroupedBalances) {
-      if (ub.net < -5) groupDebtors.push({ id: ub.id, name: ub.name, remaining: -ub.net })
-      else if (ub.net > 5) groupCreditors.push({ id: ub.id, name: ub.name, remaining: ub.net })
-    }
-
-    groupDebtors.sort((a, b) => b.remaining - a.remaining)
-    groupCreditors.sort((a, b) => b.remaining - a.remaining)
-
-    let gdIdx = 0
-    let gcIdx = 0
-    while (gdIdx < groupDebtors.length && gcIdx < groupCreditors.length) {
-      const d = groupDebtors[gdIdx]
-      const c = groupCreditors[gcIdx]
-      const pay = Math.min(d.remaining, c.remaining)
-      if (pay >= 1) {
-        const trId = `grp_${d.id}_to_${c.id}`
-        groupTransfers.push({
-          id: trId,
-          fromId: d.id,
-          fromName: d.name,
-          toId: c.id,
-          toName: c.name,
-          amount: Math.round(pay),
-          settled: settledSet.has(trId),
-        })
-      }
-      d.remaining -= pay
-      c.remaining -= pay
-      if (d.remaining < 1) gdIdx++
-      if (c.remaining < 1) gcIdx++
-    }
-  }
-
-  return { transfers, balances, groupBalances, ungroupedBalances, groupTransfers, totalCost }
-}
 
 export function recomputeAssetFromTransactions(
   asset: InvestmentAsset,
@@ -838,16 +603,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
     [dongEvents, selectedDongId]
   )
   const dongSummary = useMemo(() => {
-    if (!selectedDongEvent) {
-      return {
-        transfers: [],
-        balances: [],
-        groupBalances: [],
-        ungroupedBalances: [],
-        groupTransfers: [],
-        totalCost: 0,
-      }
-    }
+    if (!selectedDongEvent) return emptyDongSummary()
     return computeDongSettlement(selectedDongEvent)
   }, [selectedDongEvent])
 
@@ -862,7 +618,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
   // Dong Modals & Grouping UI State
   const [isDongExpenseModalOpen, setIsDongExpenseModalOpen] = useState(false)
   const [isDongMembersAndGroupsModalOpen, setIsDongMembersAndGroupsModalOpen] = useState(false)
-  const [membersModalTab, setMembersModalTab] = useState<'members' | 'groups'>('members')
+  const [membersModalTab, setMembersModalTab] = useState<'members' | 'groups' | 'madre'>('members')
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(new Set())
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null)
   const [groupNameInput, setGroupNameInput] = useState('')
@@ -3741,6 +3497,11 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                                 <span>{toFaDigits(evt.participants.length)} نفر حاضر</span>
                                 <span style={{ margin: '0 6px', opacity: 0.5 }}>·</span>
                                 <span>کل مخارج: <b>{formatMoney(totalCost)}</b></span>
+                                {isMadreKharjEnabled(evt) ? (
+                                  <span style={{ color: 'var(--hy-accent)', marginRight: 8, fontWeight: 700 }}>
+                                    مادرخرج
+                                  </span>
+                                ) : null}
                                 {evt.settled ? (
                                   <span style={{ color: 'var(--hy-income)', marginRight: 8, fontWeight: 700 }}>
                                     ✓ تسویه شده
@@ -3943,7 +3704,9 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           void saveDongEvent(newEvent).then((saved) => {
                             setSelectedDongId(saved.id)
                             setIsCreateDongOpen(false)
-                            notifyUser('رویداد دونگ با موفقیت ساخته شد')
+                            setMembersModalTab('groups')
+                            setIsDongMembersAndGroupsModalOpen(true)
+                            notifyUser('رویداد ساخته شد. گروه‌ها را مشخص کنید؛ تعیین مادرخرج در مرحله بعد اختیاری است.')
                           })
                         }}
                       >
@@ -4036,7 +3799,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                     setEditingExpId(null)
                     setNewExpTitle('')
                     setNewExpAmount('')
-                    setNewExpPayer(selectedDongEvent.participants[0]?.id || '')
+                    setNewExpPayer(defaultDongPayerId(selectedDongEvent))
                     setNewExpSplits(selectedDongEvent.participants.map((p) => p.id))
                     setNewExpSplitMode('equal')
                     setNewExpCustomAmounts({})
@@ -4073,13 +3836,55 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                 >
                   <span style={{ fontSize: 16 }}>👥</span>
                   <span>
-                    افراد و گروه‌ها ({toFaDigits(selectedDongEvent.participants.length)} نفر
+                    تنظیم گروه ({toFaDigits(selectedDongEvent.participants.length)} نفر
                     {selectedDongEvent.groups && selectedDongEvent.groups.length > 0
                       ? ` · ${toFaDigits(selectedDongEvent.groups.length)} گروه`
                       : ''}
+                    {isMadreKharjEnabled(selectedDongEvent) ? ' · مادرخرج' : ''}
                     )
                   </span>
                 </button>
+              </div>
+
+              <div className="madre-card" style={{ padding: '10px 12px' }}>
+                <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginBottom: 6 }}>
+                  مراحل تنظیم گروه: افراد، سپس گروه‌ها، و بعد مادرخرج که اختیاری است
+                </div>
+                <div className="seg" style={{ margin: 0 }}>
+                  <button
+                    type="button"
+                    className="seg-btn"
+                    style={{ fontSize: 12, padding: '6px 4px' }}
+                    onClick={() => {
+                      setMembersModalTab('members')
+                      setIsDongMembersAndGroupsModalOpen(true)
+                    }}
+                  >
+                    ۱. افراد
+                  </button>
+                  <button
+                    type="button"
+                    className="seg-btn"
+                    style={{ fontSize: 12, padding: '6px 4px' }}
+                    onClick={() => {
+                      setMembersModalTab('groups')
+                      setIsDongMembersAndGroupsModalOpen(true)
+                    }}
+                  >
+                    ۲. گروه‌ها
+                  </button>
+                  <button
+                    type="button"
+                    className={`seg-btn${isMadreKharjEnabled(selectedDongEvent) ? ' active' : ''}`}
+                    style={{ fontSize: 12, padding: '6px 4px' }}
+                    onClick={() => {
+                      setMembersModalTab('madre')
+                      setIsDongMembersAndGroupsModalOpen(true)
+                    }}
+                  >
+                    ۳. مادرخرج{isMadreKharjEnabled(selectedDongEvent) ? ' ✓' : ' (اختیاری)'}
+                  </button>
+                </div>
               </div>
 
               {/* Event KPI Strip */}
@@ -4159,6 +3964,34 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                     {toFaDigits(activeDongTransfers.length)} پرداخت
                   </div>
                 </div>
+
+                <div
+                  style={{
+                    padding: '10px 14px',
+                    borderRadius: 12,
+                    background: 'rgba(255, 255, 255, 0.04)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setMembersModalTab('madre')
+                    setIsDongMembersAndGroupsModalOpen(true)
+                  }}
+                  title="تعیین مادرخرج"
+                >
+                  <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)', marginBottom: 2 }}>
+                    {dongSummary.potActive ? 'موجودی مادرخرج' : 'مادرخرج (اختیاری)'}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 15,
+                      fontWeight: 900,
+                      color: dongSummary.potBalance < 0 ? 'var(--hy-expense)' : dongSummary.potActive ? 'var(--hy-income)' : 'var(--hy-text-secondary)',
+                    }}
+                  >
+                    {dongSummary.potActive ? formatMoney(dongSummary.potBalance) : 'تعیین نشده'}
+                  </div>
+                </div>
               </div>
 
               {/* Expense List with Edit & Delete */}
@@ -4180,7 +4013,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {selectedDongEvent.expenses.map((exp) => {
-                      const payer = selectedDongEvent.participants.find((p) => p.id === exp.paidById)
+                      const payerName = dongPayerLabel(selectedDongEvent, exp.paidById)
                       return (
                         <div
                           key={exp.id}
@@ -4211,7 +4044,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                               </span>
                             </div>
                             <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4 }}>
-                              <span>پرداخت توسط: <b>{payer?.name || 'نامشخص'}</b></span>
+                              <span>پرداخت توسط: <b>{payerName}</b></span>
                               <span style={{ margin: '0 6px', opacity: 0.5 }}>·</span>
                               <span>
                                 سهم ({toFaDigits(exp.splitAmongIds.length)} نفر):{' '}
@@ -4284,6 +4117,16 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                   </div>
                 )}
               </div>
+
+              <MadreKharjOverview
+                event={selectedDongEvent}
+                summary={dongSummary}
+                formatMoney={formatMoney}
+                onEdit={() => {
+                  setMembersModalTab('madre')
+                  setIsDongMembersAndGroupsModalOpen(true)
+                }}
+              />
 
               {/* Participant & Group Balances Section */}
               <div
@@ -4399,6 +4242,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                               <span>مجموع پرداختی گروه:</span>
                               <b>{formatMoney(gb.paid)}</b>
                             </div>
+                            <MemberPotFigures deposits={gb.deposits} deficitCovered={gb.deficitCovered} formatMoney={formatMoney} />
                             <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
                               <span>مجموع سهم مصرفی گروه:</span>
                               <b>{formatMoney(gb.share)}</b>
@@ -4486,6 +4330,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                                         <span>پرداخت: {formatMoney(mb.paid)}</span>
                                         <span>سهم: {formatMoney(mb.share)}</span>
                                       </div>
+                                      <MemberPotFigures deposits={mb.deposits} deficitCovered={mb.deficitCovered} formatMoney={formatMoney} />
                                     </div>
                                   )
                                 })}
@@ -4547,6 +4392,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                                   <span>پرداخت کرده:</span>
                                   <b>{formatMoney(b.paid)}</b>
                                 </div>
+                                <MemberPotFigures deposits={b.deposits} deficitCovered={b.deficitCovered} formatMoney={formatMoney} />
                                 <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
                                   <span>سهم مصرفی:</span>
                                   <b>{formatMoney(b.share)}</b>
@@ -4624,6 +4470,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                               <span>پرداخت کرده:</span>
                               <b>{formatMoney(b.paid)}</b>
                             </div>
+                            <MemberPotFigures deposits={b.deposits} deficitCovered={b.deficitCovered} formatMoney={formatMoney} />
                             <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'flex', justifyContent: 'space-between', marginTop: 2 }}>
                               <span>سهم مصرفی:</span>
                               <b>{formatMoney(b.share)}</b>
@@ -4704,6 +4551,14 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                     </span>
                   ) : null}
                 </div>
+
+                {dongSummary.potActive ? (
+                  <p style={{ fontSize: 12, color: 'var(--hy-text)', margin: '0 0 8px', lineHeight: 1.7 }}>
+                    موجودی مادرخرج {formatMoney(dongSummary.potBalance)} است. واریز هر عضو جزو آورده اوست و سهمش از خرج‌های مادرخرج جزو مصرف، کنار خرجی که خودش پرداخته است.
+                    {dongSummary.potBalance > 5 ? ' مانده صندوق در همین فهرست به طلبکارها برمی‌گردد.' : ''}
+                    {dongSummary.potBalance < -5 ? ' کسری صندوق را مسئول مادرخرج از جیب داده و در طلب او حساب شده است.' : ''}
+                  </p>
+                ) : null}
 
                 {/* Group vs Individual Settlement Toggle (when groups exist) */}
                 {selectedDongEvent.groups && selectedDongEvent.groups.length > 0 && (
@@ -4869,10 +4724,13 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           </label>
                           <select
                             className="field-input"
-                            value={newExpPayer || selectedDongEvent.participants[0]?.id}
+                            value={newExpPayer || defaultDongPayerId(selectedDongEvent)}
                             onChange={(e) => setNewExpPayer(e.target.value)}
                             aria-label="پرداخت‌کننده"
                           >
+                            {(isMadreKharjEnabled(selectedDongEvent) || newExpPayer === MADRE_KHARJ_PAYER_ID) && (
+                              <option value={MADRE_KHARJ_PAYER_ID}>پرداخت از مادرخرج</option>
+                            )}
                             {selectedDongEvent.participants.map((p) => (
                               <option key={p.id} value={p.id}>
                                 پرداخت توسط: {p.name}
@@ -5165,7 +5023,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                               notifyUser('عنوان و مبلغ خرج الزامی است')
                               return
                             }
-                            const payerId = newExpPayer || selectedDongEvent.participants[0]?.id
+                            const payerId = newExpPayer || defaultDongPayerId(selectedDongEvent)
                             const targetSplits =
                               newExpSplits.length > 0 ? newExpSplits : selectedDongEvent.participants.map((p) => p.id)
 
@@ -5263,7 +5121,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
               {/* ────────────────── Modal 2: Manage Participants & Groups Modal ────────────────── */}
               {isDongMembersAndGroupsModalOpen && (
                 <WindowPopup
-                  title="مدیریت افراد حاضر و گروه‌بندی"
+                  title="تنظیم گروه: افراد، گروه‌ها، مادرخرج"
                   subtitle={selectedDongEvent.title}
                   icon="👥"
                   isOpen={true}
@@ -5275,25 +5133,37 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                     setEditingParticipantId(null)
                     setEventNewMemberInput('')
                   }}
-                  defaultWidth={560}
-                  defaultHeight={640}
+                  defaultWidth={600}
+                  defaultHeight={680}
                 >
                   <div className="sheet-body-scroll" style={{ padding: '6px 0 20px' }}>
-                    {/* Modal Tab Switcher */}
+                    <p className="sheet-sub" style={{ margin: '0 0 8px' }}>
+                      مرحله سوم اختیاری است. اگر مادرخرج را رد کنید، دونگ مثل قبل بین خود اعضا می‌ماند.
+                    </p>
                     <div className="seg" style={{ marginBottom: 14 }}>
                       <button
                         type="button"
                         className={`seg-btn${membersModalTab === 'members' ? ' active' : ''}`}
+                        style={{ fontSize: 12, padding: '8px 4px' }}
                         onClick={() => setMembersModalTab('members')}
                       >
-                        👤 افراد حاضر ({toFaDigits(selectedDongEvent.participants.length)} نفر)
+                        ۱. افراد
                       </button>
                       <button
                         type="button"
                         className={`seg-btn${membersModalTab === 'groups' ? ' active' : ''}`}
+                        style={{ fontSize: 12, padding: '8px 4px' }}
                         onClick={() => setMembersModalTab('groups')}
                       >
-                        👥 گروه‌بندی ({toFaDigits(selectedDongEvent.groups?.length || 0)} گروه)
+                        ۲. گروه‌ها
+                      </button>
+                      <button
+                        type="button"
+                        className={`seg-btn${membersModalTab === 'madre' ? ' active' : ''}`}
+                        style={{ fontSize: 12, padding: '8px 4px' }}
+                        onClick={() => setMembersModalTab('madre')}
+                      >
+                        ۳. مادرخرج{isMadreKharjEnabled(selectedDongEvent) ? ' ✓' : ''}
                       </button>
                     </div>
 
@@ -5359,9 +5229,12 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                             {selectedDongEvent.participants.map((p) => {
                               const userGroups = (selectedDongEvent.groups || []).filter((g) => g.memberIds.includes(p.id))
-                              const isReferencedInExpenses = selectedDongEvent.expenses.some(
-                                (e) => e.paidById === p.id || e.splitAmongIds.includes(p.id)
-                              )
+                              const lockedByPot = memberHasPotRole(selectedDongEvent, p.id)
+                              const isReferencedInExpenses =
+                                lockedByPot ||
+                                selectedDongEvent.expenses.some(
+                                  (e) => e.paidById === p.id || e.splitAmongIds.includes(p.id)
+                                )
 
                               return (
                                 <div
@@ -5457,6 +5330,9 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                                         >
                                           ✏️ ویرایش
                                         </button>
+                                        {lockedByPot ? (
+                                          <span style={{ fontSize: 10, color: 'var(--hy-text-secondary)' }}>در مادرخرج است</span>
+                                        ) : null}
                                         {selectedDongEvent.participants.length > 1 && !isReferencedInExpenses ? (
                                           <button
                                             type="button"
@@ -5473,10 +5349,23 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                                                   ...g,
                                                   memberIds: g.memberIds.filter((mid) => mid !== p.id),
                                                 }))
+                                                const mk = selectedDongEvent.madreKharj
+                                                const contributions = { ...(mk?.contributions ?? {}) }
+                                                delete contributions[p.id]
+                                                const removingResponsible = mk?.responsibleId === p.id
                                                 void saveDongEvent({
                                                   ...selectedDongEvent,
                                                   participants: updatedParticipants,
                                                   groups: updatedGroups,
+                                                  madreKharj: mk
+                                                    ? {
+                                                        ...mk,
+                                                        responsibleId: removingResponsible ? undefined : mk.responsibleId,
+                                                        enabled: removingResponsible ? false : mk.enabled,
+                                                        contributions,
+                                                        deposits: (mk.deposits ?? []).filter((d) => d.memberId !== p.id),
+                                                      }
+                                                    : undefined,
                                                 })
                                                 notifyUser(`${p.name} از رویداد حذف شد`)
                                               }
@@ -5504,8 +5393,11 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                             lineHeight: 1.6,
                           }}
                         >
-                          💡 <b>راهنمایی:</b> پس از افزودن اعضا، می‌توانید به تب <b>«گروه‌بندی»</b> در بالا مراجعه کرده و افرادی که هزینه‌هایشان باید با هم جمع شود (مانند اعضای یک خانواده) را به یک گروه تبدیل کنید.
+                          💡 <b>راهنمایی:</b> بعد از اعضا، گروه‌ها را مشخص کنید. مرحله بعد تعیین مادرخرج است و اختیاری است؛ اگر رد شود، حساب دونگ مثل قبل بین خود اعضا می‌ماند.
                         </div>
+                        <button className="cta-confirm" type="button" onClick={() => setMembersModalTab('groups')}>
+                          مرحله بعد: گروه‌بندی
+                        </button>
                       </div>
                     )}
 
@@ -5773,7 +5665,29 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                             </div>
                           )}
                         </div>
+                        <button className="cta-confirm" type="button" onClick={() => setMembersModalTab('madre')}>
+                          مرحله بعد: تعیین مادرخرج (اختیاری)
+                        </button>
                       </div>
+                    )}
+
+                    {membersModalTab === 'madre' && (
+                      <MadreKharjSetup
+                        event={selectedDongEvent}
+                        currencyUnit={currencyUnit}
+                        unitLabel={unitLabel}
+                        formatMoney={formatMoney}
+                        summary={dongSummary}
+                        onSave={(next) => {
+                          void saveDongEvent(next)
+                        }}
+                        onNotify={notifyUser}
+                        onBack={() => setMembersModalTab('groups')}
+                        onSkip={() => {
+                          setIsDongMembersAndGroupsModalOpen(false)
+                          notifyUser('مادرخرج رد شد. این گروه مثل قبل بین اعضا حساب می‌شود.')
+                        }}
+                      />
                     )}
                   </div>
                 </WindowPopup>

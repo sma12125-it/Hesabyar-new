@@ -270,6 +270,32 @@ export interface DongExpenseItem {
   date?: string
 }
 
+/** Extra money a member puts in the pot after the per-member amount. */
+export interface DongPotDeposit {
+  id: string
+  memberId: string
+  amount: number
+  /** ISO Gregorian date. The UI shows it as Jalali. */
+  date: string
+  note?: string
+  createdAt?: number
+  updatedAt?: number
+}
+
+/**
+ * Optional shared pot for one دونگ group.
+ * When `enabled` is absent or false and nothing was paid from the pot,
+ * settlement is identical to a group without مادرخرج.
+ */
+export interface DongMadreKharj {
+  enabled: boolean
+  /** Participant who holds the pot. Can be changed later. */
+  responsibleId?: string
+  /** Editable per-member amount into the pot, in rials. */
+  contributions?: Record<string, number>
+  deposits?: DongPotDeposit[]
+}
+
 export interface DongEvent {
   id: string
   title: string
@@ -277,6 +303,7 @@ export interface DongEvent {
   participants: DongParticipant[]
   groups?: DongGroup[]
   expenses: DongExpenseItem[]
+  madreKharj?: DongMadreKharj
   note?: string
   settled?: boolean
   settledTransfers?: string[]
