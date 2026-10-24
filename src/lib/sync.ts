@@ -24,15 +24,12 @@ export function loadSession(): CloudSession | null {
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return null
   try {
     const raw = localStorage.getItem(SESSION_KEY)
-    if (raw) return JSON.parse(raw) as CloudSession
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as CloudSession
+    if (!parsed?.accessToken || !parsed.userId || parsed.accessToken === 'server_cloud_sync_token') return null
+    return parsed
   } catch {
-    // fallback below
-  }
-  // شناسه پیش‌فرض برای همگام‌سازی ابری زنده بین کلیه دستگاه‌های کاربر
-  return {
-    accessToken: 'server_cloud_sync_token',
-    userId: 'hesabyar_main_user',
-    email: 'SMA12125@gmail.com',
+    return null
   }
 }
 
@@ -78,69 +75,78 @@ export function notifyUser(message: string) {
   window.dispatchEvent(new CustomEvent('hy-notice', { detail: { message } }))
 }
 
-export const DEFAULT_CLOUD_CREDENTIALS = {
-  email: 'hesabyar_app_user@gmail.com',
-  password: 'HesabyarAppPassword2026!',
-}
-
 export async function ensureSession(): Promise<CloudSession | null> {
   const session = loadSession()
-  if (
-    !session ||
-    !session.accessToken ||
-    session.accessToken === 'server_cloud_sync_token'
-  ) {
-    try {
-      const liveSession = await signIn(
-        DEFAULT_CLOUD_CREDENTIALS.email,
-        DEFAULT_CLOUD_CREDENTIALS.password
-      )
-      saveSession(liveSession)
-      return liveSession
-    } catch {
-      // اگر در شرایط آفلاین بودیم، سشن محلی را نگه دار
-      return session
-    }
-  }
+  if (!session) return null
 
   if (session.refreshToken && session.expiresAt && session.expiresAt * 1000 - Date.now() > 60_000) {
     return session
   }
 
+  if (!session.refreshToken) return session
+
   const cfg = supabaseConfig()
   try {
-    if (session.refreshToken) {
-      const res = await fetch(`${cfg.url}/auth/v1/token?grant_type=refresh_token`, {
-        method: 'POST',
-        headers: { apikey: cfg.key, Authorization: `Bearer ${cfg.key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: session.refreshToken }),
-      })
-      const json = await readJson(res)
-      const accessToken = typeof json.access_token === 'string' ? json.access_token : ''
-      if (res.ok && accessToken) {
-        const next: CloudSession = {
-          ...session,
-          accessToken,
-          refreshToken: typeof json.refresh_token === 'string' ? json.refresh_token : session.refreshToken,
-          expiresAt: expiryFrom(json, session.expiresAt),
-        }
-        saveSession(next)
-        return next
+    const res = await fetch(`${cfg.url}/auth/v1/token?grant_type=refresh_token`, {
+      method: 'POST',
+      headers: { apikey: cfg.key, Authorization: `Bearer ${cfg.key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: session.refreshToken }),
+    })
+    const json = await readJson(res)
+    const accessToken = typeof json.access_token === 'string' ? json.access_token : ''
+    if (res.ok && accessToken) {
+      const next: CloudSession = {
+        ...session,
+        accessToken,
+        refreshToken: typeof json.refresh_token === 'string' ? json.refresh_token : session.refreshToken,
+        expiresAt: expiryFrom(json, session.expiresAt),
       }
+      saveSession(next)
+      return next
     }
-  } catch {}
-
-  // ورود مجدد خودکار در صورت انقضای توکن
-  try {
-    const liveSession = await signIn(
-      DEFAULT_CLOUD_CREDENTIALS.email,
-      DEFAULT_CLOUD_CREDENTIALS.password
-    )
-    saveSession(liveSession)
-    return liveSession
   } catch {
-    return session
+    // Keep this account. A failed refresh must not sign in as someone else.
   }
+  return session
+}
+
+/** Revoke this device's Supabase session. Local scope leaves the account's other devices signed in. */
+export async function signOutCloud(scope: 'local' | 'global' = 'local'): Promise<void> {
+  const session = loadSession()
+  const cfg = supabaseConfig()
+  const token = session?.accessToken
+  if (token) {
+    try {
+      await fetch(`${cfg.url}/auth/v1/logout?scope=${scope}`, {
+        method: 'POST',
+        headers: {
+          apikey: cfg.key,
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: '{}',
+      })
+    } catch {
+      // Offline sign-out still clears this device.
+    }
+  }
+  try {
+    const { getSupabaseClient } = await import('./supabaseClient')
+    await getSupabaseClient().auth.signOut({ scope })
+  } catch {
+    // The stored client session is removed below even if the call fails.
+  }
+  clearSupabaseAuthStorage()
+}
+
+function clearSupabaseAuthStorage() {
+  if (typeof localStorage === 'undefined') return
+  const keys: string[] = []
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i)
+    if (key && key.startsWith('sb-') && key.includes('auth')) keys.push(key)
+  }
+  for (const key of keys) localStorage.removeItem(key)
 }
 
 async function readJson(res: Response): Promise<Record<string, unknown>> {
