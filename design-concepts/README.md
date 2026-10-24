@@ -1,6 +1,6 @@
 # جهت‌های طراحی حساب‌یار
 
-The current set is **v2**, three minimal neobank directions: سپید، اُنیکس، هاله. See `v2/README.md` and `v2/screenshots/`. زرنگار، کاشی، and نسیم stay below as the first round.
+The current set is **v3**, three richer fintech directions: آئورا، ویستا، ریتم. See `v3/README.md` and `v3/screenshots/`. They are interactive HTML prototypes (screen changes, count-up, chart draw, sheet). v2 (سپید، اُنیکس، هاله) and the first round (زرنگار، کاشی، نسیم) stay in place.
 
 Nothing in `src/` is changed. Mobile frames are **390×844**. Each concept has one desktop view at **1440×900**.
 
