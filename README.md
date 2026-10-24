@@ -6,7 +6,7 @@ Personal accounting for the browser. **Rial only**, RTL Persian, Liquid Glass, I
 
 **Repo:** https://github.com/sma12125-it/hesabyar-new
 
-If that URL 404s, enable Pages once (repo admin): [Settings → Pages](https://github.com/sma12125-it/hesabyar-new/settings/pages) → **Deploy from a branch** → `gh-pages` / `/` (root) → Save. The production build is already on `gh-pages`.
+If that URL 404s, enable Pages once (repo admin): [Settings → Pages](https://github.com/sma12125-it/Hesabyar-new/settings/pages) → **GitHub Actions** (not “Deploy from a branch”). The workflow `.github/workflows/deploy.yml` is the only publisher. Leave the source on GitHub Actions.
 
 ## Polish sprint (post Sprint 2)
 
@@ -96,14 +96,14 @@ npm test
 npm run dev
 ```
 
-Production build uses Vite `base: '/hesabyar/'` for GitHub Pages:
+Production build for GitHub Pages uses Vite base `/Hesabyar-new/`:
 
 ```bash
-npm run build
+npm run build:pages
 npm run preview
 ```
 
-The deploy workflow publishes `dist` to `gh-pages` and also copies the built `index.html` + `assets/` onto `main` so **Settings → Pages → Deploy from `main` / (root)** works.
+The deploy workflow builds that base and publishes `dist` with `actions/deploy-pages`. Pages must stay on **GitHub Actions**.
 
 ## Architecture
 

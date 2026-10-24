@@ -10,7 +10,17 @@ import './styles/themes.css'
 applyTheme(getCurrentTheme())
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  const hadController = Boolean(navigator.serviceWorker.controller)
+  let refreshing = false
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || refreshing) return
+    if (sessionStorage.getItem('hy-sw-reloaded') === '1') return
+    refreshing = true
+    sessionStorage.setItem('hy-sw-reloaded', '1')
+    window.location.reload()
+  })
   window.addEventListener('load', () => {
+    sessionStorage.removeItem('hy-sw-reloaded')
     void navigator.serviceWorker
       .register(`${import.meta.env.BASE_URL}sw.js`, { updateViaCache: 'none' })
       .catch(() => {

@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -30,7 +30,7 @@ jobs:
             npm install
           fi
       - run: npm test
-      - run: npm run build -- --base=/${{ github.event.repository.name || 'hesabyar-new' }}/
+      - run: npm run build -- --base=/Hesabyar-new/
       - name: Ensure .nojekyll
         run: touch dist/.nojekyll
       - name: Setup Pages
@@ -49,29 +49,3 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
-
-  publish-branch:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Install Dependencies
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci || npm install
-          else
-            npm install
-          fi
-      - run: npm test
-      - run: npm run build -- --base=/${{ github.event.repository.name || 'hesabyar-new' }}/
-      - run: touch dist/.nojekyll
-      - name: Publish dist to gh-pages branch
-        uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./dist
-          force_orphan: true
-          enable_jekyll: false

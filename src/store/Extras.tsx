@@ -120,6 +120,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
+      try {
       const [
         vault,
         nextBudgets,
@@ -297,6 +298,9 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       if (savedUnit === 'IRT' || savedUnit === 'IRR') {
         setCurrencyUnitState(savedUnit)
         currencyUnitRef.current = savedUnit
+      }
+      } catch {
+        // The account store reports storage failures on the login screen.
       }
     })()
     return () => {

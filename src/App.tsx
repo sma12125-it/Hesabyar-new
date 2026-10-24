@@ -239,12 +239,8 @@ function Shell() {
     [transactions, items, deleteTransaction, deleteAccount, deleteInstallmentPlan, deleteInstallmentItem, unpayInstallment],
   )
 
-  if (error) {
-    return <div className="loading-center">{error}</div>
-  }
-
   if (!ready) {
-    return <div className="loading-center">در حال بارگذاری…</div>
+    return <div className="loading-center">{error ?? 'در حال بارگذاری…'}</div>
   }
 
   return (
@@ -254,6 +250,7 @@ function Shell() {
       <SmsBridge />
       <UiActionsContext.Provider value={uiActions}>
       <div className="app">
+        {error ? <div className="banner error"><span>{error}</span></div> : null}
         <Routes>
           <Route
             path="/"

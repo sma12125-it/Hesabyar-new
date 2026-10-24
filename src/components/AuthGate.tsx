@@ -101,6 +101,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
   }
 
   async function submitAccount() {
+    if (!store.ready) return
     setError(null)
     const trimmed = email.trim()
     if (!trimmed.includes('@')) {
@@ -137,6 +138,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
   }
 
   async function unlockWithPassword() {
+    if (!store.ready) return
     setError(null)
     const session = loadSession()
     if (!session) {
@@ -161,6 +163,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
   }
 
   async function finishPattern(next: number[]) {
+    if (!store.ready) return
     if (next.length < 4) return
     if (await checkPattern(next.join('-'))) {
       onUnlock()
@@ -171,6 +174,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
   }
 
   async function useBiometric() {
+    if (!store.ready) return
     setError(null)
     try {
       if (await verifyBiometric()) onUnlock()
@@ -233,19 +237,14 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
     }
   }
 
-  if (!store.ready && mode !== 'renew' && mode !== 'code') {
-    return (
-      <div className="lock-screen">
-        <h1>حساب‌یار</h1>
-        <p className="sheet-sub">در حال آماده‌سازی…</p>
-      </div>
-    )
-  }
+  const booting = !store.ready && mode !== 'renew' && mode !== 'code'
 
   return (
     <div className="lock-screen">
       <h1>ورود به حساب‌یار</h1>
+      {store.error ? <div className="banner error"><span>{store.error}</span></div> : null}
       {error ? <div className="banner error"><span>{error}</span></div> : null}
+      {booting ? <p className="sheet-sub">در حال آماده‌سازی…</p> : null}
       {info ? <p className="sheet-sub">{info}</p> : null}
 
       {mode === 'unlock' ? (
@@ -253,7 +252,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
           <p className="sheet-sub">{existing ? `حساب ${existing.email}` : 'برای دیدن اطلاعات وارد شوید.'}</p>
           <div className="field-stack">
             <input className="field-input" type="password" placeholder="رمز حساب" value={password} onChange={(e) => setPassword(e.target.value)} />
-            <button className="cta-confirm" type="button" disabled={busy} onClick={() => void unlockWithPassword()}>ورود با رمز</button>
+            <button className="cta-confirm" type="button" disabled={busy || booting} onClick={() => void unlockWithPassword()}>ورود با رمز</button>
           </div>
           {lock.credentialId ? (
             <button className="cat-mini" type="button" onClick={() => void useBiometric()}>ورود با اثر انگشت یا چهرهٔ گوشی</button>
@@ -274,7 +273,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
           <input className="field-input" type="email" placeholder="ایمیل" value={email} onChange={(e) => setEmail(e.target.value)} />
           <input className="field-input" type="password" placeholder="رمز حداقل ۶ حرف" value={password} onChange={(e) => setPassword(e.target.value)} />
           {mode === 'up' ? <input className="field-input" type="password" placeholder="تکرار رمز" value={again} onChange={(e) => setAgain(e.target.value)} /> : null}
-          <button className="cta-confirm" type="button" disabled={busy} onClick={() => void submitAccount()}>
+          <button className="cta-confirm" type="button" disabled={busy || booting} onClick={() => void submitAccount()}>
             {mode === 'up' ? 'ساخت حساب' : 'ورود'}
           </button>
           {mode === 'in' ? (
@@ -292,7 +291,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
         <div className="field-stack">
           <p className="sheet-sub">ایمیل حساب را بنویسید. لینک بازیابی فرستاده می‌شود. اگر کد بازیابی را دارید، با همان رمز تازه بسازید.</p>
           <input className="field-input" type="email" placeholder="ایمیل" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <button className="cta-confirm" type="button" disabled={busy} onClick={() => void sendReset()}>ارسال لینک بازیابی</button>
+          <button className="cta-confirm" type="button" disabled={busy || booting} onClick={() => void sendReset()}>ارسال لینک بازیابی</button>
           <button className="link" type="button" onClick={() => { setError(null); setMode('code') }}>کد بازیابی دارم</button>
           <button className="link" type="button" onClick={() => { setError(null); setMode(existing ? 'unlock' : 'in') }}>بازگشت</button>
         </div>
@@ -305,7 +304,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
           <input className="field-input" placeholder="کد بازیابی" value={code} onChange={(e) => setCode(e.target.value)} />
           <input className="field-input" type="password" placeholder="رمز تازه" value={password} onChange={(e) => setPassword(e.target.value)} />
           <input className="field-input" type="password" placeholder="تکرار رمز تازه" value={again} onChange={(e) => setAgain(e.target.value)} />
-          <button className="cta-confirm" type="button" disabled={busy} onClick={() => void resetWithCode()}>ثبت رمز تازه</button>
+          <button className="cta-confirm" type="button" disabled={busy || booting} onClick={() => void resetWithCode()}>ثبت رمز تازه</button>
           <button className="link" type="button" onClick={() => { setError(null); setMode('forgot') }}>ارسال لینک به ایمیل</button>
           <button className="link" type="button" onClick={() => { setError(null); setMode(existing ? 'unlock' : 'in') }}>بازگشت</button>
         </div>
@@ -316,7 +315,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
           <p className="sheet-sub">رمز تازهٔ حساب را بنویسید.</p>
           <input className="field-input" type="password" placeholder="رمز تازه" value={password} onChange={(e) => setPassword(e.target.value)} />
           <input className="field-input" type="password" placeholder="تکرار رمز تازه" value={again} onChange={(e) => setAgain(e.target.value)} />
-          <button className="cta-confirm" type="button" disabled={busy} onClick={() => void resetFromLink()}>ثبت رمز تازه</button>
+          <button className="cta-confirm" type="button" disabled={busy || booting} onClick={() => void resetFromLink()}>ثبت رمز تازه</button>
         </div>
       ) : null}
 
