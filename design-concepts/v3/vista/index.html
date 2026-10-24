@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <title>ویستا</title>
+  <link rel="stylesheet" href="../../fonts.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <div class="blob a"></div><div class="blob b"></div>
+    <div class="status"><span>۹:۴۱</span><div class="island"></div><span>▮▮▮ ▭</span></div>
+    <div class="stage">
+      <section class="screen" data-screen="login">
+        <div class="login">
+          <div class="mark"></div>
+          <div class="sub">حساب‌یار</div>
+          <h1 class="h">ویستا</h1>
+          <p class="sub">دفتر سارا نادری، جمعه ۳۰ مهر</p>
+          <div style="height:18px"></div>
+          <label class="field"><span>sara.naderi@gmail.com</span><span class="sub">ایمیل</span></label>
+          <label class="field"><span>••••••••</span><span class="sub">رمز</span></label>
+          <button class="cta" id="login-go" type="button">ورود</button>
+          <div class="seg" style="margin-top:10px"><button type="button">Face ID</button><button type="button">الگو</button></div>
+        </div>
+      </section>
+      <section class="screen" data-screen="home">
+        <div class="hello"><div><div class="sub">جمعه ۳۰ مهر ۱۴۰۵</div><div class="h" style="font-size:20px">سلام سارا</div></div><div class="avatar">س</div></div>
+        <article class="slab tilt">
+          <div class="sub" style="color:rgba(255,255,255,.72)">ارزش خالص · تومان</div>
+          <div class="num" id="balance" data-value="405500000">۰</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px"><span class="pill">+۲٫۸٪ این ماه</span><span class="sub" style="color:rgba(255,255,255,.7)">نقد ۴۰٫۸ م</span></div>
+        </article>
+        <div class="stack">
+          <div class="card3d c1"><span class="sub" style="color:#5a3514">ملت · ۴۵۶۷</span><b>۸٬۵۰۰٬۰۰۰</b></div>
+          <div class="card3d c2"><span class="sub">مسکن · ۲۱۴۰</span><b>۳۲٬۰۰۰٬۰۰۰</b></div>
+          <div class="card3d c3"><span class="sub">هوده · بدهی</span><b>−۱٬۲۰۰٬۰۰۰</b></div>
+        </div>
+        <div class="tx"><div class="coin"></div><div class="mid"><strong>هایپراستار تجریش</strong><span class="sub">خوراک · امروز ۱۴:۲۰</span></div><b class="down">−۱۸۵٬۰۰۰</b></div>
+        <div class="tx"><div class="coin sky"></div><div class="mid"><strong>حقوق مهر</strong><span class="sub">پارس‌داده · ۲۹ مهر</span></div><b class="up">+۱۸٬۵۰۰٬۰۰۰</b></div>
+      </section>
+      <section class="screen" data-screen="reports">
+        <div class="sub">مهر ۱۴۰۵</div>
+        <div class="h" style="font-size:26px">هزینه ۶٬۲۴۰٬۰۰۰</div>
+        <div class="sub">درآمد <b class="up">۱۸٬۵۰۰٬۰۰۰</b> · پس‌انداز ۶۶٪</div>
+        <div style="display:flex;gap:12px;align-items:center;margin-top:10px">
+          <div class="donut ring"></div>
+          <div style="flex:1">
+            <div class="line"><span>خوراک ۳۲٪</span><b>۲٬۰۰۰٬۰۰۰</b></div>
+            <div class="line"><span>اقساط ۲۸٪</span><b>۱٬۷۵۰٬۰۰۰</b></div>
+            <div class="line"><span>حمل ۱۸٪</span><b>۱٬۱۲۰٬۰۰۰</b></div>
+          </div>
+        </div>
+        <div class="chart">
+          <svg viewBox="0 0 340 120"><path d="M8 96 C50 88 80 70 120 78 C170 88 210 40 250 48 C290 54 310 24 332 18" fill="none" stroke="#ef6d57" stroke-width="4" stroke-linecap="round" class="draw" pathLength="1"/></svg>
+        </div>
+        <div class="line"><span>سقف خوراک</span><b>۱٫۸۴ از ۳ م</b></div><div class="track"><span class="grow" style="display:block;height:100%;width:61%;background:linear-gradient(90deg,#ffb199,#ef6d57)"></span></div>
+        <div class="line"><span>سقف حمل</span><b>۰٫۹۶ از ۱٫۵ م</b></div><div class="track"><span class="grow" style="display:block;height:100%;width:64%;background:#3c78e6"></span></div>
+        <div class="line"><span>سقف اقساط</span><b>۳٫۲ از ۴ م</b></div><div class="track"><span class="grow" style="display:block;height:100%;width:80%;background:#1aa384"></span></div>
+      </section>
+      <section class="screen" data-screen="invest">
+        <div class="sub">سبد</div>
+        <div class="num" id="invest-total" data-value="364700000" style="color:#1b2430">۰</div>
+        <div class="sub" style="margin-bottom:4px">تومان · <b class="up">+۴٫۶٪</b></div>
+        <button class="asset-row" id="open-asset" type="button"><div><strong>صندوق طلای کهربا</strong><span class="sub">عیار · ۴۲ واحد</span></div><div><b>۷۷٫۷ م</b><div class="up">+۱۲٫۴٪</div></div></button>
+        <div class="asset-row"><div><strong>فولاد مبارکه</strong><span class="sub">۸٬۰۰۰ سهم</span></div><div><b>۴۴ م</b><div class="up">+۸٫۲٪</div></div></div>
+        <div class="asset-row"><div><strong>ربع سکه</strong><span class="sub">۶ عدد</span></div><div><b>۷۵ م</b><div class="up">+۱۱٫۱٪</div></div></div>
+        <div class="asset-row"><div><strong>بیت‌کوین</strong><span class="sub">۰٫۰۱۲</span></div><div><b>۴۸ م</b><div class="down">−۲٫۴٪</div></div></div>
+        <div class="asset-row"><div><strong>سپرده سامان</strong><span class="sub">۱۸٪ · بهمن ۱۴۰۵</span></div><b>۱۲۰ م</b></div>
+      </section>
+      <section class="screen" data-screen="asset">
+        <div class="top"><button class="x" id="asset-back" type="button">›</button><div class="h" style="font-size:18px">کهربا · عیار</div><span class="sub">طلا</span></div>
+        <div class="num">۷۷٬۷۰۰٬۰۰۰</div>
+        <div class="up">+۸٬۶۱۰٬۰۰۰ · +۱۲٫۴٪</div>
+        <div class="chart"><svg viewBox="0 0 340 110"><path class="draw" pathLength="1" d="M8 88 C48 80 90 70 130 58 C180 42 220 48 270 28 C300 18 320 20 332 12" fill="none" stroke="#e07a32" stroke-width="4" stroke-linecap="round"/></svg></div>
+        <div class="stack" style="height:100px;margin-top:8px">
+          <div class="card3d c1" style="height:88px;top:0;transform:none"><span class="sub" style="color:#5a3514">۴۲ واحد</span><b>میانگین ۱٫۶۴ م</b></div>
+        </div>
+        <div class="line"><div><strong>صدور · ۲۰</strong><span class="sub">۱۲ فروردین ۱۴۰۴</span></div><b>۱٫۵۲ م</b></div>
+        <div class="line"><div><strong>صدور · ۱۵</strong><span class="sub">۳ تیر ۱۴۰۴</span></div><b>۱٫۷۱ م</b></div>
+        <div class="line"><div><strong>ابطال · ۳</strong><span class="sub">۲ شهریور ۱۴۰۵</span></div><b class="up">+۱٫۲۴ م</b></div>
+      </section>
+      <section class="screen" data-screen="settings">
+        <div class="hello"><div><div class="h" style="font-size:26px">تنظیمات</div><div class="sub">sara.naderi@gmail.com</div></div><div class="avatar">س</div></div>
+        <div class="set"><b>ظاهر</b><span class="sub">ویستا</span></div>
+        <div class="set"><b>واحد</b><span class="sub">تومان</span></div>
+        <div class="set"><b>قفل و Face ID</b><span class="up">فعال</span></div>
+        <div class="set"><b>گاوصندوق کارت</b><span class="sub">محافظت‌شده</span></div>
+        <div class="set"><b>ابر</b><span class="sub">متصل · ۰۸:۱۴</span></div>
+        <div class="set"><b>پیامک بانکی</b><span class="sub">شتاب</span></div>
+        <div class="set"><b>کارت مشترک</b><span class="sub">مسکن</span></div>
+        <div class="set"><b>پشتیبان · ۰.۳.۰</b><span class="sub">JSON / CSV</span></div>
+      </section>
+    </div>
+    <nav class="tab">
+      <button data-tab="home" id="tab-home" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 11 12 4l8 7v9H4z"/></svg>خانه</button>
+      <button data-tab="reports" id="tab-reports" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19V9M10 19V5M16 19v-7"/></svg>گزارش</button>
+      <span style="width:56px"></span>
+      <button data-tab="invest" id="tab-invest" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 18V6M9 18v-6M14 18V8M19 18V4"/></svg>سبد</button>
+      <button data-tab="settings" id="tab-settings" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/></svg>تنظیم</button>
+    </nav>
+    <button id="add-btn" type="button" aria-label="ثبت">+</button>
+    <div class="sheet" id="sheet">
+      <div class="top"><button class="x" id="sheet-close" type="button">×</button><div class="h" style="font-size:17px">تراکنش</div><span class="sub">تومان</span></div>
+      <div class="seg"><button class="on" type="button">هزینه</button><button type="button">درآمد</button><button type="button">انتقال</button></div>
+      <div class="sub">مبلغ</div>
+      <div class="num down" id="sheet-amount" data-value="185000">۰</div>
+      <div class="rowbox" style="margin-top:8px"><b>خوراک و سوپرمارکت</b><span class="sub">دسته</span></div>
+      <div class="rowbox"><b>ملت — جاری</b><span class="sub">۸٬۵۰۰٬۰۰۰</span></div>
+      <div class="rowbox"><b>۳۰ مهر ۱۴۰۵</b><span class="sub">هایپراستار تجریش</span></div>
+      <button class="cta" id="sheet-save" type="button">ثبت هزینه</button>
+    </div>
+    <i class="homebar"></i>
+  </div>
+  <script src="../app.js"></script>
+</body>
+</html>
