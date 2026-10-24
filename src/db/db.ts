@@ -4,7 +4,9 @@ import { createId } from '../lib/ids'
 import type { Account, InstallmentItem, InstallmentPlan, Transaction, TxKind } from '../types'
 
 const DB_NAME = 'hesabyar'
-const DB_VERSION = 2
+// v3 recreates any store missing from databases opened at v2.
+const DB_VERSION = 3
+const OPEN_TIMEOUT_MS = 8000
 
 function requestToPromise<T>(req: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -26,7 +28,36 @@ let dbPromise: Promise<IDBDatabase> | null = null
 export function openDb(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise
   dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION)
+    let settled = false
+    const finish = (fn: () => void) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      fn()
+    }
+    const fail = (err: unknown) => {
+      dbPromise = null
+      const message = err instanceof Error ? err.message : 'باز کردن ذخیره‌سازی محلی ناموفق بود'
+      finish(() => reject(err instanceof Error ? err : new Error(message)))
+    }
+    const timer = setTimeout(() => fail(new Error('باز کردن ذخیره‌سازی محلی طول کشید')), OPEN_TIMEOUT_MS)
+
+    if (typeof indexedDB === 'undefined') {
+      fail(new Error('ذخیره‌سازی محلی در این مرورگر در دسترس نیست'))
+      return
+    }
+
+    let req: IDBOpenDBRequest
+    try {
+      req = indexedDB.open(DB_NAME, DB_VERSION)
+    } catch (err) {
+      fail(err)
+      return
+    }
+
+    req.onblocked = () => {
+      fail(new Error('یک تب دیگر حساب‌یار را باز نگه داشته است. آن را ببندید و صفحه را تازه کنید.'))
+    }
     req.onupgradeneeded = () => {
       const db = req.result
       const tx = req.transaction
@@ -52,16 +83,50 @@ export function openDb(): Promise<IDBDatabase> {
 
       const accStore = tx.objectStore('accounts')
       const txStore = tx.objectStore('transactions')
-      accStore.getAll().onsuccess = (ev) => {
-        const accounts = (ev.target as IDBRequest<Array<Record<string, unknown>>>).result
-        txStore.getAll().onsuccess = (ev2) => {
-          const rawTxs = (ev2.target as IDBRequest<Array<Record<string, unknown>>>).result
+      const accountsReq = accStore.getAll()
+      const txsReq = txStore.getAll()
+      let accounts: Array<Record<string, unknown>> | null = null
+      let rawTxs: Array<Record<string, unknown>> | null = null
+      const maybeMigrate = () => {
+        if (!accounts || !rawTxs) return
+        try {
           migrateSprint1(accStore, txStore, accounts, rawTxs)
+        } catch {
+          // A legacy row must not abort the upgrade. The stores still have to open.
         }
       }
+      accountsReq.onerror = (event) => {
+        event.preventDefault()
+        accounts = []
+        maybeMigrate()
+      }
+      txsReq.onerror = (event) => {
+        event.preventDefault()
+        rawTxs = []
+        maybeMigrate()
+      }
+      accountsReq.onsuccess = () => {
+        accounts = accountsReq.result
+        maybeMigrate()
+      }
+      txsReq.onsuccess = () => {
+        rawTxs = txsReq.result
+        maybeMigrate()
+      }
     }
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
+    req.onsuccess = () => {
+      const db = req.result
+      if (settled) {
+        db.close()
+        return
+      }
+      db.onversionchange = () => {
+        db.close()
+        dbPromise = null
+      }
+      finish(() => resolve(db))
+    }
+    req.onerror = () => fail(req.error ?? new Error('باز کردن ذخیره‌سازی محلی ناموفق بود'))
   })
   return dbPromise
 }
@@ -202,10 +267,13 @@ export async function putAccount(account: Account): Promise<void> {
 }
 
 export function sortTransactions(rows: Transaction[]): Transaction[] {
-  return rows.slice().sort((a, b) => {
-    const byDate = b.date.localeCompare(a.date)
+  const list = Array.isArray(rows) ? rows : []
+  return list.slice().sort((a, b) => {
+    const aDate = typeof a?.date === 'string' ? a.date : ''
+    const bDate = typeof b?.date === 'string' ? b.date : ''
+    const byDate = bDate.localeCompare(aDate)
     if (byDate !== 0) return byDate
-    return b.createdAt - a.createdAt
+    return (Number(b?.createdAt) || 0) - (Number(a?.createdAt) || 0)
   })
 }
 

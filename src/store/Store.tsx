@@ -161,20 +161,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
+    const timer = window.setTimeout(() => {
+      if (cancelled) return
+      setError((current) => current ?? 'باز کردن ذخیره‌سازی محلی طول کشید. صفحه را یک‌بار تازه کنید.')
+      setReady(true)
+    }, 8000)
     ;(async () => {
       try {
-        if (!cancelled) {
-          await refresh()
-          const customs = (await db.getKv<Category[]>('customCategories')) ?? []
-          setCustomCategories(customs.filter((c) => !isProtectedCategory(c.id)))
-          setReady(true)
-        }
+        await refresh()
+        const customsRaw = await db.getKv<Category[]>('customCategories')
+        const customs = Array.isArray(customsRaw) ? customsRaw : []
+        if (cancelled) return
+        setCustomCategories(customs.filter((c) => c && !isProtectedCategory(c.id)))
+        setError(null)
+        setReady(true)
       } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : 'خطای ذخیره‌سازی')
+        if (cancelled) return
+        setError(err instanceof Error ? err.message : 'خطای ذخیره‌سازی')
+        setReady(true)
+      } finally {
+        window.clearTimeout(timer)
       }
     })()
     return () => {
       cancelled = true
+      window.clearTimeout(timer)
     }
   }, [refresh])
 
