@@ -2,6 +2,7 @@ import type { DongEvent } from '../types'
 import {
   dongFromRemote,
   explainCloudError,
+  jwtUserId,
   presentSharedAsset,
   profileFromRow,
   profileToRow,
@@ -10,7 +11,7 @@ import {
   type SharedAssetView,
   type UserProfile,
 } from './profile'
-import { ensureSession, supabaseConfig, type CloudSession } from './sync'
+import { ensureSession, refreshSessionNow, saveSession, supabaseConfig, type CloudSession } from './sync'
 
 export interface ShareLinkResult {
   eventId: string
@@ -18,26 +19,53 @@ export interface ShareLinkResult {
   displayName: string
 }
 
+const PROFILE_COLUMNS = 'first_name,last_name,email,phone,avatar_url,handle,display_name,about,updated_at'
+
 async function authed(): Promise<CloudSession> {
   const session = await ensureSession()
   if (!session) throw new Error('برای این کار از تنظیمات وارد حساب ابری شوید')
-  return session
+  const userId = jwtUserId(session.accessToken)
+  if (userId === session.userId) return session
+  const next = { ...session, userId }
+  saveSession(next)
+  return next
 }
 
-async function request(session: CloudSession, path: string, init?: RequestInit): Promise<{ status: number; text: string }> {
+async function request(
+  session: CloudSession,
+  path: string,
+  init?: RequestInit,
+  allowRefresh = true,
+): Promise<{ status: number; text: string }> {
   const cfg = supabaseConfig()
-  const res = await fetch(`${cfg.url}${path}`, {
-    ...init,
-    headers: {
-      apikey: cfg.key,
-      Authorization: `Bearer ${session.accessToken}`,
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
-  })
+  let res: Response
+  try {
+    res = await fetch(`${cfg.url}${path}`, {
+      ...init,
+      headers: {
+        apikey: cfg.key,
+        Authorization: `Bearer ${session.accessToken}`,
+        'Content-Type': 'application/json',
+        ...(init?.headers ?? {}),
+      },
+    })
+  } catch {
+    throw new Error('ارتباط با ابر برقرار نشد')
+  }
+  if (res.status === 401 && allowRefresh) {
+    const next = await refreshSessionNow()
+    if (next && next.accessToken !== session.accessToken) return request(next, path, init, false)
+  }
   const text = await res.text()
   if (!res.ok) throw new Error(explainCloudError(res.status, text))
   return { status: res.status, text }
+}
+
+function firstRow(text: string): unknown {
+  if (!text) return null
+  const parsed = JSON.parse(text) as unknown
+  if (Array.isArray(parsed)) return parsed[0] ?? null
+  return parsed
 }
 
 async function rpc<T>(name: string, body: unknown, session: CloudSession): Promise<T> {
@@ -50,21 +78,20 @@ async function rpc<T>(name: string, body: unknown, session: CloudSession): Promi
 
 export async function fetchMyProfile(): Promise<UserProfile | null> {
   const session = await authed()
-  const { text } = await request(
-    session,
-    `/rest/v1/profiles?user_id=eq.${encodeURIComponent(session.userId)}&select=first_name,last_name,email,phone,avatar_url,handle,display_name,about,updated_at`,
-  )
-  const rows = text ? (JSON.parse(text) as unknown[]) : []
-  return profileFromRow(rows[0] ?? null)
+  const { text } = await request(session, `/rest/v1/profiles?select=${PROFILE_COLUMNS}`)
+  return profileFromRow(firstRow(text))
 }
 
-export async function saveMyProfile(profile: UserProfile): Promise<void> {
+export async function saveMyProfile(profile: UserProfile): Promise<UserProfile> {
   const session = await authed()
-  await request(session, '/rest/v1/profiles?on_conflict=user_id', {
+  const { text } = await request(session, '/rest/v1/profiles?on_conflict=user_id', {
     method: 'POST',
-    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
     body: JSON.stringify(profileToRow(profile, session.userId)),
   })
+  const saved = profileFromRow(firstRow(text)) ?? (await fetchMyProfile())
+  if (!saved) throw new Error('ذخیره ابری تأیید نشد. ردیف پروفایل در حساب شما دیده نشد.')
+  return saved
 }
 
 export async function checkHandleAvailable(handle: string): Promise<boolean> {

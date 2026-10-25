@@ -84,7 +84,18 @@ export async function ensureSession(): Promise<CloudSession | null> {
   }
 
   if (!session.refreshToken) return session
+  return (await refreshWithToken(session)) ?? session
+}
 
+/** Ask Supabase for a new access token even when the stored one has not expired yet. */
+export async function refreshSessionNow(): Promise<CloudSession | null> {
+  const session = loadSession()
+  if (!session) return null
+  if (!session.refreshToken) return session
+  return (await refreshWithToken(session)) ?? session
+}
+
+async function refreshWithToken(session: CloudSession): Promise<CloudSession | null> {
   const cfg = supabaseConfig()
   try {
     const res = await fetch(`${cfg.url}/auth/v1/token?grant_type=refresh_token`, {
@@ -107,7 +118,7 @@ export async function ensureSession(): Promise<CloudSession | null> {
   } catch {
     // Keep this account. A failed refresh must not sign in as someone else.
   }
-  return session
+  return null
 }
 
 /** Revoke this device's Supabase session. Local scope leaves the account's other devices signed in. */
