@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import {
+  chooseProfileSync,
   collectDeletedExpenseIds,
   displayNameOf,
   explainCloudError,
   handleError,
+  jwtUserId,
   mergeSharedDong,
   normalizeHandle,
   phoneError,
   presentSharedAsset,
   profileFromRow,
+  profileIsBlank,
+  profileToRow,
   shareableAccount,
   shareableCard,
   stampDongExpenses,
@@ -246,5 +250,42 @@ describe('cloud errors', () => {
       'این شناسه قبلاً گرفته شده',
     )
     expect(explainCloudError(401, 'Expected 3 parts in JWT: got 1')).toMatch(/نشست ابری معتبر نیست/)
+    expect(explainCloudError(401, '{"code":"42501","message":"permission denied for table profiles"}')).toMatch(/اجازه ذخیره/)
+  })
+})
+
+describe('profile cloud merge', () => {
+  const filled = { ...emptyProfile(), firstName: 'نگار', updatedAt: 100 }
+  const other = { ...emptyProfile(), firstName: 'آزمایش', updatedAt: 200 }
+
+  it('stores the row under user_id, the real primary key', () => {
+    const row = profileToRow(filled, '11111111-1111-4111-8111-111111111111')
+    expect(row.user_id).toBe('11111111-1111-4111-8111-111111111111')
+    expect(row).not.toHaveProperty('id')
+    expect(row).not.toHaveProperty('updated_at')
+  })
+
+  it('reads the account id from the JWT subject', () => {
+    const payload = btoa(JSON.stringify({ sub: '22222222-2222-4222-8222-222222222222' }))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '')
+    expect(jwtUserId(`aaa.${payload}.sig`)).toBe('22222222-2222-4222-8222-222222222222')
+    expect(() => jwtUserId('not-a-jwt')).toThrow(/نشست ابری معتبر نیست/)
+    expect(() => jwtUserId(`aaa.${btoa(JSON.stringify({ sub: '1000' }))}.sig`)).toThrow(/نامعتبر/)
+  })
+
+  it('lets the newer profile win and refuses to let a blank copy erase a filled one', () => {
+    expect(profileIsBlank(emptyProfile())).toBe(true)
+    expect(profileIsBlank(filled)).toBe(false)
+    expect(chooseProfileSync(filled, null, true)).toBe('push')
+    expect(chooseProfileSync(emptyProfile(), null, true)).toBe('keep')
+    expect(chooseProfileSync(null, other, false)).toBe('pull')
+    expect(chooseProfileSync({ ...emptyProfile(), updatedAt: 999 }, other, true)).toBe('pull')
+    expect(chooseProfileSync(filled, other, true)).toBe('pull')
+    expect(chooseProfileSync({ ...filled, updatedAt: 300 }, other, false)).toBe('push')
+    expect(chooseProfileSync({ ...filled, updatedAt: 200 }, other, true)).toBe('push')
+    expect(chooseProfileSync({ ...filled, updatedAt: 200 }, other, false)).toBe('keep')
+    expect(chooseProfileSync(filled, { ...emptyProfile(), updatedAt: 999 }, false)).toBe('push')
   })
 })

@@ -1,20 +1,17 @@
 import { useEffect, useRef } from 'react'
 import * as db from '../db/db'
+import { syncProfile } from '../lib/profileCloud'
 import {
-  fetchMyProfile,
   listSharedAssets,
   pullReadableDong,
   pushMemberDong,
   pushOwnerDong,
-  saveMyProfile,
 } from '../lib/profileApi'
-import { isSharedDong, type SharedAssetView, type UserProfile } from '../lib/profile'
+import { isSharedDong, type SharedAssetView } from '../lib/profile'
 import { replaceSharedAssets } from '../lib/shareInbox'
 import { ensureSession, notifyUser, onLocalChange, supabaseConfig } from '../lib/sync'
 import type { DongEvent } from '../types'
 import { useExtras } from '../store/Extras'
-
-const PROFILE_DIRTY = 'hy-profile-dirty'
 
 export function ProfileSync() {
   const extras = useExtras()
@@ -34,22 +31,6 @@ export function ProfileSync() {
       if (message === told) return
       told = message
       notifyUser(message)
-    }
-
-    async function pullProfile() {
-      const local = await db.getKv<UserProfile>('userProfile')
-      const dirty = localStorage.getItem(PROFILE_DIRTY) === '1'
-      if (dirty && local) {
-        await saveMyProfile(local)
-        localStorage.removeItem(PROFILE_DIRTY)
-        return
-      }
-      const remote = await fetchMyProfile()
-      if (closed || !remote) return
-      if (!local || remote.updatedAt >= local.updatedAt) {
-        await db.setKv('userProfile', remote)
-        window.dispatchEvent(new Event('hy-profile-updated'))
-      }
     }
 
     async function pullDong() {
@@ -90,9 +71,19 @@ export function ProfileSync() {
       if (closed || !navigator.onLine) return
       const session = await ensureSession()
       if (!session || closed) return
-      await pullProfile()
-      await pullDong()
-      await pullAssets()
+      await syncProfile()
+      if (closed) return
+      try {
+        await pullDong()
+      } catch (err) {
+        fail(err)
+      }
+      if (closed) return
+      try {
+        await pullAssets()
+      } catch (err) {
+        fail(err)
+      }
     }
 
     function connect(session: { accessToken: string }) {
@@ -149,11 +140,11 @@ export function ProfileSync() {
     })
 
     const poll = window.setInterval(() => {
-      void refresh().catch(() => undefined)
+      void refresh().catch(fail)
     }, 5000)
     const onWake = () => {
       if (document.visibilityState === 'hidden') return
-      void refresh().catch(() => undefined)
+      void refresh().catch(fail)
     }
     const onSession = () => {
       socket?.close()
@@ -161,7 +152,7 @@ export function ProfileSync() {
         const session = await ensureSession()
         if (!session || closed) return
         connect(session)
-        await refresh().catch(() => undefined)
+        await refresh().catch(fail)
       })()
     }
     window.addEventListener('hy-cloud-session', onSession)

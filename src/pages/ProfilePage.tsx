@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import * as db from '../db/db'
-import { checkHandleAvailable, saveMyProfile } from '../lib/profileApi'
+import { PROFILE_DIRTY_KEY, profileCloudError, syncProfile } from '../lib/profileCloud'
+import { checkHandleAvailable } from '../lib/profileApi'
 import {
   displayNameOf,
   emptyProfile,
@@ -13,11 +14,10 @@ import {
 } from '../lib/profile'
 import { loadSession, notifyUser } from '../lib/sync'
 
-const PROFILE_DIRTY = 'hy-profile-dirty'
-
 export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void }) {
   const [profile, setProfile] = useState<UserProfile>(emptyProfile())
   const [hint, setHint] = useState('')
+  const [cloudError, setCloudError] = useState(profileCloudError)
   const [handleHint, setHandleHint] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -28,11 +28,23 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
         if (!cancel && saved) setProfile({ ...emptyProfile(), ...saved })
       })
     }
+    const onCloudError = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string; cloud?: string }>).detail
+      const message = detail?.message ?? ''
+      setCloudError(message)
+      if (message) return
+      if (detail?.cloud === 'pulled') setHint('مشخصات از حساب ابری بار شد.')
+      else if (detail?.cloud === 'pushed') {
+        setHint('در حساب ابری ذخیره شد. فقط خودتان این مشخصات را می‌بینید؛ دیگران فقط شناسه و نام نمایشی را می‌بینند.')
+      }
+    }
     load()
     window.addEventListener('hy-profile-updated', load)
+    window.addEventListener('hy-profile-cloud-error', onCloudError)
     return () => {
       cancel = true
       window.removeEventListener('hy-profile-updated', load)
+      window.removeEventListener('hy-profile-cloud-error', onCloudError)
     }
   }, [])
 
@@ -102,20 +114,35 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
     setBusy(true)
     try {
       await db.setKv('userProfile', next)
-      localStorage.setItem(PROFILE_DIRTY, '1')
+      localStorage.setItem(PROFILE_DIRTY_KEY, '1')
       setProfile(next)
-      if (!loadSession()) {
-        setHint('روی این دستگاه ذخیره شد. با ورود به حساب ابری در دستگاه‌های دیگر هم می‌آید.')
+      const result = await syncProfile({ force: 'push', forceNotify: true, profile: next })
+      if (result.profile) setProfile({ ...emptyProfile(), ...result.profile })
+      if (result.cloud === 'pushed') {
+        setCloudError('')
+        setHint('در حساب ابری ذخیره شد. فقط خودتان این مشخصات را می‌بینید؛ دیگران فقط شناسه و نام نمایشی را می‌بینند.')
+        notifyUser('پروفایل ذخیره شد')
+        return
+      }
+      if (result.cloud === 'pulled') {
+        setCloudError('')
+        setHint('مشخصات از حساب ابری بار شد.')
+        notifyUser('نسخه ابری جایگزین شد')
+        return
+      }
+      if (result.cloud === 'local') {
+        setCloudError('')
+        setHint(result.error)
         notifyUser('پروفایل روی این دستگاه ذخیره شد')
         return
       }
-      await saveMyProfile(next)
-      localStorage.removeItem(PROFILE_DIRTY)
-      setHint('در حساب ابری ذخیره شد. فقط خودتان این مشخصات را می‌بینید؛ دیگران فقط شناسه و نام نمایشی را می‌بینند.')
-      notifyUser('پروفایل ذخیره شد')
+      setHint('روی این دستگاه ماند.')
+      setCloudError(result.error)
     } catch (err) {
-      setHint('روی این دستگاه ماند. با وصل شدن ابر دوباره فرستاده می‌شود.')
-      notifyUser(err instanceof Error ? err.message : 'ذخیره ابری انجام نشد')
+      const message = err instanceof Error ? err.message : 'ذخیره ابری انجام نشد'
+      setHint('روی این دستگاه ماند.')
+      setCloudError(message)
+      notifyUser(message)
     } finally {
       setBusy(false)
     }
@@ -213,6 +240,11 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
             درباره
             <textarea className="field-input" rows={3} value={profile.about} onChange={(e) => patch({ about: e.target.value })} />
           </label>
+          {cloudError ? (
+            <div className="banner error" role="alert">
+              <span>{cloudError}</span>
+            </div>
+          ) : null}
           {hint ? <p className="sheet-sub">{hint}</p> : null}
           <button className="cta-confirm" type="button" disabled={busy} onClick={() => void save()}>
             {busy ? 'در حال ذخیره…' : 'ذخیره پروفایل'}

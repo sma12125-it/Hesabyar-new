@@ -20,6 +20,7 @@ import {
   withoutSync,
   type CloudSession,
 } from '../lib/sync'
+import { syncProfile } from '../lib/profileCloud'
 import { useExtras } from '../store/Extras'
 import { useStore } from '../store/Store'
 
@@ -93,11 +94,20 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
     localStorage.setItem('hy-cloud-dirty', '1')
   }
 
+  async function enterApp() {
+    try {
+      await Promise.race([syncProfile(), new Promise((resolve) => window.setTimeout(resolve, 8000))])
+    } catch {
+      // A failed pull stays on the profile page as a visible error and retries online.
+    }
+    onUnlock()
+  }
+
   async function finish(session: CloudSession, kind: 'in' | 'up', phrase: string) {
     saveSession(session)
     await savePasswordVerifier(session.email, phrase)
     await adopt(session, kind)
-    onUnlock()
+    await enterApp()
   }
 
   async function submitAccount() {
@@ -148,13 +158,13 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
     setBusy(true)
     try {
       if (await checkPasswordVerifier(password)) {
-        onUnlock()
+        await enterApp()
         return
       }
       const next = await signIn(session.email, password)
       saveSession(next)
       await savePasswordVerifier(next.email, password)
-      onUnlock()
+      await enterApp()
     } catch {
       setError('رمز نادرست است')
     } finally {
@@ -166,7 +176,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
     if (!store.ready) return
     if (next.length < 4) return
     if (await checkPattern(next.join('-'))) {
-      onUnlock()
+      await enterApp()
       return
     }
     setError('الگو نادرست است')
@@ -177,7 +187,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
     if (!store.ready) return
     setError(null)
     try {
-      if (await verifyBiometric()) onUnlock()
+      if (await verifyBiometric()) await enterApp()
       else setError('قفل گوشی تأیید نشد')
     } catch {
       setError('قفل گوشی تأیید نشد')
@@ -323,7 +333,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
         <div className="field-stack">
           <p className="sheet-sub">این کد بازیابی رمز حساب است. اگر رمز را فراموش کنید، با همین کد رمز تازه می‌سازید. یک‌بار نشان داده می‌شود.</p>
           <p className="recovery-code">{code}</p>
-          <button className="cta-confirm" type="button" onClick={onUnlock}>ذخیره کردم، ادامه</button>
+          <button className="cta-confirm" type="button" onClick={() => void enterApp()}>ذخیره کردم، ادامه</button>
         </div>
       ) : null}
     </div>

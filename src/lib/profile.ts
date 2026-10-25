@@ -141,6 +141,60 @@ export function profileToRow(profile: UserProfile, userId: string): Record<strin
   }
 }
 
+const USER_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** `profiles.user_id` is the primary key and must be the JWT subject, not a column named id. */
+export function jwtUserId(accessToken: string): string {
+  const part = accessToken.split('.')[1] ?? ''
+  if (!part) throw new Error('نشست ابری معتبر نیست. از تنظیمات دوباره وارد حساب شوید.')
+  try {
+    const pad = part.replace(/-/g, '+').replace(/_/g, '/')
+    const padded = pad + '='.repeat((4 - (pad.length % 4)) % 4)
+    const json = JSON.parse(atob(padded)) as { sub?: unknown }
+    const sub = typeof json.sub === 'string' ? json.sub : ''
+    if (!USER_UUID.test(sub)) throw new Error('شناسه حساب ابری نامعتبر است. از تنظیمات دوباره وارد شوید.')
+    return sub
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith('شناسه حساب')) throw err
+    throw new Error('نشست ابری معتبر نیست. از تنظیمات دوباره وارد حساب شوید.')
+  }
+}
+
+export function profileIsBlank(profile: UserProfile | null | undefined): boolean {
+  if (!profile) return true
+  return !(
+    profile.firstName.trim() ||
+    profile.lastName.trim() ||
+    profile.email.trim() ||
+    profile.phone.trim() ||
+    profile.avatarUrl.trim() ||
+    profile.handle.trim() ||
+    profile.displayName.trim() ||
+    profile.about.trim()
+  )
+}
+
+/**
+ * Newer `updatedAt` wins. A blank profile never replaces a filled one,
+ * so a new device cannot wipe the cloud row with an empty local copy.
+ */
+export function chooseProfileSync(
+  local: UserProfile | null,
+  remote: UserProfile | null,
+  dirty: boolean,
+): 'push' | 'pull' | 'keep' {
+  const localBlank = profileIsBlank(local)
+  const remoteBlank = profileIsBlank(remote)
+  if (!remote || remoteBlank) {
+    if (localBlank) return 'keep'
+    return 'push'
+  }
+  if (!local || localBlank) return 'pull'
+  if (local.updatedAt > remote.updatedAt) return 'push'
+  if (remote.updatedAt > local.updatedAt) return 'pull'
+  return dirty ? 'push' : 'keep'
+}
+
 /** Public lookup shape: handle and display name only. */
 export function toPublicHandle(row: unknown): PublicHandle | null {
   if (!row || typeof row !== 'object') return null
@@ -210,6 +264,9 @@ export function explainCloudError(status: number, body: string): string {
   if (missing) return MIGRATION_HINT
   if (/JWT|PGRST301|Invalid API key/i.test(body)) {
     return 'نشست ابری معتبر نیست. از تنظیمات دوباره وارد حساب شوید.'
+  }
+  if (/row-level security|42501|permission denied/i.test(body)) {
+    return 'حساب ابری اجازه ذخیره پروفایل را نداد. از تنظیمات خارج شوید و دوباره وارد همان حساب شوید.'
   }
   if (/23505|duplicate key|profiles_handle/i.test(body)) return 'این شناسه قبلاً گرفته شده'
   try {
