@@ -309,6 +309,7 @@ export interface DongExpenseItem {
   splitMode?: 'equal' | 'custom'
   customShares?: Record<string, number>
   date?: string
+  updatedAt?: number
 }
 
 export interface DongDeposit {
@@ -320,6 +321,32 @@ export interface DongDeposit {
   createdAt?: number
 }
 
+export interface DongPotDeposit {
+  id: string
+  memberId: string
+  amount: number
+  date: string
+  note?: string
+  createdAt?: number
+  updatedAt?: number
+}
+
+export interface DongMadreKharj {
+  enabled: boolean
+  responsibleId?: string
+  contributions?: Record<string, number>
+  deposits?: DongPotDeposit[]
+}
+
+export interface DongMemberLink {
+  memberId?: string
+  participantId?: string
+  handle: string
+  displayName?: string
+  avatarUrl?: string
+  linkedAt?: number
+}
+
 export interface DongEvent {
   id: string
   title: string
@@ -329,6 +356,13 @@ export interface DongEvent {
   expenses: DongExpenseItem[]
   treasurerId?: string
   deposits?: DongDeposit[]
+  madreKharj?: DongMadreKharj
+  remoteId?: string
+  shareRole?: 'owner' | 'editor' | 'viewer' | 'member'
+  memberLinks?: DongMemberLink[]
+  linksUpdatedAt?: number
+  structureUpdatedAt?: number
+  deletedExpenseIds?: string[]
   note?: string
   settled?: boolean
   settledTransfers?: string[]

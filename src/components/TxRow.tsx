@@ -1,6 +1,7 @@
 import { memo } from 'react'
 import { formatRelativeFromIso } from '../lib/dates'
 import { accountIcon, getCategory } from '../lib/categories'
+import { toFaDigits } from '../lib/money'
 import { useStore } from '../store/Store'
 import { actorLabel } from '../lib/actor'
 import type { Account, Transaction } from '../types'
@@ -150,8 +151,10 @@ export const AccountRow = memo(function AccountRow({
   onClick: () => void
 }) {
   const actions = useUiActions()
+  const { pockets } = useStore()
   const { formatMoney, unitLabel } = useExtras()
   const canSwipe = !account.archived && Boolean(actions)
+  const accountPockets = (pockets ?? []).filter((p) => p.accountId === account.id && !p.archived)
 
   return (
     <SwipeRow
@@ -164,6 +167,19 @@ export const AccountRow = memo(function AccountRow({
           <div className="acct-name">{account.name}</div>
           <span className={`badge ${account.type}`}>{account.type === 'cash' ? 'نقد' : 'بانک'}</span>
           {account.shareId ? <span className="badge bank">مشترک</span> : null}
+          {accountPockets.length > 1 ? (
+            <span
+              className="badge"
+              style={{
+                fontSize: 10,
+                background: 'rgba(15, 118, 110, 0.15)',
+                color: 'var(--hy-accent)',
+                fontWeight: 700,
+              }}
+            >
+              👛 {toFaDigits(accountPockets.length)} جیب
+            </span>
+          ) : null}
         </div>
         <div className="acct-bal">
           {formatMoney(account.balance, false)}

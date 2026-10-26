@@ -2,7 +2,7 @@ import { deriveOpeningBalance } from '../lib/balance'
 import { INSTALLMENT_CATEGORY_ID } from '../lib/categories'
 import { generateInstallmentItems, defaultPayNote } from '../lib/installments'
 import { addCalendarMonths, addDaysIso, isoFromTimestamp, todayIso } from '../lib/iso'
-import type { Account, InstallmentItem, InstallmentPlan, Transaction } from '../types'
+import type { Account, InstallmentItem, InstallmentPlan, Pocket, Transaction } from '../types'
 
 const day = 24 * 60 * 60 * 1000
 
@@ -11,6 +11,7 @@ export function demoDataset(now = Date.now()): {
   transactions: Transaction[]
   plans: InstallmentPlan[]
   items: InstallmentItem[]
+  pockets: Pocket[]
 } {
   const today = todayIso(new Date(now))
   const walletId = 'acc_wallet'
@@ -176,11 +177,48 @@ export function demoDataset(now = Date.now()): {
     balance: targets[a.id],
   }))
 
+  const demoPockets: Pocket[] = [
+    {
+      id: 'pkt_mellat_main',
+      accountId: mellatId,
+      name: 'سهم خودم',
+      isMain: true,
+      isOwn: true,
+      openingBalance: 120_000_000,
+      archived: false,
+      createdAt: now - 80 * day,
+      updatedAt: now,
+    },
+    {
+      id: 'pkt_mellat_mother',
+      accountId: mellatId,
+      name: 'سهم مادر',
+      isMain: false,
+      isOwn: false,
+      openingBalance: 50_000_000,
+      archived: false,
+      createdAt: now - 80 * day,
+      updatedAt: now,
+    },
+    {
+      id: 'pkt_wallet_main',
+      accountId: walletId,
+      name: 'جیب اصلی',
+      isMain: true,
+      isOwn: true,
+      openingBalance: 2_000_000,
+      archived: false,
+      createdAt: now - 40 * day,
+      updatedAt: now,
+    },
+  ]
+
   return {
     accounts,
     transactions,
     plans: [car, phone, gear],
     items: [...carItems, ...phoneItems, ...gearItems],
+    pockets: demoPockets,
   }
 }
 

@@ -187,12 +187,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       db.listPockets(),
       db.listPocketTransfers(),
     ])
+    let resolvedPockets = nextPockets
+    if (resolvedPockets.length === 0 && raw.length > 0) {
+      const demo = demoDataset()
+      resolvedPockets = demo.pockets
+      await db.putPockets(resolvedPockets)
+    }
     applySnapshot({
       accounts: hydrateAccounts(raw, txs),
       transactions: txs,
       plans: nextPlans,
       items: nextItems,
-      pockets: nextPockets,
+      pockets: resolvedPockets,
       pocketTransfers: nextPocketTransfers,
     })
   }, [applySnapshot])
@@ -745,6 +751,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const resetDemo = useCallback(async () => {
     const demo = demoDataset()
     await db.replaceAllData(demo.accounts, demo.transactions, demo.plans, demo.items)
+    await db.putPockets(demo.pockets)
+    await db.putPocketTransfers([])
     await db.setKv('seeded', true)
     await refresh()
     const { notifyLocalChange } = await import('../lib/sync')
@@ -753,6 +761,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const wipeAll = useCallback(async () => {
     await db.replaceAllData([], [], [], [])
+    await db.putPockets([])
+    await db.putPocketTransfers([])
     await db.setKv('seeded', true)
     await db.setKv('customCategories', [])
     const { clearSmsDrafts } = await import('../lib/sms/drafts')
