@@ -11,6 +11,8 @@ interface Payload {
   transactions: unknown
   plans: unknown
   items: unknown
+  pockets?: unknown
+  pocketTransfers?: unknown
   customCategories: unknown
   budgets: unknown
   goals: unknown
@@ -45,6 +47,8 @@ export function SyncSheet({
       transactions: store.transactions,
       plans: store.plans,
       items: store.items,
+      pockets: store.pockets,
+      pocketTransfers: store.pocketTransfers,
       customCategories: store.customCategories,
       budgets: local.budgets,
       goals: local.goals,
@@ -103,7 +107,7 @@ export function SyncSheet({
         setInfo('روی ابر هنوز داده‌ای نیست')
         return
       }
-      const { replaceAllData, setKv } = await import('../db/db')
+      const { replaceAllData, setKv, putPockets, putPocketTransfers } = await import('../db/db')
       const data = remote.data
       await replaceAllData(
         (data.accounts as never) ?? [],
@@ -111,6 +115,8 @@ export function SyncSheet({
         (data.plans as never) ?? [],
         (data.items as never) ?? [],
       )
+      if (Array.isArray(data.pockets)) await putPockets(data.pockets as never)
+      if (Array.isArray(data.pocketTransfers)) await putPocketTransfers(data.pocketTransfers as never)
       await setKv('customCategories', data.customCategories ?? [])
       await extras.importLocal(data as unknown as Record<string, unknown>)
       window.location.reload()
