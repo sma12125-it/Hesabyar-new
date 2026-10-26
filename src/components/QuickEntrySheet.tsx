@@ -5,6 +5,7 @@ import { formatRial } from '../lib/money'
 import { useScrollFocusedIntoView } from '../lib/keyboardInset'
 import { notifyUser } from '../lib/sync'
 import { useStore } from '../store/Store'
+import { useExtras } from '../store/Extras'
 import { AmountField } from './AmountField'
 import { DateField } from './DateField'
 import { PickerSheet } from './PickerSheet'
@@ -26,13 +27,36 @@ export function QuickEntrySheet({
   onClose: () => void
   onMinimize?: () => void
 }) {
-  const { activeAccounts, addQuickEntry, updateTransaction, customCategories, createCategory, renameCategory, deleteCategory } = useStore()
+  const { activeAccounts, pockets, addQuickEntry, updateTransaction, customCategories, createCategory, renameCategory, deleteCategory } = useStore()
+  const { debts, formatMoney } = useExtras()
   const isEdit = Boolean(transaction)
   const [kind, setKind] = useState<'expense' | 'income'>(
     transaction?.kind === 'income' ? 'income' : transaction?.kind === 'expense' ? 'expense' : initialKind,
   )
   const [amount, setAmount] = useState(transaction?.amount ?? 0)
   const [accountId, setAccountId] = useState(transaction?.accountId ?? presetAccountId ?? activeAccounts[0]?.id ?? '')
+
+  const accountPockets = useMemo(
+    () => (pockets ?? []).filter((p) => p.accountId === accountId && !p.archived),
+    [pockets, accountId],
+  )
+  const mainPocket = accountPockets.find((p) => p.isMain)
+
+  const [pocketId, setPocketId] = useState<string | undefined>(
+    () => transaction?.pocketId ?? mainPocket?.id ?? accountPockets[0]?.id,
+  )
+  const selectedPocket = accountPockets.find((p) => p.id === pocketId) ?? mainPocket
+
+  const [countAsLoan, setCountAsLoan] = useState(false)
+  const [repayDebtId, setRepayDebtId] = useState<string | undefined>(undefined)
+
+  const openLoans = useMemo(() => {
+    if (!selectedPocket) return []
+    return (debts ?? []).filter(
+      (d) => d.direction === 'borrowed' && d.status === 'active' && d.pocketId === selectedPocket.id,
+    )
+  }, [debts, selectedPocket])
+
   const [categoryId, setCategoryId] = useState(
     () => transaction?.categoryId ?? categoriesFor(initialKind)[0]?.id ?? 'food',
   )
@@ -41,7 +65,7 @@ export function QuickEntrySheet({
   const [receiptPhoto, setReceiptPhoto] = useState<string | undefined>(transaction?.receiptPhoto)
   const [tagInput, setTagInput] = useState('')
   const [tags, setTags] = useState<string[]>(transaction?.tags ?? [])
-  const [picker, setPicker] = useState<'category' | 'account' | 'note' | null>(null)
+  const [picker, setPicker] = useState<'category' | 'account' | 'note' | 'pocket' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   useScrollFocusedIntoView()
@@ -99,6 +123,7 @@ export function QuickEntrySheet({
     }
     setSaving(true)
     try {
+      const finalPocketId = selectedPocket?.id
       if (transaction) {
         await updateTransaction(transaction.id, {
           kind,
@@ -109,6 +134,7 @@ export function QuickEntrySheet({
           date,
           receiptPhoto,
           tags,
+          pocketId: finalPocketId,
         })
       } else {
         await addQuickEntry({
@@ -120,6 +146,9 @@ export function QuickEntrySheet({
           date,
           receiptPhoto,
           tags,
+          pocketId: finalPocketId,
+          countAsLoan: kind === 'expense' && selectedPocket && !selectedPocket.isOwn ? countAsLoan : false,
+          repayDebtId: kind === 'income' ? repayDebtId : undefined,
         })
       }
       onClose()
@@ -158,7 +187,7 @@ export function QuickEntrySheet({
 
   if (picker === 'account') {
     return (
-      <PickerSheet title="از حساب" onClose={() => setPicker(null)}>
+      <PickerSheet title={kind === 'income' ? 'به حساب' : 'از حساب'} onClose={() => setPicker(null)}>
         {activeAccounts.length === 0 ? (
           <p className="sheet-sub">حساب فعالی ندارید</p>
         ) : (
@@ -168,11 +197,44 @@ export function QuickEntrySheet({
               account={a}
               onPick={() => {
                 setAccountId(a.id)
+                const nextPockets = (pockets ?? []).filter((p) => p.accountId === a.id && !p.archived)
+                const nextMain = nextPockets.find((p) => p.isMain)
+                setPocketId(nextMain?.id ?? nextPockets[0]?.id)
                 setPicker(null)
               }}
             />
           ))
         )}
+      </PickerSheet>
+    )
+  }
+
+  if (picker === 'pocket') {
+    return (
+      <PickerSheet title={kind === 'income' ? 'به جیب' : 'از جیب'} onClose={() => setPicker(null)}>
+        {accountPockets.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            className="option-item lg-light"
+            onClick={() => {
+              setPocketId(p.id)
+              setPicker(null)
+            }}
+          >
+            <span className="oico">{p.isMain ? '⭐' : p.isOwn ? '👛' : '🤝'}</span>
+            <div>
+              <div className="otitle" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>{p.name}</span>
+                {p.isMain ? <span className="badge">اصلی</span> : null}
+                {!p.isOwn ? <span className="badge" style={{ background: '#ea580c', color: '#fff' }}>امانی</span> : null}
+              </div>
+              <div className="osub">
+                {p.isMain ? 'جیب اصلی حساب' : p.isOwn ? 'شخصی' : 'امانی / دیگران (امکان ثبت قرض)'}
+              </div>
+            </div>
+          </button>
+        ))}
       </PickerSheet>
     )
   }
@@ -256,6 +318,94 @@ export function QuickEntrySheet({
             </div>
             <span className="fchev">‹</span>
           </button>
+
+          {/* Under «از حساب» row add a «از جیب» row if account has > 1 pocket */}
+          {accountPockets.length > 1 ? (
+            <button className="field-chip" type="button" onClick={() => setPicker('pocket')}>
+              <span className="ficon">👛</span>
+              <div style={{ flex: 1 }}>
+                <div className="flabel">{kind === 'income' ? 'به جیب' : 'از جیب'}</div>
+                <div className="fvalue" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>{selectedPocket?.name ?? 'جیب اصلی'}</span>
+                  {selectedPocket?.isMain ? <span className="badge" style={{ fontSize: 10 }}>اصلی</span> : null}
+                  {!selectedPocket?.isOwn ? (
+                    <span className="badge" style={{ fontSize: 10, background: '#ea580c', color: '#fff' }}>
+                      امانی
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              <span className="fchev">‹</span>
+            </button>
+          ) : null}
+
+          {/* Loan toggle: if expense and selected pocket has isOwn=false */}
+          {kind === 'expense' && selectedPocket && !selectedPocket.isOwn ? (
+            <div
+              style={{
+                padding: '10px 14px',
+                borderRadius: 16,
+                background: countAsLoan ? 'rgba(234, 88, 12, 0.15)' : 'var(--glass-chrome)',
+                border: countAsLoan ? '1px solid #ea580c' : 'var(--glass-border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#ea580c', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  🤝 حساب شود قرض از این جیب
+                </span>
+                <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
+                  خرج از پول دیگران؛ به عنوان بدهی من به این جیب ثبت می‌شود.
+                </div>
+              </div>
+              <button
+                type="button"
+                className={`cat-mini${countAsLoan ? ' active' : ''}`}
+                style={{
+                  background: countAsLoan ? '#ea580c' : undefined,
+                  borderColor: countAsLoan ? '#ea580c' : undefined,
+                  color: countAsLoan ? '#fff' : undefined,
+                }}
+                onClick={() => setCountAsLoan((v) => !v)}
+              >
+                {countAsLoan ? 'فعال' : 'غیرفعال'}
+              </button>
+            </div>
+          ) : null}
+
+          {/* Repay toggle: if income and selected pocket has an open loan */}
+          {kind === 'income' && openLoans.length > 0 ? (
+            <div
+              style={{
+                padding: '10px 14px',
+                borderRadius: 16,
+                background: repayDebtId ? 'rgba(16, 185, 129, 0.15)' : 'var(--glass-chrome)',
+                border: repayDebtId ? '1px solid #10b981' : 'var(--glass-border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#10b981', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  ↩ بازپرداخت بدهی به این جیب
+                </span>
+                <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
+                  مانده طلب این جیب: {formatMoney(openLoans[0].amount - (openLoans[0].repaidAmount || 0), true)}
+                </div>
+              </div>
+              <button
+                type="button"
+                className={`cat-mini${repayDebtId ? ' active' : ''}`}
+                onClick={() => setRepayDebtId((v) => (v ? undefined : openLoans[0].id))}
+              >
+                {repayDebtId ? 'فعال' : 'غیرفعال'}
+              </button>
+            </div>
+          ) : null}
+
           <DateField label="تاریخ ثبت تراکنش" value={date} onChange={setDate} />
           
           {/* Request 12: Note input must not be inside a button so spacebar never loses focus */}

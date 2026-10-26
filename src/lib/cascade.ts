@@ -12,6 +12,8 @@ import type {
   InstallmentItem,
   InstallmentPlan,
   InvestmentAsset,
+  Pocket,
+  PocketTransfer,
   ReminderSettings,
   SavingsGoal,
   Transaction,
@@ -22,6 +24,8 @@ export interface AppData {
   transactions: Transaction[]
   plans: InstallmentPlan[]
   items: InstallmentItem[]
+  pockets?: Pocket[]
+  pocketTransfers?: PocketTransfer[]
   cheques?: Cheque[]
   debts?: DebtLoan[]
   cards?: BankCard[]
@@ -106,14 +110,116 @@ export function unpayInstallmentItem(itemId: string, data: AppData, today = toda
   return { ...data, items: nextItems, plans }
 }
 
-/** Delete one transaction. Transfer legs are always removed together. Linked installment items are unpaid, not removed. */
+/** Delete one transaction. Transfer legs are always removed together. Linked installment items are unpaid. Linked debt loans are removed. */
 export function deleteTransactionCascade(txId: string, data: AppData, today = todayIso()): AppData {
   const tx = data.transactions.find((row) => row.id === txId)
   if (!tx) throw new Error('تراکنش پیدا نشد')
   const removedTxIds = transferIdsToRemove(tx, data.transactions)
   const transactions = data.transactions.filter((row) => !removedTxIds.has(row.id))
   const { items, plans } = unpayItemsForRemovedTxs(data.items, data.plans, removedTxIds, today)
-  return rebalance({ ...data, transactions, items, plans })
+  const debts = data.debts ? data.debts.filter((d) => !d.transactionId || !removedTxIds.has(d.transactionId)) : data.debts
+  return rebalance({ ...data, transactions, items, plans, debts })
+}
+
+/** Check if a pocket has an active/open loan */
+export function pocketHasOpenLoan(pocketId: string, debts: DebtLoan[] = []): boolean {
+  return debts.some((d) => d.pocketId === pocketId && d.status === 'active')
+}
+
+/**
+ * Delete a pocket:
+ * - The main pocket cannot be deleted.
+ * - Deleting another pocket archives it and moves its transactions and opening balance
+ *   to the main pocket (or a chosen target pocket).
+ * - Relinks debt loans if any.
+ */
+export function deletePocketCascade(
+  pocketId: string,
+  targetPocketId: string | undefined,
+  data: AppData,
+): AppData {
+  const pockets = data.pockets ?? []
+  const pocket = pockets.find((p) => p.id === pocketId)
+  if (!pocket) throw new Error('جیب پیدا نشد')
+  if (pocket.isMain) throw new Error('جیب اصلی قابل حذف نیست')
+
+  // Find target pocket (either specified or main pocket of the same account)
+  const accountPockets = pockets.filter((p) => p.accountId === pocket.accountId && !p.archived && p.id !== pocketId)
+  const target = targetPocketId
+    ? accountPockets.find((p) => p.id === targetPocketId)
+    : accountPockets.find((p) => p.isMain)
+
+  if (!target) {
+    throw new Error('جیب مقصد پیدا نشد')
+  }
+
+  const now = Date.now()
+
+  // Move transactions from this pocket to target pocket
+  const nextTransactions = data.transactions.map((tx) =>
+    tx.pocketId === pocketId ? { ...tx, pocketId: target.id, updatedAt: now } : tx,
+  )
+
+  // Move pocket transfers or retarget them
+  const nextPocketTransfers = (data.pocketTransfers ?? []).map((tr) => {
+    if (tr.fromPocketId === pocketId || tr.toPocketId === pocketId) {
+      return {
+        ...tr,
+        fromPocketId: tr.fromPocketId === pocketId ? target.id : tr.fromPocketId,
+        toPocketId: tr.toPocketId === pocketId ? target.id : tr.toPocketId,
+        updatedAt: now,
+      }
+    }
+    return tr
+  })
+
+  // Transfer opening balance share to target pocket and archive deleted pocket
+  const nextPockets = pockets.map((p) => {
+    if (p.id === pocketId) {
+      return { ...p, archived: true, updatedAt: now }
+    }
+    if (p.id === target.id) {
+      return {
+        ...p,
+        openingBalance: (p.openingBalance || 0) + (pocket.openingBalance || 0),
+        updatedAt: now,
+      }
+    }
+    return p
+  })
+
+  // Relink debts if any
+  const nextDebts = data.debts?.map((d) =>
+    d.pocketId === pocketId ? { ...d, pocketId: target.id, updatedAt: now } : d,
+  )
+
+  return rebalance({
+    ...data,
+    transactions: nextTransactions,
+    pockets: nextPockets,
+    pocketTransfers: nextPocketTransfers,
+    debts: nextDebts,
+  })
+}
+
+/** Update linked DebtLoan when a transaction's amount or pocket changes */
+export function syncTransactionDebtLoan(
+  tx: Transaction,
+  debts: DebtLoan[] = [],
+  pocketName?: string,
+): DebtLoan[] {
+  return debts.map((d) => {
+    if (d.transactionId === tx.id) {
+      return {
+        ...d,
+        amount: tx.amount,
+        pocketId: tx.pocketId,
+        party: pocketName || d.party,
+        updatedAt: Date.now(),
+      }
+    }
+    return d
+  })
 }
 
 /**

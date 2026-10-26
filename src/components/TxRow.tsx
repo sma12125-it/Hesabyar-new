@@ -50,9 +50,10 @@ export const TxRow = memo(function TxRow({
   onSelect?: (tx: Transaction) => void
 }) {
   const actions = useUiActions()
-  const { customCategories } = useStore()
+  const { customCategories, pockets } = useStore()
   const { formatMoney, unitLabel } = useExtras()
   const account = accounts.find((a) => a.id === tx.accountId)
+  const pocket = tx.pocketId ? (pockets ?? []).find((p) => p.id === tx.pocketId) : undefined
   const amtClass =
     tx.kind === 'income' || tx.kind === 'transferIn'
       ? 'income'
@@ -90,8 +91,22 @@ export const TxRow = memo(function TxRow({
       >
         <div className="tx-ico">{txIcon(tx, customCategories)}</div>
         <div className="tx-meta">
-          <div className="tx-title" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <div className="tx-title" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span>{txTitle(tx, accounts, customCategories)}</span>
+            {pocket ? (
+              <span
+                className="badge"
+                style={{
+                  fontSize: 10,
+                  padding: '1px 6px',
+                  background: pocket.isOwn ? 'rgba(15, 118, 110, 0.15)' : 'rgba(234, 88, 12, 0.2)',
+                  color: pocket.isOwn ? 'var(--hy-accent)' : '#ea580c',
+                  fontWeight: 600,
+                }}
+              >
+                {pocket.isOwn ? '👛' : '🤝'} {pocket.name}
+              </span>
+            ) : null}
             {tx.receiptPhoto ? (
               <span style={{ fontSize: 11 }} title="دارای تصویر رسید">
                 🧾

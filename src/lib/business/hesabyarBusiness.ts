@@ -5,6 +5,7 @@ import {
   deleteInstallmentItemCascade,
   unpayInstallmentItem,
   nextPlanStatus,
+  syncTransactionDebtLoan,
   type AppData,
 } from '../cascade'
 import {
@@ -139,6 +140,7 @@ export interface CreateTransactionParams {
   source?: TxSource
   receiptPhoto?: string
   tags?: string[]
+  pocketId?: string
 }
 
 export interface UpdateTransactionParams {
@@ -153,6 +155,7 @@ export interface UpdateTransactionParams {
   toAccount?: string
   receiptPhoto?: string
   tags?: string[]
+  pocketId?: string
 }
 
 export interface CreateTransferParams {
@@ -163,6 +166,8 @@ export interface CreateTransferParams {
   date?: string // YYYY-MM-DD
   description?: string // note
   source?: TxSource
+  fromPocketId?: string
+  toPocketId?: string
 }
 
 export interface ReportSummary {
@@ -460,6 +465,7 @@ export function createTransaction(
     ...(params.source ? { source: params.source } : {}),
     ...(params.receiptPhoto ? { receiptPhoto: params.receiptPhoto } : {}),
     ...(params.tags && params.tags.length > 0 ? { tags: params.tags } : {}),
+    ...(params.pocketId ? { pocketId: params.pocketId } : {}),
   }
 
   const balanceBefore = targetAccount.balance
@@ -626,11 +632,15 @@ export function updateTransaction(
     if (cat) categoryId = cat.id
   }
 
+  const accountChanged = accountId !== prevTx.accountId
+  const targetPocketId = accountChanged ? undefined : (patch.pocketId !== undefined ? patch.pocketId : prevTx.pocketId)
+
   const nextTx: Transaction = {
     ...prevTx,
     kind,
     amount,
     accountId,
+    pocketId: targetPocketId || undefined,
     categoryId: prevTx.installmentItemId ? INSTALLMENT_CATEGORY_ID : categoryId,
     note: patch.description != null ? patch.description.trim() : prevTx.note,
     date,
@@ -645,10 +655,13 @@ export function updateTransaction(
       )
     : data.items
 
+  const nextDebts = data.debts ? syncTransactionDebtLoan(nextTx, data.debts) : data.debts
+
   const nextData: AppData = {
     ...data,
     transactions: data.transactions.map((t) => (t.id === id ? nextTx : t)),
     items: nextItems,
+    debts: nextDebts,
   }
 
   const decorated = decorateTransaction(nextTx, accounts, options.customCategories)
@@ -747,6 +760,7 @@ export function createTransfer(
     createdAt: now,
     ...stamp,
     ...(input.source ? { source: input.source } : {}),
+    ...(params.fromPocketId ? { pocketId: params.fromPocketId } : {}),
   }
 
   const inTx: Transaction = {
@@ -763,6 +777,7 @@ export function createTransfer(
     ...stamp,
     updatedAt: now + 1,
     ...(input.source ? { source: input.source } : {}),
+    ...(params.toPocketId ? { pocketId: params.toPocketId } : {}),
   }
 
   const nextData: AppData = {

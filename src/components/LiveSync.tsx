@@ -18,6 +18,8 @@ interface Payload {
   transactions: never[]
   plans: never[]
   items: never[]
+  pockets?: unknown
+  pocketTransfers?: unknown
   customCategories: unknown
   budgets: unknown
   goals: unknown
@@ -103,6 +105,8 @@ export function LiveSync() {
           transactions: live.transactions,
           plans: live.plans,
           items: live.items,
+          pockets: live.pockets,
+          pocketTransfers: live.pocketTransfers,
           customCategories: storeRef.current.customCategories,
           budgets: local.budgets,
           goals: local.goals,
@@ -171,6 +175,8 @@ export function LiveSync() {
         const mergedTransactions = mergeCollection(live.transactions, data.transactions, remoteTime)
         const mergedPlans = mergeCollection(live.plans, data.plans, remoteTime)
         const mergedItems = mergeCollection(live.items, data.items, remoteTime)
+        const mergedPockets = mergeCollection(live.pockets, data.pockets, remoteTime)
+        const mergedPocketTransfers = mergeCollection(live.pocketTransfers, data.pocketTransfers, remoteTime)
         const mergedCategories = mergeCollection(storeRef.current.customCategories, data.customCategories, remoteTime)
 
         const mergedCheques = mergeCollection(local.cheques, data.cheques, remoteTime)
@@ -190,6 +196,8 @@ export function LiveSync() {
             transactions: mergedTransactions as any,
             plans: mergedPlans as any,
             items: mergedItems as any,
+            pockets: mergedPockets as any,
+            pocketTransfers: mergedPocketTransfers as any,
             customCategories: mergedCategories as any,
           })
           await extrasRef.current.importLocal({

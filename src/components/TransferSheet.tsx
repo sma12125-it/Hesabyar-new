@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { formatRial } from '../lib/money'
 import { todayIso } from '../lib/iso'
 import { notifyUser } from '../lib/sync'
@@ -21,7 +21,7 @@ export function TransferSheet({
   onClose: () => void
   onMinimize?: () => void
 }) {
-  const { activeAccounts, addTransfer, updateTransaction, transactions } = useStore()
+  const { activeAccounts, pockets, addTransfer, updateTransaction, transactions } = useStore()
   const existingOut = transferId
     ? transactions.find((t) => t.transferId === transferId && t.kind === 'transferOut')
     : undefined
@@ -35,12 +35,28 @@ export function TransferSheet({
       activeAccounts.find((a) => a.id !== (existingOut?.accountId ?? presetFromId ?? activeAccounts[0]?.id))?.id ??
       '',
   )
+
+  const fromPockets = useMemo(
+    () => (pockets ?? []).filter((p) => p.accountId === fromId && !p.archived),
+    [pockets, fromId],
+  )
+  const toPockets = useMemo(
+    () => (pockets ?? []).filter((p) => p.accountId === toId && !p.archived),
+    [pockets, toId],
+  )
+
+  const [fromPocketId, setFromPocketId] = useState<string | undefined>(existingOut?.pocketId)
+  const [toPocketId, setToPocketId] = useState<string | undefined>(existingIn?.pocketId)
+
+  const fromPocket = fromPockets.find((p) => p.id === fromPocketId)
+  const toPocket = toPockets.find((p) => p.id === toPocketId)
+
   const [amount, setAmount] = useState(existingOut?.amount ?? 0)
   const [fee, setFee] = useState<number>(0)
   const [hasFee, setHasFee] = useState(false)
   const [note, setNote] = useState(existingOut?.note ?? '')
   const [date, setDate] = useState(() => existingOut?.date ?? todayIso())
-  const [picker, setPicker] = useState<'from' | 'to' | 'note' | null>(null)
+  const [picker, setPicker] = useState<'from' | 'to' | 'fromPocket' | 'toPocket' | 'note' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
@@ -66,6 +82,8 @@ export function TransferSheet({
           toAccountId: toId,
           note,
           date,
+          fromPocketId,
+          toPocketId,
         })
       } else {
         const transferNote = hasFee && fee > 0 ? `${note ? note + ' · ' : ''}کارمزد: ${formatRial(fee)} ریال` : note
@@ -75,6 +93,8 @@ export function TransferSheet({
           toAccountId: toId,
           note: transferNote,
           date,
+          fromPocketId,
+          toPocketId,
         })
       }
       onClose()
@@ -102,8 +122,13 @@ export function TransferSheet({
                 type="button"
                 className="option-item lg-light"
                 onClick={() => {
-                  if (picker === 'from') setFromId(a.id)
-                  else setToId(a.id)
+                  if (picker === 'from') {
+                    setFromId(a.id)
+                    setFromPocketId(undefined)
+                  } else {
+                    setToId(a.id)
+                    setToPocketId(undefined)
+                  }
                   setPicker(null)
                 }}
               >
@@ -115,6 +140,60 @@ export function TransferSheet({
               </button>
             ))
         )}
+      </PickerSheet>
+    )
+  }
+
+  if (picker === 'fromPocket') {
+    return (
+      <PickerSheet title="انتخاب جیب مبدأ" onClose={() => setPicker(null)}>
+        {fromPockets.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            className="option-item lg-light"
+            onClick={() => {
+              setFromPocketId(p.id)
+              setPicker(null)
+            }}
+          >
+            <span className="oico">{p.isMain ? '⭐' : p.isOwn ? '👛' : '🤝'}</span>
+            <div>
+              <div className="otitle" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>{p.name}</span>
+                {p.isMain ? <span className="badge">اصلی</span> : null}
+              </div>
+              <div className="osub">{p.isMain ? 'جیب اصلی حساب' : p.isOwn ? 'شخصی' : 'امانی / دیگران'}</div>
+            </div>
+          </button>
+        ))}
+      </PickerSheet>
+    )
+  }
+
+  if (picker === 'toPocket') {
+    return (
+      <PickerSheet title="انتخاب جیب مقصد" onClose={() => setPicker(null)}>
+        {toPockets.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            className="option-item lg-light"
+            onClick={() => {
+              setToPocketId(p.id)
+              setPicker(null)
+            }}
+          >
+            <span className="oico">{p.isMain ? '⭐' : p.isOwn ? '👛' : '🤝'}</span>
+            <div>
+              <div className="otitle" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>{p.name}</span>
+                {p.isMain ? <span className="badge">اصلی</span> : null}
+              </div>
+              <div className="osub">{p.isMain ? 'جیب اصلی حساب' : p.isOwn ? 'شخصی' : 'امانی / دیگران'}</div>
+            </div>
+          </button>
+        ))}
       </PickerSheet>
     )
   }
@@ -169,6 +248,24 @@ export function TransferSheet({
             </div>
             <span className="fchev">‹</span>
           </button>
+
+          {/* If from account has multiple pockets */}
+          {fromPockets.length > 1 ? (
+            <button
+              className="field-chip"
+              type="button"
+              onClick={() => setPicker('fromPocket')}
+              style={{ marginInlineStart: 8 }}
+            >
+              <span className="ficon">👛</span>
+              <div style={{ flex: 1 }}>
+                <div className="flabel">از جیب مبدأ</div>
+                <div className="fvalue">{fromPocket?.name ?? 'جیب اصلی'}</div>
+              </div>
+              <span className="fchev">‹</span>
+            </button>
+          ) : null}
+
           <button className="field-chip" type="button" onClick={() => setPicker('to')}>
             <span className="ficon">↓</span>
             <div>
@@ -179,6 +276,23 @@ export function TransferSheet({
             </div>
             <span className="fchev">‹</span>
           </button>
+
+          {/* If to account has multiple pockets */}
+          {toPockets.length > 1 ? (
+            <button
+              className="field-chip"
+              type="button"
+              onClick={() => setPicker('toPocket')}
+              style={{ marginInlineStart: 8 }}
+            >
+              <span className="ficon">👛</span>
+              <div style={{ flex: 1 }}>
+                <div className="flabel">به جیب مقصد</div>
+                <div className="fvalue">{toPocket?.name ?? 'جیب اصلی'}</div>
+              </div>
+              <span className="fchev">‹</span>
+            </button>
+          ) : null}
         </div>
 
         <AmountField

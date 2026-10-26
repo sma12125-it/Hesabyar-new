@@ -8,6 +8,7 @@ import {
   deleteAccountCascade,
   deleteInstallmentItemCascade,
   deletePlanCascade,
+  deletePocketCascade,
   nextPlanStatus,
   unpayInstallmentItem,
   patchToWrites,
@@ -40,8 +41,11 @@ import type {
   Category,
   CreateAccountInput,
   CreateInstallmentPlanInput,
+  DebtLoan,
   InstallmentItem,
   InstallmentPlan,
+  Pocket,
+  PocketTransfer,
   QuickEntryInput,
   Transaction,
   TransferInput,
@@ -57,6 +61,8 @@ interface StoreValue {
   transactions: Transaction[]
   plans: InstallmentPlan[]
   items: InstallmentItem[]
+  pockets: Pocket[]
+  pocketTransfers: PocketTransfer[]
   customCategories: Category[]
   activeAccounts: Account[]
   totalBalance: number
@@ -66,6 +72,11 @@ interface StoreValue {
   archiveAccount: (id: string) => Promise<void>
   restoreAccount: (id: string) => Promise<void>
   deleteAccount: (id: string) => Promise<void>
+  createPocket: (input: { accountId: string; name: string; isOwn?: boolean; openingBalance?: number }) => Promise<Pocket>
+  updatePocket: (id: string, patch: { name?: string; isOwn?: boolean; openingBalance?: number }) => Promise<void>
+  deletePocket: (id: string, targetPocketId?: string) => Promise<void>
+  addPocketTransfer: (input: { accountId: string; fromPocketId: string; toPocketId: string; amount: number; note?: string; date?: string }) => Promise<PocketTransfer>
+  deletePocketTransfer: (id: string) => Promise<void>
   addQuickEntry: (input: QuickEntryInput) => Promise<void>
   addTransfer: (input: TransferInput) => Promise<void>
   updateTransaction: (id: string, patch: UpdateTransactionInput) => Promise<void>
@@ -91,13 +102,22 @@ interface StoreValue {
     transactions: Transaction[]
     plans: InstallmentPlan[]
     items: InstallmentItem[]
+    pockets?: Pocket[]
+    pocketTransfers?: PocketTransfer[]
     customCategories?: Category[]
   }) => Promise<void>
 }
 
 const StoreContext = createContext<StoreValue | null>(null)
 
-let readLiveImpl: () => AppData = () => ({ accounts: [], transactions: [], plans: [], items: [] })
+let readLiveImpl: () => AppData = () => ({
+  accounts: [],
+  transactions: [],
+  plans: [],
+  items: [],
+  pockets: [],
+  pocketTransfers: [],
+})
 
 export function readLiveStore() {
   return readLiveImpl()
@@ -105,10 +125,13 @@ export function readLiveStore() {
 
 function hydrateSnapshot(data: AppData): AppData {
   return {
+    ...data,
     accounts: hydrateAccounts(data.accounts, data.transactions).sort((a, b) => a.createdAt - b.createdAt),
     transactions: sortTransactions(data.transactions),
     plans: data.plans.slice().sort((a, b) => a.createdAt - b.createdAt),
     items: data.items.slice().sort((a, b) => a.index - b.index),
+    pockets: (data.pockets ?? []).slice().sort((a, b) => a.createdAt - b.createdAt),
+    pocketTransfers: (data.pocketTransfers ?? []).slice().sort((a, b) => b.createdAt - a.createdAt),
   }
 }
 
@@ -119,9 +142,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [plans, setPlans] = useState<InstallmentPlan[]>([])
   const [items, setItems] = useState<InstallmentItem[]>([])
+  const [pockets, setPockets] = useState<Pocket[]>([])
+  const [pocketTransfers, setPocketTransfers] = useState<PocketTransfer[]>([])
   const [customCategories, setCustomCategories] = useState<Category[]>([])
-  const dataRef = useRef<AppData>({ accounts, transactions, plans, items })
-  dataRef.current = { accounts, transactions, plans, items }
+  const dataRef = useRef<AppData>({ accounts, transactions, plans, items, pockets, pocketTransfers })
+  dataRef.current = { accounts, transactions, plans, items, pockets, pocketTransfers }
   readLiveImpl = () => dataRef.current
 
   const applySnapshot = useCallback((data: AppData) => {
@@ -131,6 +156,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setTransactions(next.transactions)
     setPlans(next.plans)
     setItems(next.items)
+    setPockets(next.pockets ?? [])
+    setPocketTransfers(next.pocketTransfers ?? [])
   }, [])
 
   const persistSnapshot = useCallback(
@@ -139,6 +166,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       applySnapshot(hydrated)
       try {
         await db.applyDataPatch(patchToWrites(prev, hydrated))
+        if (hydrated.pockets) await db.putPockets(hydrated.pockets)
+        if (hydrated.pocketTransfers) await db.putPocketTransfers(hydrated.pocketTransfers)
         const { notifyLocalChange } = await import('../lib/sync')
         notifyLocalChange()
       } catch (err) {
@@ -150,13 +179,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   )
 
   const refresh = useCallback(async () => {
-    const [raw, txs, nextPlans, nextItems] = await Promise.all([
+    const [raw, txs, nextPlans, nextItems, nextPockets, nextPocketTransfers] = await Promise.all([
       db.listRawAccounts(),
       db.listTransactions(),
       db.listInstallmentPlans(),
       db.listInstallmentItems(),
+      db.listPockets(),
+      db.listPocketTransfers(),
     ])
-    applySnapshot({ accounts: hydrateAccounts(raw, txs), transactions: txs, plans: nextPlans, items: nextItems })
+    applySnapshot({
+      accounts: hydrateAccounts(raw, txs),
+      transactions: txs,
+      plans: nextPlans,
+      items: nextItems,
+      pockets: nextPockets,
+      pocketTransfers: nextPocketTransfers,
+    })
   }, [applySnapshot])
 
   useEffect(() => {
@@ -277,6 +315,118 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await persistSnapshot(prev, deleteAccountCascade(id, prev))
   }, [persistSnapshot])
 
+  const createPocket = useCallback(async (input: { accountId: string; name: string; isOwn?: boolean; openingBalance?: number }) => {
+    const prev = dataRef.current
+    const account = prev.accounts.find((a) => a.id === input.accountId)
+    if (!account) throw new Error('حساب پیدا نشد')
+    const name = input.name.trim()
+    if (!name) throw new Error('نام جیب را وارد کنید')
+
+    const now = Date.now()
+    const { pockets: currentPockets, mainPocket } = db.ensureMainPocketForAccount(account, prev.pockets ?? [])
+
+    const newPocket: Pocket = {
+      id: createId('pkt'),
+      accountId: input.accountId,
+      name,
+      isMain: false,
+      isOwn: input.isOwn ?? true,
+      openingBalance: input.openingBalance ?? 0,
+      archived: false,
+      createdAt: now,
+      updatedAt: now,
+    }
+
+    const nextPockets = currentPockets.map((p) => {
+      if (p.id === mainPocket.id && (input.openingBalance ?? 0) > 0) {
+        return {
+          ...p,
+          openingBalance: Math.max(0, (p.openingBalance || 0) - (input.openingBalance ?? 0)),
+          updatedAt: now,
+        }
+      }
+      return p
+    })
+
+    await persistSnapshot(prev, {
+      ...prev,
+      pockets: [...nextPockets, newPocket],
+    })
+
+    return newPocket
+  }, [persistSnapshot])
+
+  const updatePocket = useCallback(async (id: string, patch: { name?: string; isOwn?: boolean; openingBalance?: number }) => {
+    const prev = dataRef.current
+    const pocket = (prev.pockets ?? []).find((p) => p.id === id)
+    if (!pocket) throw new Error('جیب پیدا نشد')
+    const now = Date.now()
+    const nextPocket: Pocket = {
+      ...pocket,
+      name: patch.name !== undefined ? patch.name.trim() : pocket.name,
+      isOwn: patch.isOwn !== undefined ? patch.isOwn : pocket.isOwn,
+      openingBalance: patch.openingBalance !== undefined ? patch.openingBalance : pocket.openingBalance,
+      updatedAt: now,
+    }
+    await persistSnapshot(prev, {
+      ...prev,
+      pockets: (prev.pockets ?? []).map((p) => (p.id === id ? nextPocket : p)),
+    })
+  }, [persistSnapshot])
+
+  const deletePocket = useCallback(async (id: string, targetPocketId?: string) => {
+    const prev = dataRef.current
+    const existingDebts = (await db.getKv<DebtLoan[]>('debts')) ?? []
+    const next = deletePocketCascade(id, targetPocketId, { ...prev, debts: existingDebts })
+    if (next.debts) {
+      await db.setKv('debts', next.debts)
+      window.dispatchEvent(new Event('hy-debts-updated'))
+    }
+    await persistSnapshot(prev, next)
+  }, [persistSnapshot])
+
+  const addPocketTransfer = useCallback(async (input: {
+    accountId: string
+    fromPocketId: string
+    toPocketId: string
+    amount: number
+    note?: string
+    date?: string
+  }) => {
+    if (input.fromPocketId === input.toPocketId) {
+      throw new Error('جیب مبدأ و مقصد نمی‌تواند یکسان باشد')
+    }
+    if (input.amount <= 0) {
+      throw new Error('مبلغ انتقال باید بیشتر از صفر باشد')
+    }
+    const prev = dataRef.current
+    const now = Date.now()
+    const tr: PocketTransfer = {
+      id: createId('ptr'),
+      accountId: input.accountId,
+      fromPocketId: input.fromPocketId,
+      toPocketId: input.toPocketId,
+      amount: input.amount,
+      note: input.note?.trim() || '',
+      date: input.date || todayIso(),
+      createdAt: now,
+      updatedAt: now,
+    }
+    await persistSnapshot(prev, {
+      ...prev,
+      pocketTransfers: [tr, ...(prev.pocketTransfers ?? [])],
+    })
+    return tr
+  }, [persistSnapshot])
+
+  const deletePocketTransfer = useCallback(async (id: string) => {
+    const prev = dataRef.current
+    await persistSnapshot(prev, {
+      ...prev,
+      pocketTransfers: (prev.pocketTransfers ?? []).filter((tr) => tr.id !== id),
+    })
+  }, [persistSnapshot])
+
   const addQuickEntry = useCallback(async (input: QuickEntryInput) => {
     const prev = dataRef.current
     const result = hesabyarBusiness.createTransaction(
@@ -292,10 +442,52 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         source: input.source,
         receiptPhoto: input.receiptPhoto,
         tags: input.tags,
+        pocketId: input.pocketId,
       },
       { customCategories },
     )
-    await persistSnapshot(prev, result.nextData)
+    let nextData = result.nextData
+    if (input.countAsLoan && input.kind === 'expense' && input.pocketId) {
+      const pocket = (prev.pockets ?? []).find((p) => p.id === input.pocketId)
+      const now = Date.now()
+      const newDebt: DebtLoan = {
+        id: createId('debt'),
+        direction: 'borrowed',
+        party: pocket ? pocket.name : 'جیب',
+        amount: input.amount,
+        repaidAmount: 0,
+        status: 'active',
+        pocketId: input.pocketId,
+        transactionId: result.transaction.id,
+        note: `قرض از جیب ${pocket ? pocket.name : ''}`.trim(),
+        createdAt: now,
+        updatedAt: now,
+      }
+      const existingDebts = (await db.getKv<DebtLoan[]>('debts')) ?? []
+      const nextDebts = [newDebt, ...existingDebts]
+      await db.setKv('debts', nextDebts)
+      window.dispatchEvent(new Event('hy-debts-updated'))
+      nextData = { ...nextData, debts: nextDebts }
+    } else if (input.repayDebtId && input.kind === 'income') {
+      const existingDebts = (await db.getKv<DebtLoan[]>('debts')) ?? []
+      const targetDebt = existingDebts.find((d) => d.id === input.repayDebtId)
+      if (targetDebt) {
+        const updatedRepaid = (targetDebt.repaidAmount || 0) + input.amount
+        const isSettled = updatedRepaid >= targetDebt.amount
+        const updatedDebt: DebtLoan = {
+          ...targetDebt,
+          repaidAmount: updatedRepaid,
+          status: isSettled ? 'settled' : 'active',
+          settledAt: isSettled ? (input.date || todayIso()) : targetDebt.settledAt,
+          updatedAt: Date.now(),
+        }
+        const nextDebts = existingDebts.map((d) => (d.id === targetDebt.id ? updatedDebt : d))
+        await db.setKv('debts', nextDebts)
+        window.dispatchEvent(new Event('hy-debts-updated'))
+        nextData = { ...nextData, debts: nextDebts }
+      }
+    }
+    await persistSnapshot(prev, nextData)
   }, [persistSnapshot, customCategories])
 
   const addTransfer = useCallback(async (input: TransferInput) => {
@@ -310,6 +502,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         date: input.date,
         description: input.note,
         source: input.source,
+        fromPocketId: input.fromPocketId,
+        toPocketId: input.toPocketId,
       },
       { customCategories },
     )
@@ -318,8 +512,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const updateTransaction = useCallback(async (id: string, patch: UpdateTransactionInput) => {
     const prev = dataRef.current
+    const existingDebts = (await db.getKv<DebtLoan[]>('debts')) ?? []
     const result = hesabyarBusiness.updateTransaction(
-      prev,
+      { ...prev, debts: existingDebts },
       id,
       {
         amount: patch.amount,
@@ -332,15 +527,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         toAccount: patch.toAccountId,
         receiptPhoto: patch.receiptPhoto,
         tags: patch.tags,
+        pocketId: patch.pocketId,
       },
       { customCategories },
     )
+    if (result.nextData.debts) {
+      await db.setKv('debts', result.nextData.debts)
+      window.dispatchEvent(new Event('hy-debts-updated'))
+    }
     await persistSnapshot(prev, result.nextData)
   }, [persistSnapshot, customCategories])
 
   const deleteTransaction = useCallback(async (id: string) => {
     const prev = dataRef.current
-    const result = hesabyarBusiness.deleteTransaction(prev, id, { customCategories })
+    const existingDebts = (await db.getKv<DebtLoan[]>('debts')) ?? []
+    const result = hesabyarBusiness.deleteTransaction({ ...prev, debts: existingDebts }, id, { customCategories })
+    if (result.nextData.debts) {
+      await db.setKv('debts', result.nextData.debts)
+      window.dispatchEvent(new Event('hy-debts-updated'))
+    }
     await persistSnapshot(prev, result.nextData)
   }, [persistSnapshot, customCategories])
 
@@ -633,11 +838,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     transactions: Transaction[]
     plans: InstallmentPlan[]
     items: InstallmentItem[]
+    pockets?: Pocket[]
+    pocketTransfers?: PocketTransfer[]
     customCategories?: Category[]
   }) => {
     const { withoutSync } = await import('../lib/sync')
     await withoutSync(async () => {
       await db.replaceAllData(data.accounts, data.transactions, data.plans, data.items)
+      if (data.pockets) await db.putPockets(data.pockets)
+      if (data.pocketTransfers) await db.putPocketTransfers(data.pocketTransfers)
       const customs = data.customCategories ?? []
       await db.setKv('customCategories', customs)
       setCustomCategories(customs)
@@ -653,6 +862,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       transactions,
       plans,
       items,
+      pockets,
+      pocketTransfers,
       customCategories,
       activeAccounts,
       totalBalance,
@@ -662,6 +873,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       archiveAccount,
       restoreAccount,
       deleteAccount,
+      createPocket,
+      updatePocket,
+      deletePocket,
+      addPocketTransfer,
+      deletePocketTransfer,
       addQuickEntry,
       addTransfer,
       updateTransaction,
@@ -691,6 +907,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       transactions,
       plans,
       items,
+      pockets,
+      pocketTransfers,
       customCategories,
       activeAccounts,
       totalBalance,
@@ -700,6 +918,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       archiveAccount,
       restoreAccount,
       deleteAccount,
+      createPocket,
+      updatePocket,
+      deletePocket,
+      addPocketTransfer,
+      deletePocketTransfer,
       addQuickEntry,
       addTransfer,
       updateTransaction,

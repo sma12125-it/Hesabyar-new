@@ -14,6 +14,7 @@ import { UiActionsContext, type UiActions } from './components/UiActions'
 import { HomePage } from './pages/HomePage'
 import { AccountsPage } from './pages/AccountsPage'
 import { AccountDetailPage } from './pages/AccountDetailPage'
+import { PocketDetailPage } from './pages/PocketDetailPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { InvestmentDetailPage } from './pages/InvestmentDetailPage'
 import { SettingsPage } from './pages/SettingsPage'
@@ -273,6 +274,7 @@ function Shell() {
             element={<AccountsPage onScroll={onScroll} />}
           />
           <Route path="/accounts/:id" element={<AccountDetailRoute onScroll={onScroll} setSheet={setSheet} />} />
+          <Route path="/accounts/:accountId/pockets/:pocketId" element={<PocketDetailPage onScroll={onScroll} />} />
           <Route
             path="/installments/archive"
             element={<InstallmentsArchivePage onScroll={onScroll} />}

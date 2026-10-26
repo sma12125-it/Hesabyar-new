@@ -55,6 +55,35 @@ export interface Transaction {
   receiptPhoto?: string
   /** Optional hashtags or labels e.g. ['سفر', 'تعمیرات'] */
   tags?: string[]
+  /** Optional pocket/sub-balance within the account. Empty means main pocket. */
+  pocketId?: string
+}
+
+export interface Pocket {
+  id: string
+  accountId: string
+  name: string
+  /** Exactly one main pocket per account, cannot be deleted */
+  isMain: boolean
+  /** false = someone else's money; spending from it offers "count as loan" */
+  isOwn: boolean
+  /** This pocket's share of the account opening balance */
+  openingBalance: number
+  archived: boolean
+  createdAt: number
+  updatedAt: number
+}
+
+export interface PocketTransfer {
+  id: string
+  accountId: string
+  fromPocketId: string
+  toPocketId: string
+  amount: number
+  note: string
+  date: string
+  createdAt: number
+  updatedAt: number
 }
 
 export interface Category {
@@ -114,6 +143,11 @@ export interface QuickEntryInput {
   source?: TxSource
   receiptPhoto?: string
   tags?: string[]
+  pocketId?: string
+  /** If spending from a non-owned pocket, count as borrowed loan */
+  countAsLoan?: boolean
+  /** If income paying off a debt linked to this pocket */
+  repayDebtId?: string
 }
 
 export interface TransferInput {
@@ -123,6 +157,8 @@ export interface TransferInput {
   note: string
   date: string
   source?: TxSource
+  fromPocketId?: string
+  toPocketId?: string
 }
 
 export interface CreateInstallmentPlanInput {
@@ -158,7 +194,12 @@ export interface UpdateTransactionInput {
   toAccountId?: string
   receiptPhoto?: string
   tags?: string[]
+  pocketId?: string
+  fromPocketId?: string
+  toPocketId?: string
 }
+
+export type { AppData } from './lib/cascade'
 
 export interface UpdateInstallmentItemInput {
   amount?: number
@@ -268,41 +309,15 @@ export interface DongExpenseItem {
   splitMode?: 'equal' | 'custom'
   customShares?: Record<string, number>
   date?: string
-  /** Set when a shared دونگ edits this expense. Absent on older rows. */
-  updatedAt?: number
 }
 
-/** A دونگ participant linked to another Hesabyar user by handle. */
-export interface DongMemberLink {
-  participantId: string
-  handle: string
-  displayName: string
-}
-
-/** Extra money a member puts in the pot after the per-member amount. */
-export interface DongPotDeposit {
+export interface DongDeposit {
   id: string
-  memberId: string
+  participantId: string
   amount: number
-  /** ISO Gregorian date. The UI shows it as Jalali. */
   date: string
   note?: string
   createdAt?: number
-  updatedAt?: number
-}
-
-/**
- * Optional shared pot for one دونگ group.
- * When `enabled` is absent or false and nothing was paid from the pot,
- * settlement is identical to a group without مادرخرج.
- */
-export interface DongMadreKharj {
-  enabled: boolean
-  /** Participant who holds the pot. Can be changed later. */
-  responsibleId?: string
-  /** Editable per-member amount into the pot, in rials. */
-  contributions?: Record<string, number>
-  deposits?: DongPotDeposit[]
 }
 
 export interface DongEvent {
@@ -312,23 +327,13 @@ export interface DongEvent {
   participants: DongParticipant[]
   groups?: DongGroup[]
   expenses: DongExpenseItem[]
-  madreKharj?: DongMadreKharj
+  treasurerId?: string
+  deposits?: DongDeposit[]
   note?: string
   settled?: boolean
   settledTransfers?: string[]
   createdAt: number
   updatedAt?: number
-  /** Supabase id after the event is shared. Absent until the owner shares it. */
-  remoteId?: string
-  /** Missing means this device owns the event, including every event created before sharing. */
-  shareRole?: 'owner' | 'member'
-  memberLinks?: DongMemberLink[]
-  /** Bumped only when membership, groups, or مادرخرج change. */
-  structureUpdatedAt?: number
-  /** Bumped when member links change, so a revoked handle does not come back. */
-  linksUpdatedAt?: number
-  /** Expense ids removed after the event was shared. */
-  deletedExpenseIds?: string[]
 }
 
 export interface ReminderSettings {
@@ -374,6 +379,8 @@ export interface DebtLoan {
   settledAt?: string
   transactionId?: string
   updatedAt?: number
+  pocketId?: string
+  repaidAmount?: number
 }
 
 

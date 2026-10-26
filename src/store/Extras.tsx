@@ -328,6 +328,16 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
+  useEffect(() => {
+    const onDebtsUpdated = async () => {
+      const nextDebts = (await db.getKv<DebtLoan[]>('debts')) ?? []
+      debtsRef.current = nextDebts
+      setDebts(nextDebts)
+    }
+    window.addEventListener('hy-debts-updated', onDebtsUpdated)
+    return () => window.removeEventListener('hy-debts-updated', onDebtsUpdated)
+  }, [])
+
   const setCurrencyUnit = useCallback(async (unit: CurrencyUnit) => {
     setCurrencyUnitState(unit)
     await db.setKv('currencyUnit', unit)

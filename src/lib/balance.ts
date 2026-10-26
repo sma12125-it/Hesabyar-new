@@ -1,4 +1,4 @@
-import type { Account, Transaction, TxKind } from '../types'
+import type { Account, Pocket, PocketTransfer, Transaction, TxKind } from '../types'
 
 const INFLOW: ReadonlySet<string> = new Set(['income', 'transferIn'])
 const OUTFLOW: ReadonlySet<string> = new Set(['expense', 'transferOut', 'transfer'])
@@ -70,3 +70,57 @@ export function hydrateAccounts(
     return withComputedBalance({ ...raw, openingBalance: opening }, transactions)
   })
 }
+
+/**
+ * Computes individual balances for each pocket in an account.
+ * - Non-main pocket = openingBalance + sum of transaction deltas with that pocketId ± transfers
+ * - Main pocket = account balance − sum of all other pockets
+ * Pockets always sum to the card/account balance. Old transactions without pocketId count toward the main pocket.
+ */
+export function computePocketBalances(
+  account: { id: string; balance?: number; openingBalance?: number },
+  transactions: Transaction[],
+  pockets: Pocket[],
+  transfers: PocketTransfer[] = [],
+): Record<string, number> {
+  const accountPockets = pockets.filter((p) => p.accountId === account.id && !p.archived)
+  const result: Record<string, number> = {}
+
+  if (accountPockets.length === 0) {
+    return result
+  }
+
+  const accountBalance =
+    typeof account.balance === 'number'
+      ? account.balance
+      : computeBalance(account.openingBalance ?? 0, transactions, account.id)
+
+  const nonMainPockets = accountPockets.filter((p) => !p.isMain)
+  const mainPocket = accountPockets.find((p) => p.isMain)
+
+  let nonMainSum = 0
+
+  for (const pocket of nonMainPockets) {
+    let bal = pocket.openingBalance || 0
+    for (const tx of transactions) {
+      if (tx.accountId === account.id && tx.pocketId === pocket.id) {
+        bal += transactionDelta(tx, account.id)
+      }
+    }
+    for (const tr of transfers) {
+      if (tr.accountId === account.id) {
+        if (tr.toPocketId === pocket.id) bal += tr.amount
+        if (tr.fromPocketId === pocket.id) bal -= tr.amount
+      }
+    }
+    result[pocket.id] = bal
+    nonMainSum += bal
+  }
+
+  if (mainPocket) {
+    result[mainPocket.id] = accountBalance - nonMainSum
+  }
+
+  return result
+}
+

@@ -11,6 +11,10 @@ import { shareableAccount } from '../lib/profile'
 import { ShareByHandle } from '../components/ShareByHandle'
 import { toWesternDigits, toFaDigits } from '../lib/money'
 import { getCategory } from '../lib/categories'
+import { computePocketBalances } from '../lib/balance'
+import { PocketFormSheet } from '../components/PocketFormSheet'
+import { PocketTransferSheet } from '../components/PocketTransferSheet'
+import type { Pocket } from '../types'
 
 export function AccountDetailPage({
   onScroll,
@@ -27,12 +31,25 @@ export function AccountDetailPage({
 }) {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { accounts, transactions, archiveAccount, restoreAccount, customCategories } = useStore()
-  const { cards } = useExtras()
+  const { accounts, transactions, pockets, pocketTransfers, archiveAccount, restoreAccount, customCategories } = useStore()
+  const { cards, formatMoney, unitLabel } = useExtras()
   const actions = useUiActions()
   const [menu, setMenu] = useState(false)
   const [search, setSearch] = useState('')
+  const [pocketFormOpen, setPocketFormOpen] = useState(false)
+  const [editingPocket, setEditingPocket] = useState<Pocket | undefined>(undefined)
+  const [pocketTransferOpen, setPocketTransferOpen] = useState(false)
   const account = accounts.find((a) => a.id === id)
+
+  const accountPockets = useMemo(() => {
+    if (!account) return []
+    return (pockets ?? []).filter((p) => p.accountId === account.id && !p.archived)
+  }, [account, pockets])
+
+  const pocketBalances = useMemo(() => {
+    if (!account) return {}
+    return computePocketBalances(account, transactions, pockets, pocketTransfers)
+  }, [account, transactions, pockets, pocketTransfers])
   const txs = useMemo(() => {
     const list = transactions.filter((t) => t.accountId === id)
     const q = toWesternDigits(search.trim().toLowerCase())
@@ -225,6 +242,138 @@ export function AccountDetailPage({
         </div>
       ) : null}
 
+      {/* Pockets Section */}
+      <div style={{ margin: '14px 0 16px' }}>
+        <div className="section-head" style={{ marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <h2>جیب‌ها (سهم‌ها)</h2>
+            {accountPockets.length > 0 ? (
+              <span className="badge cash" style={{ fontSize: 11 }}>{toFaDigits(accountPockets.length)} جیب</span>
+            ) : null}
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            {accountPockets.length > 1 ? (
+              <button
+                type="button"
+                className="cat-mini"
+                onClick={() => setPocketTransferOpen(true)}
+              >
+                ⇄ انتقال
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className="cat-mini"
+              onClick={() => {
+                setEditingPocket(undefined)
+                setPocketFormOpen(true)
+              }}
+            >
+              + جیب جدید
+            </button>
+          </div>
+        </div>
+
+        {accountPockets.length === 0 ? (
+          <div
+            className="home-card lg"
+            style={{
+              padding: '12px 14px',
+              borderRadius: 16,
+              background: 'var(--glass-chrome)',
+              border: 'var(--glass-border)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 12,
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>تفکیک حساب به چند جیب</div>
+              <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', lineHeight: 1.4 }}>
+                می‌توانید موجودی این کارت را به سهم‌های مختلف (مانند سهم مادر، پس‌انداز یا پول امانی) تقسیم کنید.
+              </div>
+            </div>
+            <button
+              type="button"
+              className="cat-mini active"
+              onClick={() => {
+                setEditingPocket(undefined)
+                setPocketFormOpen(true)
+              }}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              + افزودن جیب
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {accountPockets.map((p) => {
+              const bal = pocketBalances[p.id] ?? 0
+              const isNegative = bal < 0
+              return (
+                <div
+                  key={p.id}
+                  className="tx-row lg-row"
+                  onClick={() => navigate(`/accounts/${account.id}/pockets/${p.id}`)}
+                  style={{
+                    cursor: 'pointer',
+                    padding: '10px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                  role="button"
+                  tabIndex={0}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div className="tx-ico" style={{ fontSize: 20 }}>
+                      {p.isMain ? '⭐' : p.isOwn ? '👛' : '🤝'}
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <span style={{ fontSize: 14, fontWeight: 700 }}>{p.name}</span>
+                        {p.isMain ? <span className="badge bank" style={{ fontSize: 10 }}>اصلی</span> : null}
+                        {!p.isOwn ? (
+                          <span
+                            className="badge"
+                            style={{ fontSize: 10, background: '#ea580c', color: '#fff' }}
+                          >
+                            امانی
+                          </span>
+                        ) : null}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
+                        {p.isMain
+                          ? 'پایه کارت (دربرگیرنده مانده کل)'
+                          : p.isOwn
+                            ? 'سهم شخصی شما'
+                            : 'متعلق به دیگران (امکان ثبت قرض)'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: 'left' }}>
+                    <div
+                      className={`tx-amt ${bal > 0 ? 'income' : isNegative ? 'expense' : ''}`}
+                      style={{ fontSize: 14, fontWeight: 700, color: isNegative ? '#ef4444' : undefined }}
+                    >
+                      {formatMoney(bal, false)}
+                      <span className="unit">{unitLabel}</span>
+                    </div>
+                    {isNegative ? (
+                      <div style={{ fontSize: 10, color: '#ef4444', fontWeight: 600 }}>
+                        ⚠️ موجودی منفی
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
       <div className="section-head">
         <h2>{account.archived ? 'آخرین تراکنش‌ها' : 'تراکنش‌ها'}</h2>
         {txs.length > 0 ? (
@@ -291,6 +440,24 @@ export function AccountDetailPage({
           txs.map((tx) => <TxRow key={tx.id} tx={tx} accounts={accounts} forAccountId={account.id} />)
         )}
       </div>
+
+      {pocketFormOpen ? (
+        <PocketFormSheet
+          accountId={account.id}
+          pocket={editingPocket}
+          onClose={() => {
+            setPocketFormOpen(false)
+            setEditingPocket(undefined)
+          }}
+        />
+      ) : null}
+
+      {pocketTransferOpen ? (
+        <PocketTransferSheet
+          accountId={account.id}
+          onClose={() => setPocketTransferOpen(false)}
+        />
+      ) : null}
     </div>
   )
 }

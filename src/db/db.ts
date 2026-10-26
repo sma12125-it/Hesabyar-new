@@ -1,7 +1,7 @@
 import { deriveOpeningBalance, hydrateAccounts } from '../lib/balance'
 import { isoFromTimestamp } from '../lib/iso'
 import { createId } from '../lib/ids'
-import type { Account, InstallmentItem, InstallmentPlan, Transaction, TxKind } from '../types'
+import type { Account, InstallmentItem, InstallmentPlan, Pocket, PocketTransfer, Transaction, TxKind } from '../types'
 
 const DB_NAME = 'hesabyar'
 // v3 recreates any store missing from databases opened at v2.
@@ -445,4 +445,53 @@ export async function clearAllData(): Promise<void> {
   tx.objectStore('installmentItems').clear()
   tx.objectStore('kv').clear()
   await txDone(tx)
+}
+
+export async function listPockets(): Promise<Pocket[]> {
+  const pockets = (await getKv<Pocket[]>('pockets')) ?? []
+  return pockets.sort((a, b) => a.createdAt - b.createdAt)
+}
+
+export async function putPockets(pockets: Pocket[]): Promise<void> {
+  await setKv('pockets', pockets)
+}
+
+export async function listPocketTransfers(): Promise<PocketTransfer[]> {
+  const transfers = (await getKv<PocketTransfer[]>('pocketTransfers')) ?? []
+  return transfers.sort((a, b) => b.createdAt - a.createdAt)
+}
+
+export async function putPocketTransfers(transfers: PocketTransfer[]): Promise<void> {
+  await setKv('pocketTransfers', transfers)
+}
+
+/**
+ * Ensures an account with pockets has a main pocket lazily.
+ */
+export function ensureMainPocketForAccount(
+  account: Account,
+  existingPockets: Pocket[],
+): { pockets: Pocket[]; mainPocket: Pocket } {
+  const accountPockets = existingPockets.filter((p) => p.accountId === account.id && !p.archived)
+  const existingMain = accountPockets.find((p) => p.isMain)
+  if (existingMain) {
+    return { pockets: existingPockets, mainPocket: existingMain }
+  }
+
+  const mainPocket: Pocket = {
+    id: createId('pkt_main'),
+    accountId: account.id,
+    name: 'جیب اصلی',
+    isMain: true,
+    isOwn: true,
+    openingBalance: account.openingBalance,
+    archived: false,
+    createdAt: account.createdAt,
+    updatedAt: Date.now(),
+  }
+
+  return {
+    pockets: [...existingPockets, mainPocket],
+    mainPocket,
+  }
 }
