@@ -35,7 +35,7 @@ export function PocketFormSheet({
 
   const isMain = Boolean(pocket?.isMain)
   const trimmedName = name.trim()
-  const disabled = saving || !trimmedName || (!isEdit && openingBalance > mainBalance && mainBalance > 0)
+  const disabled = saving || !trimmedName
 
   async function handleSave() {
     if (!trimmedName) {
@@ -194,13 +194,13 @@ export function PocketFormSheet({
               <AmountField
                 value={openingBalance}
                 onChange={setOpeningBalance}
-                placeholder="سهم اولیه از موجودی حساب"
+                placeholder="مبلغ شروع جیب (اختیاری)"
                 ariaLabel="موجودی اولیه جیب به ریال"
               />
               <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--hy-text-secondary)' }}>
                 {isEdit
                   ? 'موجودی اولیه ثبت‌شده برای این جیب در محاسبات.'
-                  : 'این مبلغ به عنوان سهم اولیه از موجودی جیب اصلی کسر و به این جیب منتقل می‌شود.'}
+                  : 'مبلغ شروع این جیب. موجودی حساب تغییر نمی‌کند؛ تراکنش‌های این جیب همچنان از موجودی اصلی حساب کم یا به آن اضافه می‌شوند.'}
               </p>
             </div>
           ) : null}

@@ -169,9 +169,9 @@ export function PocketDetailPage({
             >
               {pocket.isOwn ? 'شخصی' : 'امانی / دیگران'}
             </span>
-            {pocket.openingBalance > 0 ? (
+            {!pocket.isMain && pocket.openingBalance > 0 ? (
               <span style={{ fontSize: 11, opacity: 0.85, marginRight: 6 }}>
-                (سهم اولیه: {formatMoney(pocket.openingBalance, true)})
+                (مبلغ شروع: {formatMoney(pocket.openingBalance, true)})
               </span>
             ) : null}
           </>

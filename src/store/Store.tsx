@@ -337,16 +337,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updatedAt: now,
     }
 
-    const nextPockets = currentPockets.map((p) => {
-      if (p.id === mainPocket.id && (input.openingBalance ?? 0) > 0) {
-        return {
-          ...p,
-          openingBalance: Math.max(0, (p.openingBalance || 0) - (input.openingBalance ?? 0)),
-          updatedAt: now,
-        }
-      }
-      return p
-    })
+    // Pockets are ledgers: the opening amount is not taken from the main pocket.
+    void mainPocket
+    const nextPockets = currentPockets
 
     await persistSnapshot(prev, {
       ...prev,
