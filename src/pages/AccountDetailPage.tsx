@@ -218,7 +218,7 @@ export function AccountDetailPage({
       <div style={{ margin: '14px 0 16px' }}>
         <div className="section-head" style={{ marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <h2>جیب‌ها (سهم‌ها)</h2>
+            <h2>جیب‌ها</h2>
             {accountPockets.length > 0 ? (
               <span className="badge cash" style={{ fontSize: 11 }}>{toFaDigits(accountPockets.length)} جیب</span>
             ) : null}
@@ -263,7 +263,7 @@ export function AccountDetailPage({
             <div>
               <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>تفکیک حساب به چند جیب</div>
               <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', lineHeight: 1.4 }}>
-                می‌توانید موجودی این کارت را به سهم‌های مختلف (مانند سهم مادر، پس‌انداز یا پول امانی) تقسیم کنید.
+                برای هر جیب، تراکنش‌ها جدا فهرست و جمع می‌شوند؛ پول همچنان از موجودی اصلی همین حساب کم یا به آن اضافه می‌شود.
               </div>
             </div>
             <button
@@ -317,9 +317,9 @@ export function AccountDetailPage({
                       </div>
                       <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
                         {p.isMain
-                          ? 'پایه کارت (دربرگیرنده مانده کل)'
+                          ? 'موجودی اصلی حساب'
                           : p.isOwn
-                            ? 'سهم شخصی شما'
+                            ? 'جیب شخصی شما'
                             : 'متعلق به دیگران (امکان ثبت قرض)'}
                       </div>
                     </div>

@@ -4,6 +4,7 @@ import { sortTransactions } from '../db/db'
 import { demoDataset } from '../db/seed'
 import { hydrateAccounts } from '../lib/balance'
 import * as hesabyarBusiness from '../lib/business'
+import { stampChanged } from '../lib/syncMerge'
 import {
   deleteAccountCascade,
   deleteInstallmentItemCascade,
@@ -161,7 +162,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const persistSnapshot = useCallback(
-    async (prev: AppData, next: AppData) => {
+    async (prev: AppData, rawNext: AppData) => {
+      // Every changed row gets a fresh updatedAt so the per-row cloud merge can order edits.
+      const now = Date.now()
+      const next: AppData = {
+        ...rawNext,
+        accounts: stampChanged(prev.accounts, rawNext.accounts, now, ['balance']),
+        transactions: stampChanged(prev.transactions, rawNext.transactions, now),
+        plans: stampChanged(prev.plans, rawNext.plans, now),
+        items: stampChanged(prev.items, rawNext.items, now),
+        pockets: rawNext.pockets ? stampChanged(prev.pockets, rawNext.pockets, now) : rawNext.pockets,
+        pocketTransfers: rawNext.pocketTransfers
+          ? stampChanged(prev.pocketTransfers, rawNext.pocketTransfers, now)
+          : rawNext.pocketTransfers,
+      }
       const hydrated = hydrateSnapshot(next)
       applySnapshot(hydrated)
       try {
@@ -190,8 +204,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let resolvedPockets = nextPockets
     if (resolvedPockets.length === 0 && raw.length > 0) {
       const demo = demoDataset()
-      resolvedPockets = demo.pockets
-      await db.putPockets(resolvedPockets)
+      const known = new Set(raw.map((a) => a.id))
+      resolvedPockets = demo.pockets.filter((p) => known.has(p.accountId))
+      if (resolvedPockets.length) await db.putPockets(resolvedPockets)
     }
     applySnapshot({
       accounts: hydrateAccounts(raw, txs),
@@ -343,16 +358,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updatedAt: now,
     }
 
-    const nextPockets = currentPockets.map((p) => {
-      if (p.id === mainPocket.id && (input.openingBalance ?? 0) > 0) {
-        return {
-          ...p,
-          openingBalance: Math.max(0, (p.openingBalance || 0) - (input.openingBalance ?? 0)),
-          updatedAt: now,
-        }
-      }
-      return p
-    })
+    // Pockets are ledgers: the opening amount is not taken from the main pocket.
+    void mainPocket
+    const nextPockets = currentPockets
 
     await persistSnapshot(prev, {
       ...prev,
@@ -853,7 +861,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     customCategories?: Category[]
   }) => {
     const { withoutSync } = await import('../lib/sync')
-    await withoutSync(async () => {
+    await withoutSync(() => db.withoutSyncBookkeeping(async () => {
       await db.replaceAllData(data.accounts, data.transactions, data.plans, data.items)
       if (data.pockets) await db.putPockets(data.pockets)
       if (data.pocketTransfers) await db.putPocketTransfers(data.pocketTransfers)
@@ -861,7 +869,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       await db.setKv('customCategories', customs)
       setCustomCategories(customs)
       applySnapshot(data)
-    })
+    }))
   }, [applySnapshot])
 
   const value = useMemo<StoreValue>(

@@ -309,42 +309,41 @@ export interface DongExpenseItem {
   splitMode?: 'equal' | 'custom'
   customShares?: Record<string, number>
   date?: string
+  /** Set when a shared دونگ edits this expense. Absent on older rows. */
   updatedAt?: number
 }
 
-export interface DongDeposit {
-  id: string
+/** A دونگ participant linked to another Hesabyar user by handle. */
+export interface DongMemberLink {
   participantId: string
-  amount: number
-  date: string
-  note?: string
-  createdAt?: number
+  handle: string
+  displayName: string
 }
 
+/** Extra money a member puts in the pot after the per-member amount. */
 export interface DongPotDeposit {
   id: string
   memberId: string
   amount: number
+  /** ISO Gregorian date. The UI shows it as Jalali. */
   date: string
   note?: string
   createdAt?: number
   updatedAt?: number
 }
 
+/**
+ * Optional shared pot for one دونگ group.
+ * When `enabled` is absent or false and nothing was paid from the pot,
+ * settlement is identical to a group without مادرخرج.
+ */
 export interface DongMadreKharj {
   enabled: boolean
+  /** Participant who holds the pot. Can be changed later. */
   responsibleId?: string
+  /** Editable per-member amount into the pot, in rials. */
   contributions?: Record<string, number>
   deposits?: DongPotDeposit[]
-}
-
-export interface DongMemberLink {
-  memberId?: string
-  participantId?: string
-  handle: string
-  displayName?: string
-  avatarUrl?: string
-  linkedAt?: number
 }
 
 export interface DongEvent {
@@ -354,20 +353,23 @@ export interface DongEvent {
   participants: DongParticipant[]
   groups?: DongGroup[]
   expenses: DongExpenseItem[]
-  treasurerId?: string
-  deposits?: DongDeposit[]
   madreKharj?: DongMadreKharj
-  remoteId?: string
-  shareRole?: 'owner' | 'editor' | 'viewer' | 'member'
-  memberLinks?: DongMemberLink[]
-  linksUpdatedAt?: number
-  structureUpdatedAt?: number
-  deletedExpenseIds?: string[]
   note?: string
   settled?: boolean
   settledTransfers?: string[]
   createdAt: number
   updatedAt?: number
+  /** Supabase id after the event is shared. Absent until the owner shares it. */
+  remoteId?: string
+  /** Missing means this device owns the event, including every event created before sharing. */
+  shareRole?: 'owner' | 'member'
+  memberLinks?: DongMemberLink[]
+  /** Bumped only when membership, groups, or مادرخرج change. */
+  structureUpdatedAt?: number
+  /** Bumped when member links change, so a revoked handle does not come back. */
+  linksUpdatedAt?: number
+  /** Expense ids removed after the event was shared. */
+  deletedExpenseIds?: string[]
 }
 
 export interface ReminderSettings {

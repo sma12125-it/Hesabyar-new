@@ -1,27 +1,8 @@
 import { useState } from 'react'
 import { generateRecoveryCode, logoutCompletely } from '../lib/account'
-import { ensureSession, loadSession, notifyUser, pullSnapshot, pushSnapshot, saveRecoveryCode, type CloudSession } from '../lib/sync'
-import { useExtras } from '../store/Extras'
-import { useStore } from '../store/Store'
+import { replaceWithCloud, syncNow, type SyncResult } from '../lib/cloudSync'
+import { ensureSession, loadSession, notifyUser, saveRecoveryCode, type CloudSession } from '../lib/sync'
 import { WindowPopup } from './WindowPopup'
-
-interface Payload {
-  updatedAt: number
-  accounts: unknown
-  transactions: unknown
-  plans: unknown
-  items: unknown
-  customCategories: unknown
-  budgets: unknown
-  goals: unknown
-  investments?: unknown
-  dongEvents?: unknown
-  cheques: unknown
-  debts: unknown
-  reminders: unknown
-  cardVault: unknown
-  currencyUnit?: unknown
-}
 
 export function SyncSheet({
   onClose,
@@ -30,33 +11,10 @@ export function SyncSheet({
   onClose: () => void
   onMinimize?: () => void
 }) {
-  const store = useStore()
-  const extras = useExtras()
   const [session] = useState<CloudSession | null>(() => loadSession())
   const [error, setError] = useState<string | null>(null)
   const [info, setInfo] = useState<string | null>(null)
   const [recoveryCode, setRecoveryCode] = useState('')
-
-  async function payload(): Promise<Payload> {
-    const local = await extras.exportLocal()
-    return {
-      updatedAt: Date.now(),
-      accounts: store.accounts,
-      transactions: store.transactions,
-      plans: store.plans,
-      items: store.items,
-      customCategories: store.customCategories,
-      budgets: local.budgets,
-      goals: local.goals,
-      investments: local.investments,
-      dongEvents: local.dongEvents,
-      cheques: local.cheques,
-      debts: local.debts,
-      reminders: local.reminders,
-      cardVault: local.cardVault,
-      currencyUnit: local.currencyUnit,
-    }
-  }
 
   async function makeRecoveryCode() {
     if (!session) return
@@ -75,51 +33,46 @@ export function SyncSheet({
     }
   }
 
-  async function push() {
+  function describe(result: SyncResult): string {
+    if (result.status === 'signed-out') return 'برای ذخیرهٔ زنده، از تنظیمات وارد حساب ابری شوید'
+    if (result.status === 'blocked') {
+      return `نسخهٔ ابر ${result.report?.removedCount ?? 0} ردیف این دستگاه را حذف می‌کرد و اعمال نشد. از «تنظیمات › پشتیبان‌گیری» بررسی کنید.`
+    }
+    return result.status === 'synced' ? 'این دستگاه و ابر ادغام و یکسان شدند' : 'این دستگاه و ابر از قبل یکسان بودند'
+  }
+
+  async function run(label: string, task: () => Promise<string>) {
     if (!session) return
     setError(null)
     try {
-      const data = await payload()
-      const active = await ensureSession()
-      if (!active) throw new Error('برای ذخیرهٔ زنده، از تنظیمات وارد حساب ابری شوید')
-      await pushSnapshot(active, { updatedAt: data.updatedAt, data })
-      setInfo('داده روی Supabase ذخیره شد')
-      notifyUser('روی ابر ذخیره شد')
+      const message = await task()
+      setInfo(message)
+      notifyUser(message)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'ارسال نشد'
+      const message = err instanceof Error ? err.message : label
       setError(message)
       notifyUser(message)
     }
   }
 
-  async function pull() {
-    if (!session) return
-    setError(null)
-    try {
-      const active = await ensureSession()
-      if (!active) throw new Error('برای ذخیرهٔ زنده، از تنظیمات وارد حساب ابری شوید')
-      const remote = await pullSnapshot<Payload>(active)
-      if (!remote) {
-        setInfo('روی ابر هنوز داده‌ای نیست')
-        return
-      }
-      const { replaceAllData, setKv } = await import('../db/db')
-      const data = remote.data
-      await replaceAllData(
-        (data.accounts as never) ?? [],
-        (data.transactions as never) ?? [],
-        (data.plans as never) ?? [],
-        (data.items as never) ?? [],
+  // «ارسال دوباره»: pull, merge, push the merged result. Never overwrites rows it has not seen.
+  const push = () => run('ارسال نشد', async () => describe(await syncNow({ force: true })))
+
+  // «دریافت دوباره»: same merge, with a backup first. Nothing on this device is dropped unless the cloud deleted it.
+  const pull = () =>
+    run('دریافت نشد', async () => describe(await syncNow({ force: true, backupReason: 'پیش از دریافت دستی' })))
+
+  const replace = () =>
+    run('جایگزینی انجام نشد', async () => {
+      const ok = window.confirm(
+        'همهٔ داده‌های این دستگاه با نسخهٔ ابر جایگزین شود؟\nهر چیزی که فقط روی این دستگاه است حذف می‌شود. پیش از آن یک نسخهٔ پشتیبان خودکار گرفته می‌شود که از «تنظیمات › پشتیبان‌گیری» قابل بازگردانی است.',
       )
-      await setKv('customCategories', data.customCategories ?? [])
-      await extras.importLocal(data as unknown as Record<string, unknown>)
+      if (!ok) return 'جایگزینی لغو شد'
+      const done = await replaceWithCloud()
+      if (!done) return 'روی ابر هنوز داده‌ای نیست'
       window.location.reload()
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'دریافت نشد'
-      setError(message)
-      notifyUser(message)
-    }
-  }
+      return 'داده‌های این دستگاه با نسخهٔ ابر جایگزین شد'
+    })
 
   return (
     <WindowPopup
@@ -141,6 +94,7 @@ export function SyncSheet({
           <div className="confirm-actions" style={{ marginTop: 12 }}>
             <button className="cta-confirm" type="button" onClick={() => void push()}>ارسال دوباره</button>
             <button className="cta-confirm" type="button" onClick={() => void pull()}>دریافت دوباره</button>
+            <button className="cat-mini danger" type="button" onClick={() => void replace()}>جایگزینی با نسخه ابر</button>
             <button className="cat-mini" type="button" onClick={() => void makeRecoveryCode()}>کد بازیابی رمز حساب</button>
             {recoveryCode ? <p className="recovery-code">{recoveryCode}</p> : null}
             <button className="cat-mini danger" type="button" onClick={() => void logoutCompletely()}>خروج کامل</button>
