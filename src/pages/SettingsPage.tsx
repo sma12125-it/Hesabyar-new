@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { PatternLock } from '../components/PatternLock'
 import { SyncSheet } from '../components/SyncSheet'
+import { SyncBackupsPanel } from '../components/SyncBackupsPanel'
+import { restorePayload, syncReady } from '../lib/cloudSync'
 import { SupabaseConfigSheet } from '../components/SupabaseConfigSheet'
 import { loadLock, registerBiometric, setPattern, type AppLockRecord } from '../lib/applock'
 import { rememberedAccountPassword } from '../lib/account'
@@ -209,14 +211,19 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
         throw new Error('فایل پشتیبان نامعتبر است.')
       }
 
-      await importCloud({
-        accounts: data.accounts,
-        transactions: data.transactions,
-        plans: Array.isArray(data.plans) ? data.plans : [],
-        items: Array.isArray(data.items) ? data.items : [],
-        customCategories: Array.isArray(data.customCategories) ? data.customCategories : [],
-      })
-      await importLocal(data)
+      if (syncReady()) {
+        // Backs up first, re-stamps the rows so the cloud merge keeps them, then syncs.
+        await restorePayload(data)
+      } else {
+        await importCloud({
+          accounts: data.accounts,
+          transactions: data.transactions,
+          plans: Array.isArray(data.plans) ? data.plans : [],
+          items: Array.isArray(data.items) ? data.items : [],
+          customCategories: Array.isArray(data.customCategories) ? data.customCategories : [],
+        })
+        await importLocal(data)
+      }
 
       notifyUser('داده‌ها با موفقیت بازیابی شدند.')
     } catch (err) {
@@ -727,6 +734,8 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                 />
               </label>
             </section>
+
+            <SyncBackupsPanel />
           </div>
         )
 

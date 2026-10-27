@@ -39,7 +39,7 @@ describe('Pockets (جیب) data model and calculations', () => {
     updatedAt: 1000,
   }
 
-  it('pockets always sum to the account balance', () => {
+  it('a pocket transaction moves the account balance normally and shows in the pocket total', () => {
     const pockets = [mainPocket, motherPocket]
     const txs: Transaction[] = [
       // 1. Mother's pocket expense
@@ -90,12 +90,11 @@ describe('Pockets (جیب) data model and calculations', () => {
     // Mother's pocket: 4,000,000 - 1,000,000 (expense) + 500,000 (transfer) = 3,500,000
     expect(balances['pkt_mother']).toBe(3_500_000)
 
-    // Main pocket: 11,000,000 - 3,500,000 = 7,500,000
-    expect(balances['pkt_main']).toBe(7_500_000)
+    // Main pocket follows the account balance (pocket choice never changes it) minus the virtual transfer out
+    expect(balances['pkt_main']).toBe(11_000_000 - 500_000)
 
-    // Sum invariant:
-    const totalPockets = balances['pkt_main'] + balances['pkt_mother']
-    expect(totalPockets).toBe(accBalance)
+    // The account balance itself is unchanged by pocket choice
+    expect(computeBalance(account.openingBalance, txs.map((t) => ({ ...t, pocketId: undefined })), account.id)).toBe(accBalance)
   })
 
   it('old transactions count toward the main pocket', () => {
@@ -134,9 +133,8 @@ describe('Pockets (جیب) data model and calculations', () => {
     // Mother pocket has no txs, so balance = openingBalance = 4,000,000
     expect(balances['pkt_mother']).toBe(4_000_000)
 
-    // Main pocket gets the remainder, automatically absorbing old transactions
-    expect(balances['pkt_main']).toBe(11_500_000 - 4_000_000) // 7,500,000
-    expect(balances['pkt_main'] + balances['pkt_mother']).toBe(accBalance)
+    // Main pocket equals the account balance, including old transactions
+    expect(balances['pkt_main']).toBe(accBalance)
   })
 
   it('loan creation and repayment linked to non-owned pocket', () => {

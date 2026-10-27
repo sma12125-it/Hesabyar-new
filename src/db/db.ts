@@ -1,6 +1,7 @@
 import { deriveOpeningBalance, hydrateAccounts } from '../lib/balance'
 import { isoFromTimestamp } from '../lib/iso'
 import { createId } from '../lib/ids'
+import { mergeTombstones, stampChanged, type ScalarTimes, type Tombstones } from '../lib/syncMerge'
 import type { Account, InstallmentItem, InstallmentPlan, Pocket, PocketTransfer, Transaction, TxKind } from '../types'
 
 const DB_NAME = 'hesabyar'
@@ -229,11 +230,125 @@ export async function getKv<T>(key: string): Promise<T | undefined> {
   return row?.value
 }
 
-export async function setKv<T>(key: string, value: T): Promise<void> {
+async function rawSetKv<T>(key: string, value: T): Promise<void> {
   const db = await openDb()
   const tx = db.transaction('kv', 'readwrite')
   tx.objectStore('kv').put({ key, value })
   await txDone(tx)
+}
+
+// ---------------------------------------------------------------------------
+// Sync bookkeeping: tombstones, updatedAt stamps, scalar times, backups.
+// ---------------------------------------------------------------------------
+
+export const TOMBSTONES_KEY = 'syncTombstones'
+export const SCALAR_TIMES_KEY = 'syncScalarTimes'
+export const BACKUPS_KEY = 'syncBackups'
+
+/** kv keys that hold synced row lists, mapped to their snapshot collection name. */
+const TRACKED_ROW_KEYS: Record<string, string> = {
+  pockets: 'pockets',
+  pocketTransfers: 'pocketTransfers',
+  customCategories: 'customCategories',
+  budgets: 'budgets',
+  goals: 'goals',
+  investments: 'investments',
+  dongEvents: 'dongEvents',
+  cheques: 'cheques',
+  debts: 'debts',
+}
+const TRACKED_SCALAR_KEYS = new Set(['reminders', 'currencyUnit', 'cardVault'])
+
+let bookkeepingMute = 0
+
+/**
+ * Run writes that come from the cloud (merge/import/restore): they must not create
+ * tombstones or bump updatedAt, because they are not user edits.
+ */
+export async function withoutSyncBookkeeping<T>(run: () => Promise<T>): Promise<T> {
+  bookkeepingMute += 1
+  try {
+    return await run()
+  } finally {
+    bookkeepingMute -= 1
+  }
+}
+
+export async function getTombstones(): Promise<Tombstones> {
+  return ((await getKv<Tombstones>(TOMBSTONES_KEY)) ?? {}) as Tombstones
+}
+
+export async function setTombstones(value: Tombstones): Promise<void> {
+  await rawSetKv(TOMBSTONES_KEY, mergeTombstones(value, {}))
+}
+
+export async function recordTombstones(collection: string, ids: string[], at = Date.now()): Promise<void> {
+  if (bookkeepingMute > 0 || ids.length === 0) return
+  const current = await getTombstones()
+  const add: Tombstones = { [collection]: Object.fromEntries(ids.map((id) => [id, at])) }
+  await rawSetKv(TOMBSTONES_KEY, mergeTombstones(current, add))
+}
+
+export async function getScalarTimes(): Promise<ScalarTimes> {
+  return ((await getKv<ScalarTimes>(SCALAR_TIMES_KEY)) ?? {}) as ScalarTimes
+}
+
+export async function setScalarTimes(value: ScalarTimes): Promise<void> {
+  await rawSetKv(SCALAR_TIMES_KEY, value)
+}
+
+export async function setKv<T>(key: string, value: T): Promise<void> {
+  if (bookkeepingMute === 0) {
+    const collection = TRACKED_ROW_KEYS[key]
+    if (collection && Array.isArray(value)) {
+      const prior = await getKv<Array<{ id: string }>>(key)
+      const priorRows = Array.isArray(prior) ? prior.filter((r) => r && typeof r.id === 'string') : []
+      const rows = (value as unknown[]).filter((r): r is { id: string } => !!r && typeof (r as { id?: unknown }).id === 'string')
+      const keep = new Set(rows.map((r) => r.id))
+      await recordTombstones(collection, priorRows.filter((r) => !keep.has(r.id)).map((r) => r.id))
+      const stamped = stampChanged(priorRows, rows)
+      await rawSetKv(key, stamped as unknown as T)
+      return
+    }
+    if (TRACKED_SCALAR_KEYS.has(key)) {
+      const prior = await getKv<unknown>(key)
+      if (JSON.stringify(prior) !== JSON.stringify(value)) {
+        const times = await getScalarTimes()
+        await rawSetKv(SCALAR_TIMES_KEY, { ...times, [key]: Date.now() })
+      }
+    }
+  }
+  await rawSetKv(key, value)
+}
+
+export interface SyncBackup {
+  id: string
+  at: number
+  reason: string
+  /** Full snapshot payload as it was on this device. */
+  payload: Record<string, unknown>
+  counts: { accounts: number; transactions: number }
+}
+
+export const MAX_BACKUPS = 5
+
+export async function listBackups(): Promise<SyncBackup[]> {
+  const list = await getKv<SyncBackup[]>(BACKUPS_KEY)
+  return Array.isArray(list) ? list.slice().sort((a, b) => b.at - a.at) : []
+}
+
+export async function saveBackup(reason: string, payload: Record<string, unknown>): Promise<SyncBackup> {
+  const count = (k: string) => (Array.isArray(payload[k]) ? (payload[k] as unknown[]).length : 0)
+  const backup: SyncBackup = {
+    id: createId('bak'),
+    at: Date.now(),
+    reason,
+    payload: JSON.parse(JSON.stringify(payload)) as Record<string, unknown>,
+    counts: { accounts: count('accounts'), transactions: count('transactions') },
+  }
+  const next = [backup, ...(await listBackups())].slice(0, MAX_BACKUPS)
+  await rawSetKv(BACKUPS_KEY, next)
+  return backup
 }
 
 function persistableAccount(account: Account): Omit<Account, 'balance'> {
@@ -313,6 +428,10 @@ export async function applyDataPatch(patch: {
   for (const id of patch.deleteItemIds ?? []) itemStore.delete(id)
   for (const item of patch.putItems ?? []) itemStore.put(item)
   await txDone(tx)
+  await recordTombstones('accounts', patch.deleteAccountIds ?? [])
+  await recordTombstones('transactions', patch.deleteTransactionIds ?? [])
+  await recordTombstones('plans', patch.deletePlanIds ?? [])
+  await recordTombstones('items', patch.deleteItemIds ?? [])
 }
 
 export async function putTransaction(txRow: Transaction): Promise<void> {
@@ -365,6 +484,7 @@ export async function deleteInstallmentItems(ids: string[]): Promise<void> {
   const tx = db.transaction('installmentItems', 'readwrite')
   for (const id of ids) tx.objectStore('installmentItems').delete(id)
   await txDone(tx)
+  await recordTombstones('items', ids)
 }
 
 export async function createInstallmentPlanAtomic(plan: InstallmentPlan, items: InstallmentItem[]): Promise<void> {
@@ -388,6 +508,7 @@ export async function replaceInstallmentItemsAtomic(
   for (const id of removeIds) itemStore.delete(id)
   for (const item of nextItems) itemStore.put(item)
   await txDone(tx)
+  await recordTombstones('items', removeIds)
 }
 
 export async function payInstallmentAtomic(
@@ -418,6 +539,21 @@ export async function replaceAllData(
   items: InstallmentItem[] = [],
 ): Promise<void> {
   const db = await openDb()
+  const removed: Record<string, string[]> = {}
+  if (bookkeepingMute === 0) {
+    const ids = async (store: string) =>
+      (await requestToPromise<IDBValidKey[]>(db.transaction(store).objectStore(store).getAllKeys())).map(String)
+    const keepIds = (rows: Array<{ id: string }>) => new Set(rows.map((r) => r.id))
+    const pairs: Array<[string, string, Set<string>]> = [
+      ['accounts', 'accounts', keepIds(accounts)],
+      ['transactions', 'transactions', keepIds(transactions)],
+      ['plans', 'installmentPlans', keepIds(plans)],
+      ['items', 'installmentItems', keepIds(items)],
+    ]
+    for (const [collection, store, keep] of pairs) {
+      removed[collection] = (await ids(store)).filter((id) => !keep.has(id))
+    }
+  }
   const tx = db.transaction(
     ['accounts', 'transactions', 'installmentPlans', 'installmentItems'],
     'readwrite',
@@ -431,10 +567,14 @@ export async function replaceAllData(
   for (const p of plans) tx.objectStore('installmentPlans').put(p)
   for (const i of items) tx.objectStore('installmentItems').put(i)
   await txDone(tx)
+  for (const [collection, ids] of Object.entries(removed)) await recordTombstones(collection, ids)
 }
 
 export async function clearAllData(): Promise<void> {
   const db = await openDb()
+  const backups = await requestToPromise<{ key: string; value: unknown } | undefined>(
+    db.transaction('kv').objectStore('kv').get(BACKUPS_KEY),
+  )
   const tx = db.transaction(
     ['accounts', 'transactions', 'installmentPlans', 'installmentItems', 'kv'],
     'readwrite',
@@ -443,7 +583,10 @@ export async function clearAllData(): Promise<void> {
   tx.objectStore('transactions').clear()
   tx.objectStore('installmentPlans').clear()
   tx.objectStore('installmentItems').clear()
-  tx.objectStore('kv').clear()
+  // Keep automatic backups so a sign-out with unsent changes can still be restored.
+  const kv = tx.objectStore('kv')
+  kv.clear()
+  if (backups) kv.put(backups)
   await txDone(tx)
 }
 

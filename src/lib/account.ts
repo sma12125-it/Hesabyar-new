@@ -70,7 +70,37 @@ function clearAccountResidue() {
   sessionStorage.removeItem('hy-device')
 }
 
+/**
+ * Push pending changes before the device is cleared. Returns false when the user chose
+ * to stay signed in because the push failed. A backup is always kept on the device.
+ */
+async function flushBeforeSignOut(): Promise<boolean> {
+  const { backupNow, syncNow, syncReady } = await import('./cloudSync')
+  if (!syncReady()) return true
+  try {
+    await backupNow('پیش از خروج از حساب')
+  } catch {
+    // backup failure must not block sign-out decisions below
+  }
+  if (!loadSession()) return true
+  let problem = ''
+  try {
+    const result = await Promise.race([
+      syncNow({ force: true }),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('ارسال به ابر طول کشید')), 20000)),
+    ])
+    if (result.status === 'blocked') problem = 'نسخهٔ ابر با این دستگاه اختلاف زیادی دارد و ادغام نشد'
+  } catch (err) {
+    problem = err instanceof Error ? err.message : 'ارسال به ابر ناموفق بود'
+  }
+  if (!problem) return true
+  return window.confirm(
+    `تغییرات این دستگاه به ابر نرسید (${problem}).\nیک نسخهٔ پشتیبان روی همین دستگاه نگه داشته شد و پس از ورود دوباره از «تنظیمات › پشتیبان‌گیری» قابل بازگردانی است.\nباز هم خارج می‌شوید؟`,
+  )
+}
+
 export async function logoutCompletely() {
+  if (!(await flushBeforeSignOut())) return
   try {
     await withoutSync(async () => {
       await signOutCloud('local')

@@ -312,41 +312,78 @@ export function recoverWithCode(email: string, code: string, password: string) {
   return rpc('recover_with_code', { p_email: email, p_code: code, p_password: password })
 }
 
-export async function pushSnapshot<T>(session: CloudSession, snapshot: CloudSnapshot<T>): Promise<void> {
-  let serverSyncOk = false
+export class SnapshotConflictError extends Error {
+  constructor() {
+    super('نسخهٔ ابر هم‌زمان تغییر کرد')
+    this.name = 'SnapshotConflictError'
+  }
+}
 
-  // 1. ذخیره‌سازی ابری روی سرور اختصاصی حساب‌یار (همیشه در دسترس و پایدار)
+/** Remembers whether the optional `push_snapshot` RPC is installed (see supabase/migrations). */
+let rpcAvailable: boolean | null = null
+
+/**
+ * Push a merged snapshot. Returns the version (ms) the cloud now holds, using the
+ * server's `updated_at` when it gives one back, so devices do not depend on their own clocks.
+ *
+ * `baseVersion` is the cloud version the merge was built on. When the optional SQL
+ * function is installed the server rejects the write if someone pushed in between
+ * (SnapshotConflictError) and the caller pulls, merges, and tries again.
+ */
+export async function pushSnapshot<T>(
+  session: CloudSession,
+  snapshot: CloudSnapshot<T>,
+  baseVersion?: number | null,
+): Promise<number> {
+  let serverSyncOk = false
+  let version = snapshot.updatedAt
+
+  // 1. App server copy (per authenticated user).
   try {
     const sRes = await fetch('/api/v1/sync/snapshot', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-user-id': session.userId,
+        Authorization: `Bearer ${session.accessToken}`,
       },
-      body: JSON.stringify({
-        userId: session.userId,
-        updatedAt: snapshot.updatedAt,
-        data: snapshot.data,
-      }),
+      body: JSON.stringify({ updatedAt: snapshot.updatedAt, data: snapshot.data }),
     })
-    if (sRes.ok) {
-      serverSyncOk = true
-    }
+    if (sRes.ok) serverSyncOk = true
   } catch {
-    // خطا در وب‌سرویس سرور
+    // app server unreachable
   }
 
-  // 2. همگام‌سازی تکمیلی با پایگاه ابری Supabase در صورت تنظیم
+  // 2. Supabase.
   const cfg = supabaseConfig()
+  const headers = {
+    apikey: cfg.key,
+    Authorization: `Bearer ${session.accessToken}`,
+    'Content-Type': 'application/json',
+  }
   try {
+    if (rpcAvailable !== false) {
+      const rpcRes = await fetch(`${cfg.url}/rest/v1/rpc/push_snapshot`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          p_payload: snapshot.data,
+          p_base: baseVersion ? new Date(baseVersion).toISOString() : null,
+        }),
+      })
+      if (rpcRes.ok) {
+        rpcAvailable = true
+        const result = (await rpcRes.json()) as { ok?: boolean; updated_at?: string } | Array<{ ok?: boolean; updated_at?: string }>
+        const row = Array.isArray(result) ? result[0] : result
+        if (row && row.ok === false) throw new SnapshotConflictError()
+        const serverTime = row?.updated_at ? Date.parse(row.updated_at) : NaN
+        return Number.isFinite(serverTime) ? serverTime : version
+      }
+      if (rpcRes.status === 404 || rpcRes.status === 400) rpcAvailable = false
+    }
+
     let res = await fetch(`${cfg.url}/rest/v1/snapshots?on_conflict=user_id`, {
       method: 'POST',
-      headers: {
-        apikey: cfg.key,
-        Authorization: `Bearer ${session.accessToken}`,
-        'Content-Type': 'application/json',
-        Prefer: 'resolution=merge-duplicates',
-      },
+      headers: { ...headers, Prefer: 'resolution=merge-duplicates,return=representation' },
       body: JSON.stringify({
         user_id: session.userId,
         updated_at: new Date(snapshot.updatedAt).toISOString(),
@@ -356,83 +393,81 @@ export async function pushSnapshot<T>(session: CloudSession, snapshot: CloudSnap
     if (!res.ok && res.status !== 401) {
       const patchRes = await fetch(`${cfg.url}/rest/v1/snapshots?user_id=eq.${session.userId}`, {
         method: 'PATCH',
-        headers: {
-          apikey: cfg.key,
-          Authorization: `Bearer ${session.accessToken}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { ...headers, Prefer: 'return=representation' },
         body: JSON.stringify({
           updated_at: new Date(snapshot.updatedAt).toISOString(),
           payload: snapshot.data,
         }),
       })
-      if (patchRes.ok) {
-        res = patchRes
-      }
+      if (patchRes.ok) res = patchRes
     }
     if (res.ok) {
-      return
+      try {
+        const rows = (await res.json()) as Array<{ updated_at?: string }>
+        const serverTime = rows?.[0]?.updated_at ? Date.parse(rows[0].updated_at) : NaN
+        if (Number.isFinite(serverTime)) version = serverTime
+      } catch {
+        // no body
+      }
+      return version
     }
-  } catch {
-    // خطا در ارتباط با Supabase
+  } catch (err) {
+    if (err instanceof SnapshotConflictError) throw err
+    // Supabase unreachable
   }
 
-  // اگر حداقل روی سرور برنامه ذخیره شد، موفق تلقی می‌شود
-  if (serverSyncOk) {
-    return
-  }
-
+  if (serverSyncOk) return version
   throw new Error('ارسال به ابر ناموفق بود')
 }
 
+/**
+ * Read the cloud copy. When both the app server and Supabase hold one, they are merged
+ * row by row instead of picking one by clock, so neither can hide rows of the other.
+ */
 export async function pullSnapshot<T>(session: CloudSession): Promise<CloudSnapshot<T> | null> {
   let serverSnapshot: CloudSnapshot<T> | null = null
 
-  // 1. دریافت از سرور اختصاصی حساب‌یار
   try {
-    const sRes = await fetch(`/api/v1/sync/snapshot?userId=${encodeURIComponent(session.userId)}`, {
-      headers: { 'x-user-id': session.userId },
+    const sRes = await fetch('/api/v1/sync/snapshot', {
+      headers: { Authorization: `Bearer ${session.accessToken}` },
     })
     if (sRes.ok) {
       const json = await sRes.json()
       if (json.success && json.data) {
-        serverSnapshot = {
-          updatedAt: Number(json.updatedAt) || Date.now(),
-          data: json.data as T,
-        }
+        serverSnapshot = { updatedAt: Number(json.updatedAt) || 0, data: json.data as T }
       }
     }
   } catch {
-    // خطا در وب‌سرویس سرور
+    // app server unreachable
   }
 
-  // 2. بررسی نسخه ابری Supabase
   const cfg = supabaseConfig()
   let supabaseSnapshot: CloudSnapshot<T> | null = null
+  let supabaseFailed = false
   try {
-    const res = await fetch(
-      `${cfg.url}/rest/v1/snapshots?user_id=eq.${session.userId}&select=updated_at,payload`,
-      {
-        headers: { apikey: cfg.key, Authorization: `Bearer ${session.accessToken}` },
-      }
-    )
+    const res = await fetch(`${cfg.url}/rest/v1/snapshots?user_id=eq.${session.userId}&select=updated_at,payload`, {
+      headers: { apikey: cfg.key, Authorization: `Bearer ${session.accessToken}` },
+    })
     if (res.ok) {
       const rows = (await res.json()) as Array<{ updated_at: string; payload: T }>
       const row = rows[0]
-      if (row && row.payload) {
-        supabaseSnapshot = {
-          updatedAt: Date.parse(row.updated_at),
-          data: row.payload,
-        }
-      }
-    }
+      if (row && row.payload) supabaseSnapshot = { updatedAt: Date.parse(row.updated_at) || 0, data: row.payload }
+    } else supabaseFailed = true
   } catch {
-    // خطا در وب‌سرویس Supabase
+    supabaseFailed = true
   }
 
-  // انتخاب تازه‌ترین نسخه
   if (serverSnapshot && supabaseSnapshot) {
-    return serverSnapshot.updatedAt >= supabaseSnapshot.updatedAt ? serverSnapshot : supabaseSnapshot
+    const { mergePayload } = await import('./syncMerge')
+    const { merged } = mergePayload(
+      supabaseSnapshot.data as unknown as Record<string, unknown>,
+      serverSnapshot.data as unknown as Record<string, unknown>,
+    )
+    // The Supabase version is the one conflict checks run against.
+    return { updatedAt: supabaseSnapshot.updatedAt, data: merged as unknown as T }
   }
-  return serverSnapshot || supabaseSnapshot || null
+  if (!serverSnapshot && !supabaseSnapshot && supabaseFailed) {
+    throw new Error('دریافت از ابر ناموفق بود')
+  }
+  return supabaseSnapshot || serverSnapshot || null
 }

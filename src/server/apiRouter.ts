@@ -1922,7 +1922,7 @@ apiRouter.post('/tsetmc/batch-quotes', async (req: Request, res: Response): Prom
 // ============================================================================
 // CLOUD SYNC & SNAPSHOT RESILIENCE API
 // ============================================================================
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 
 const SNAPSHOTS_DIR = join(process.cwd(), 'data', 'snapshots')
@@ -1937,95 +1937,82 @@ function getSnapshotFilePath(userId: string): string {
   return join(SNAPSHOTS_DIR, `${safeId}.json`)
 }
 
+const snapshotAuthCache = new Map<string, { userId: string; until: number }>()
+
+/**
+ * Resolve the Supabase user behind a bearer token. The snapshot endpoints only ever touch
+ * that user's own file; there is no shared or "latest" snapshot.
+ */
+async function snapshotUser(req: Request): Promise<string | null> {
+  const header = String(req.headers.authorization || '')
+  const token = header.startsWith('Bearer ') ? header.slice(7).trim() : ''
+  if (!token) return null
+  const cached = snapshotAuthCache.get(token)
+  if (cached && cached.until > Date.now()) return cached.userId
+  const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://yiluruldxtgfuxqwosri.supabase.co'
+  const SUPABASE_ANON_KEY =
+    process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_tHV7NoCAC-3czs4yMG1Z7Q_bg05S1MI'
+  try {
+    const res = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` },
+    })
+    if (!res.ok) return null
+    const user = (await res.json()) as { id?: string }
+    if (!user?.id || !/^[a-zA-Z0-9-]+$/.test(user.id)) return null
+    snapshotAuthCache.set(token, { userId: user.id, until: Date.now() + 60_000 })
+    if (snapshotAuthCache.size > 1000) snapshotAuthCache.clear()
+    return user.id
+  } catch {
+    return null
+  }
+}
+
 /**
  * GET /api/v1/sync/snapshot
- * دریافت آخرین وضعیت ابری ذخیره‌شده روی سرور حساب‌یار
+ * The signed-in user's own snapshot on the Hesabyar server.
  */
-apiRouter.get('/sync/snapshot', (req: Request, res: Response): void => {
+apiRouter.get('/sync/snapshot', async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = String(req.query.userId || req.headers['x-user-id'] || 'default')
-    const candidates = new Set<string>()
-    candidates.add(getSnapshotFilePath(userId))
-    candidates.add(getSnapshotFilePath('default'))
-    candidates.add(getSnapshotFilePath('hesabyar_main_user'))
-    candidates.add(getSnapshotFilePath('latest'))
-
-    try {
-      if (existsSync(SNAPSHOTS_DIR)) {
-        for (const file of readdirSync(SNAPSHOTS_DIR)) {
-          if (file.endsWith('.json')) {
-            candidates.add(join(SNAPSHOTS_DIR, file))
-          }
-        }
-      }
-    } catch {}
-
-    let newestPayload: Record<string, unknown> | null = null
-    let highestUpdatedAt = -1
-
-    for (const path of candidates) {
-      if (existsSync(path)) {
-        try {
-          const content = readFileSync(path, 'utf8')
-          const parsed = JSON.parse(content)
-          const time = Number(parsed.updatedAt) || 0
-          if (time > highestUpdatedAt && parsed.data) {
-            highestUpdatedAt = time
-            newestPayload = parsed
-          }
-        } catch {}
-      }
-    }
-
-    if (newestPayload) {
-      res.json({ success: true, ...newestPayload })
+    const userId = await snapshotUser(req)
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'ورود لازم است' })
       return
     }
-
+    const path = getSnapshotFilePath(userId)
+    if (existsSync(path)) {
+      const parsed = JSON.parse(readFileSync(path, 'utf8')) as { updatedAt?: number; data?: unknown; userId?: string }
+      if (parsed && parsed.data && (!parsed.userId || parsed.userId === userId)) {
+        res.json({ success: true, updatedAt: Number(parsed.updatedAt) || 0, data: parsed.data })
+        return
+      }
+    }
     res.json({ success: true, data: null, updatedAt: 0 })
-  } catch (err) {
+  } catch {
     res.status(500).json({ success: false, error: 'خطا در خواندن اسنپ‌شات ابری سرور' })
   }
 })
 
 /**
  * POST /api/v1/sync/snapshot
- * ذخیره آخرین اسنپ‌شات وضعیت حساب‌ها و تراکنش‌ها روی سرور حساب‌یار
+ * Save the signed-in user's snapshot. The client always sends a merged copy.
  */
-apiRouter.post('/sync/snapshot', (req: Request, res: Response): void => {
+apiRouter.post('/sync/snapshot', async (req: Request, res: Response): Promise<void> => {
   try {
-    const userId = String(req.body.userId || req.headers['x-user-id'] || 'default')
-    const updatedAt = Number(req.body.updatedAt) || Date.now()
-    const data = req.body.data || req.body.payload || null
-
+    const userId = await snapshotUser(req)
+    if (!userId) {
+      res.status(401).json({ success: false, error: 'ورود لازم است' })
+      return
+    }
+    const data = req.body?.data || req.body?.payload || null
     if (!data) {
       res.status(400).json({ success: false, error: 'اطلاعات داده (data) الزامی است' })
       return
     }
-
-    const payloadToSave = {
-      userId,
-      updatedAt,
-      data,
-    }
-    const jsonStr = JSON.stringify(payloadToSave, null, 2)
-
-    // همگام‌سازی کامل با فایل اختصاصی کاربر و تمام مسیرهای مشترک دستگاه‌ها
-    const pathsToSave = [
-      getSnapshotFilePath(userId),
-      getSnapshotFilePath('default'),
-      getSnapshotFilePath('hesabyar_main_user'),
-      getSnapshotFilePath('latest'),
-    ]
-
-    for (const p of pathsToSave) {
-      try {
-        writeFileSync(p, jsonStr, 'utf8')
-      } catch {}
-    }
-
-    res.json({ success: true, message: 'اسنپ‌شات با موفقیت روی سرور ذخیره شد', updatedAt })
-  } catch (err) {
+    // Server clock, not the device clock.
+    const updatedAt = Date.now()
+    writeFileSync(getSnapshotFilePath(userId), JSON.stringify({ userId, updatedAt, data }), 'utf8')
+    res.json({ success: true, updatedAt })
+  } catch {
     res.status(500).json({ success: false, error: 'خطا در ذخیره‌سازی اسنپ‌شات روی سرور' })
   }
 })
