@@ -94,14 +94,15 @@ export function computePocketBalances(
       ? account.balance
       : computeBalance(account.openingBalance ?? 0, transactions, account.id)
 
-  for (const pocket of accountPockets) {
-    let bal = 0
-    if (pocket.isMain) {
-      bal = accountBalance
-    } else {
-      bal = pocket.openingBalance || 0
-      for (const tx of transactions) {
-        if (tx.accountId === account.id && tx.pocketId === pocket.id) bal += transactionDelta(tx, account.id)
+  const nonMainPockets = accountPockets.filter((p) => !p.isMain)
+  const mainPocket = accountPockets.find((p) => p.isMain)
+
+  let nonMainSum = 0
+  for (const pocket of nonMainPockets) {
+    let bal = pocket.openingBalance || 0
+    for (const tx of transactions) {
+      if (tx.accountId === account.id && tx.pocketId === pocket.id) {
+        bal += transactionDelta(tx, account.id)
       }
     }
     for (const tr of transfers) {
@@ -110,7 +111,13 @@ export function computePocketBalances(
       if (tr.fromPocketId === pocket.id) bal -= tr.amount
     }
     result[pocket.id] = bal
+    nonMainSum += bal
   }
+
+  if (mainPocket) {
+    result[mainPocket.id] = accountBalance - nonMainSum
+  }
+
   return result
 }
 

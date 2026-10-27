@@ -22,6 +22,31 @@ export function DongMemberShare({ event, participant }: { event: DongEvent; part
     )
   }
 
+  // Creator / owner does not need to enter a handle
+  const isOwnerUser = !guest && (participant.id === event.participants[0]?.id || participant.name.trim() === 'من')
+  if (isOwnerUser) {
+    return (
+      <div
+        className="share-note"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '6px 10px',
+          borderRadius: 10,
+          background: 'rgba(15, 118, 110, 0.12)',
+          color: 'var(--hy-teal)',
+          fontSize: 11,
+          fontWeight: 700,
+        }}
+      >
+        <span>👑</span>
+        <span>شما (سازنده رویداد)</span>
+        <span style={{ fontSize: 10, opacity: 0.75, fontWeight: 500 }}>· نیازی به اتصال شناسه نیست</span>
+      </div>
+    )
+  }
+
   async function connect() {
     const clean = normalizeHandle(handle)
     const problem = handleError(clean)

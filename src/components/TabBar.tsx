@@ -11,6 +11,7 @@ export function TabBar({ onQuickEntry }: TabBarProps) {
   const { pathname } = useLocation()
   const accountsActive = pathname.startsWith('/accounts')
   const installmentsActive = pathname.startsWith('/installments')
+  const dongActive = pathname.startsWith('/dong')
   const reportsActive = pathname.startsWith('/reports')
   const settingsActive = pathname.startsWith('/settings')
   const profileActive = pathname.startsWith('/profile')
@@ -120,11 +121,21 @@ export function TabBar({ onQuickEntry }: TabBarProps) {
             {!isCollapsed && <span className="desk-nav-label">اقساط، وام و چک</span>}
           </NavLink>
 
-          {/* ۴. سرمایه‌گذاری و بودجه */}
+          {/* ۴. دونگ و سفر */}
+          <NavLink
+            to="/dong"
+            className={() => `desk-nav-item${dongActive ? ' active' : ''}`}
+            title="محاسبه دونگ و هزینه‌های گروهی"
+          >
+            <span className="desk-nav-icon">👥</span>
+            {!isCollapsed && <span className="desk-nav-label">محاسبه دونگ</span>}
+          </NavLink>
+
+          {/* ۵. سرمایه‌گذاری و بودجه */}
           <NavLink
             to="/reports"
             className={() => `desk-nav-item${reportsActive ? ' active' : ''}`}
-            title="سبد بورس، طلا، سرمایه‌گذاری و دنگ"
+            title="سبد بورس، طلا، سرمایه‌گذاری و بودجه"
           >
             <span className="desk-nav-icon">📈</span>
             {!isCollapsed && <span className="desk-nav-label">سرمایه‌گذاری و بودجه</span>}
@@ -139,7 +150,7 @@ export function TabBar({ onQuickEntry }: TabBarProps) {
             {!isCollapsed && <span className="desk-nav-label">پروفایل و شناسه</span>}
           </NavLink>
 
-          {/* ۵. تنظیمات */}
+          {/* ۶. تنظیمات */}
           <NavLink
             to="/settings"
             className={() => `desk-nav-item${settingsActive ? ' active' : ''}`}
@@ -201,13 +212,19 @@ export function TabBar({ onQuickEntry }: TabBarProps) {
           <span className="lbl">ثبت</span>
         </button>
 
-        {/* ۴. اقساط */}
+        {/* ۴. دونگ */}
+        <NavLink to="/dong" className={() => `tab${dongActive ? ' active' : ''}`}>
+          <span className="ico" aria-hidden="true">👥</span>
+          <span className="lbl">دونگ</span>
+        </NavLink>
+
+        {/* ۵. اقساط */}
         <NavLink to="/installments" className={() => `tab${installmentsActive ? ' active' : ''}`}>
           <span className="ico" aria-hidden="true">📅</span>
           <span className="lbl">اقساط</span>
         </NavLink>
 
-        {/* ۵. بودجه و سرمایه‌گذاری */}
+        {/* ۶. بودجه */}
         <NavLink to="/reports" className={() => `tab${reportsActive ? ' active' : ''}`}>
           <span className="ico" aria-hidden="true">📊</span>
           <span className="lbl">بودجه</span>

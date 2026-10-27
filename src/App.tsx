@@ -16,6 +16,7 @@ import { AccountsPage } from './pages/AccountsPage'
 import { AccountDetailPage } from './pages/AccountDetailPage'
 import { PocketDetailPage } from './pages/PocketDetailPage'
 import { ReportsPage } from './pages/ReportsPage'
+import { DongPage } from './pages/DongPage'
 import { InvestmentDetailPage } from './pages/InvestmentDetailPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AuthGate } from './components/AuthGate'
@@ -303,6 +304,8 @@ function Shell() {
             path="/reports"
             element={<ReportsPage onScroll={onScroll} />}
           />
+          <Route path="/dong" element={<DongPage onScroll={onScroll} />} />
+          <Route path="/dong/:id" element={<DongPage onScroll={onScroll} />} />
           <Route path="/settings" element={<SettingsPage onScroll={onScroll} />} />
           <Route path="/profile" element={<ProfilePage onScroll={onScroll} />} />
           <Route path="/transactions/pending" element={<PendingTransactionsPage onScroll={onScroll} />} />
