@@ -10,6 +10,7 @@ import {
   isSharedDong,
   mergeSharedDong,
   stampDongExpenses,
+  type UserProfile,
 } from '../lib/profile'
 import {
   migrateInvestmentAsset,
@@ -31,6 +32,9 @@ interface VaultBlob {
 
 interface ExtrasValue {
   unlocked: boolean
+  activePlanId: 'free' | 'bronze' | 'vip'
+  setActivePlanId: (plan: 'free' | 'bronze' | 'vip') => Promise<void>
+  userProfile: UserProfile | null
   cards: BankCard[]
   budgets: Budget[]
   goals: SavingsGoal[]
@@ -130,6 +134,14 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
   const debtsRef = useRef<DebtLoan[]>([])
   const [debts, setDebts] = useState<DebtLoan[]>([])
   debtsRef.current = debts
+  const [activePlanId, setActivePlanIdState] = useState<'free' | 'bronze' | 'vip'>('free')
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+
+  const setActivePlanId = useCallback(async (plan: 'free' | 'bronze' | 'vip') => {
+    setActivePlanIdState(plan)
+    await db.setKv('activePlanId', plan)
+  }, [])
+
   const remindersRef = useRef<ReminderSettings>(emptyReminder)
   const [reminders, setReminderState] = useState<ReminderSettings>(emptyReminder)
   remindersRef.current = reminders
@@ -336,6 +348,20 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
     }
     window.addEventListener('hy-debts-updated', onDebtsUpdated)
     return () => window.removeEventListener('hy-debts-updated', onDebtsUpdated)
+  }, [])
+
+  useEffect(() => {
+    void db.getKv<'free' | 'bronze' | 'vip'>('activePlanId').then((saved) => {
+      if (saved) setActivePlanIdState(saved)
+    })
+    const loadProfile = () => {
+      void db.getKv<UserProfile>('userProfile').then((p) => {
+        if (p) setUserProfile(p)
+      })
+    }
+    loadProfile()
+    window.addEventListener('hy-profile-updated', loadProfile)
+    return () => window.removeEventListener('hy-profile-updated', loadProfile)
   }, [])
 
   const setCurrencyUnit = useCallback(async (unit: CurrencyUnit) => {
@@ -550,6 +576,9 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
     () => ({
       unlocked: passphrase != null,
       vaultConfigured: blob != null,
+      activePlanId,
+      setActivePlanId,
+      userProfile,
       cards,
       budgets,
       goals,
@@ -992,6 +1021,9 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       unlockVault,
       updateChequeStatus,
       wrapsFor,
+      activePlanId,
+      setActivePlanId,
+      userProfile,
     ],
   )
 

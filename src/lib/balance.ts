@@ -121,3 +121,61 @@ export function computePocketBalances(
   return result
 }
 
+export interface PocketSummary {
+  pocketId: string
+  name: string
+  isMain: boolean
+  isOwn: boolean
+  allocatedBalance: number
+  totalExpense: number
+  totalIncome: number
+  netDelta: number
+  balance: number
+}
+
+export function computePocketBreakdowns(
+  account: { id: string; balance?: number; openingBalance?: number },
+  transactions: Transaction[],
+  pockets: Pocket[],
+  transfers: PocketTransfer[] = [],
+): Record<string, PocketSummary> {
+  const accountPockets = pockets.filter((p) => p.accountId === account.id && !p.archived)
+  const result: Record<string, PocketSummary> = {}
+  if (accountPockets.length === 0) return result
+
+  const balances = computePocketBalances(account, transactions, pockets, transfers)
+
+  for (const p of accountPockets) {
+    let exp = 0
+    let inc = 0
+    let allocated = p.openingBalance || 0
+
+    for (const tr of transfers) {
+      if (tr.accountId !== account.id) continue
+      if (tr.toPocketId === p.id) allocated += tr.amount
+      if (tr.fromPocketId === p.id) allocated -= tr.amount
+    }
+
+    for (const tx of transactions) {
+      if (tx.accountId === account.id && tx.pocketId === p.id) {
+        if (tx.kind === 'expense') exp += tx.amount
+        else if (tx.kind === 'income') inc += tx.amount
+      }
+    }
+
+    result[p.id] = {
+      pocketId: p.id,
+      name: p.name,
+      isMain: Boolean(p.isMain),
+      isOwn: Boolean(p.isOwn),
+      allocatedBalance: allocated,
+      totalExpense: exp,
+      totalIncome: inc,
+      netDelta: inc - exp,
+      balance: balances[p.id] ?? 0,
+    }
+  }
+
+  return result
+}
+

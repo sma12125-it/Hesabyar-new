@@ -200,24 +200,82 @@ export function VoiceSheet({
       }
     >
       <div className="sheet-body-scroll" style={{ padding: '8px 2px' }}>
-        <p className="sheet-sub">
-          مثلاً بگویید: «هزینه پنجاه هزار خوراک» یا «درآمد دو میلیون حقوق». همچنین می‌توانید متن را دستی ویرایش کنید.
-        </p>
+        {/* Quick Suggestion Chips */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+          <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)', fontWeight: 700 }}>نمونه‌های سریع:</span>
+          {[
+            '۵۰ هزار تومان اسنپ',
+            '۱۵۰ هزار تومان سوپرمارکت',
+            '۱۰ میلیون حقوق واریزی',
+            '۸۰ هزار تومان ناهار',
+          ].map((sample, idx) => (
+            <button
+              key={idx}
+              type="button"
+              className="cat-mini"
+              style={{ fontSize: 11, padding: '2px 8px', borderRadius: 8 }}
+              onClick={() => setText(sample)}
+            >
+              {sample}
+            </button>
+          ))}
+        </div>
+
         {error ? <div className="banner error"><span>{error}</span></div> : null}
+
+        {/* Text Input with Microphone Status */}
         <textarea
           className="field-input voice-box"
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="اینجا بگویید یا بنویسید (مثلاً: ۵۰ هزار تومان سوپرمارکت)..."
+          placeholder="اینجا صحبت کنید یا بنویسید (مثلاً: ۵۰ هزار تومان سوپرمارکت)..."
           rows={3}
           style={{ width: '100%', resize: 'none', fontSize: 14 }}
         />
+
+        {/* Animated Waveform Visualizer when recording */}
+        {listening ? (
+          <div style={{ textAlign: 'center', margin: '14px 0 6px' }}>
+            <div className="voice-wave-container">
+              <span className="voice-wave-bar" />
+              <span className="voice-wave-bar" />
+              <span className="voice-wave-bar" />
+              <span className="voice-wave-bar" />
+              <span className="voice-wave-bar" />
+              <span className="voice-wave-bar" />
+              <span className="voice-wave-bar" />
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--hy-accent)', margin: '8px 0 0', fontWeight: 700 }}>
+              در حال ضبط و پردازش صدای شما... واضح صحبت کنید
+            </p>
+          </div>
+        ) : null}
+
         {draft ? (
           <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div className="banner">
-              <span>
-                {draft.kind === 'income' ? 'درآمد' : 'هزینه'} {formatRial(draft.amount)} ریال {draft.note ? `· ${draft.note}` : ''}
-              </span>
+            <div
+              style={{
+                padding: '12px 14px',
+                borderRadius: 14,
+                background: draft.kind === 'income' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                border: draft.kind === 'income' ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>تراکنش شناسایی‌شده:</div>
+                <div style={{ fontWeight: 800, fontSize: 16, color: draft.kind === 'income' ? 'var(--hy-income)' : 'var(--hy-expense)', marginTop: 2 }}>
+                  {draft.kind === 'income' ? '🟢 درآمد: ' : '🔴 هزینه: '} {formatRial(draft.amount)} ریال
+                </div>
+                {draft.note && (
+                  <div style={{ fontSize: 12, color: 'var(--hy-text)', marginTop: 2 }}>
+                    توضیحات: <b>{draft.note}</b>
+                  </div>
+                )}
+              </div>
+              <span style={{ fontSize: 28 }}>{draft.kind === 'income' ? '💰' : '🛒'}</span>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>

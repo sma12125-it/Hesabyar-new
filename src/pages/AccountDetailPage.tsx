@@ -230,19 +230,9 @@ export function AccountDetailPage({
                 className="cat-mini"
                 onClick={() => setPocketTransferOpen(true)}
               >
-                ⇄ انتقال
+                ⇄ انتقال بین جیب‌ها
               </button>
             ) : null}
-            <button
-              type="button"
-              className="cat-mini active"
-              onClick={() => {
-                setEditingPocket(undefined)
-                setPocketFormOpen(true)
-              }}
-            >
-              + جیب جدید
-            </button>
           </div>
         </div>
 
@@ -254,10 +244,6 @@ export function AccountDetailPage({
               borderRadius: 16,
               background: 'var(--glass-chrome)',
               border: 'var(--glass-border)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12,
             }}
           >
             <div>
@@ -266,17 +252,6 @@ export function AccountDetailPage({
                 برای هر جیب، تراکنش‌ها جدا فهرست و جمع می‌شوند؛ پول همچنان از موجودی اصلی همین حساب کم یا به آن اضافه می‌شود.
               </div>
             </div>
-            <button
-              type="button"
-              className="cat-mini active"
-              onClick={() => {
-                setEditingPocket(undefined)
-                setPocketFormOpen(true)
-              }}
-              style={{ whiteSpace: 'nowrap' }}
-            >
-              + افزودن جیب
-            </button>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

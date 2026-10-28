@@ -346,6 +346,15 @@ export interface DongMadreKharj {
   deposits?: DongPotDeposit[]
 }
 
+export interface DongPendingApproval {
+  id: string
+  action: 'add-expense' | 'delete-expense'
+  expense: DongExpenseItem
+  proposedByParticipantId?: string
+  proposedByName: string
+  proposedAt: number
+}
+
 export interface DongEvent {
   id: string
   title: string
@@ -370,6 +379,10 @@ export interface DongEvent {
   linksUpdatedAt?: number
   /** Expense ids removed after the event was shared. */
   deletedExpenseIds?: string[]
+  /** ID of the participant who is the designated manager of this event. */
+  managerParticipantId?: string
+  /** Pending changes proposed by members awaiting manager approval. */
+  pendingApprovals?: DongPendingApproval[]
 }
 
 export interface ReminderSettings {

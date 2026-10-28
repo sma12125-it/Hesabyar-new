@@ -21,6 +21,7 @@ import { InvestmentDetailPage } from './pages/InvestmentDetailPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { AuthGate } from './components/AuthGate'
 import { VoiceSheet } from './components/VoiceSheet'
+import { MobileDrawer } from './components/MobileDrawer'
 import { getCurrentTheme, applyTheme } from './lib/theme'
 import { SyncSheet } from './components/SyncSheet'
 import { AllTransactionsPage } from './pages/AllTransactionsPage'
@@ -253,6 +254,7 @@ function Shell() {
       <SharedSync />
       <ProfileSync />
       <SmsBridge />
+      <MobileDrawer />
       <UiActionsContext.Provider value={uiActions}>
       <div className="app">
         {error ? <div className="banner error"><span>{error}</span></div> : null}

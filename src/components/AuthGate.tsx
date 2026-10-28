@@ -264,8 +264,29 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
             <input className="field-input" type="password" placeholder="رمز حساب" value={password} onChange={(e) => setPassword(e.target.value)} />
             <button className="cta-confirm" type="button" disabled={busy || booting} onClick={() => void unlockWithPassword()}>ورود با رمز</button>
           </div>
-          {lock.credentialId ? (
-            <button className="cat-mini" type="button" onClick={() => void useBiometric()}>ورود با اثر انگشت یا چهرهٔ گوشی</button>
+          {typeof window !== 'undefined' && (window.PublicKeyCredential || lock.credentialId) ? (
+            <button
+              className="cat-mini"
+              type="button"
+              style={{
+                width: '100%',
+                padding: '12px 14px',
+                borderRadius: 12,
+                background: 'linear-gradient(135deg, rgba(37,99,235,0.18), rgba(15,118,110,0.18))',
+                border: '1px solid rgba(255,255,255,0.15)',
+                fontWeight: 800,
+                fontSize: 13,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                color: 'var(--hy-text)',
+              }}
+              onClick={() => void useBiometric()}
+            >
+              <span style={{ fontSize: 20 }}>👆</span>
+              <span>ورود با اثر انگشت / تشخیص چهره / قفل گوشی</span>
+            </button>
           ) : null}
           {lock.patternHash ? <PatternLock value={pattern} onChange={setPattern} onRelease={(next) => void finishPattern(next)} /> : null}
           <button className="link" type="button" onClick={() => { setError(null); setMode('code') }}>رمز را فراموش کرده‌ام</button>

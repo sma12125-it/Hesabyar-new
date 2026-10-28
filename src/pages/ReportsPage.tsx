@@ -127,7 +127,7 @@ export interface TseInstrumentSummary {
 
 const DEFAULT_POPULAR_SYMBOLS: TseInstrumentSummary[] = TSE_INSTRUMENTS as unknown as TseInstrumentSummary[]
 
-type ActiveTab = 'budget' | 'goals' | 'investments' | 'dong'
+type ActiveTab = 'budget' | 'goals'
 
 export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void }) {
   const { transactions, customCategories, createCategory, renameCategory } = useStore()
@@ -173,12 +173,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
   const archivedGoalsList = useMemo(() => goals.filter((g) => g.archived), [goals])
   const totalSavedGoals = useMemo(() => activeGoalsList.reduce((sum, g) => sum + g.saved, 0), [activeGoalsList])
   const totalTargetGoals = useMemo(() => activeGoalsList.reduce((sum, g) => sum + g.target, 0), [activeGoalsList])
-
-  const totalInvestmentCost = useMemo(() => investments.reduce((sum, i) => sum + i.purchaseAmount, 0), [investments])
   const totalInvestmentValue = useMemo(() => investments.reduce((sum, i) => sum + i.currentValue, 0), [investments])
-  const totalInvestmentProfit = totalInvestmentValue - totalInvestmentCost
-  const totalInvestmentRoi =
-    totalInvestmentCost > 0 ? ((totalInvestmentProfit / totalInvestmentCost) * 100).toFixed(1) : '0'
 
   // ─────────────────────────────────────────────────────────────
   // 1. BUDGETING STATE & MODAL
@@ -318,7 +313,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
 
   // به‌روزرسانی خودکار قیمت‌های بورس هنگام باز شدن صفحه
   useEffect(() => {
-    if (activeTab === 'investments' || activeTab === 'budget') {
+    if (activeTab === 'budget') {
       void refreshTseQuotes(true)
     }
   }, [activeTab])
@@ -595,7 +590,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
             </span>
           </div>
           <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--hy-text-secondary)' }}>
-            بودجه‌بندی هوشمند، اهداف پس‌انداز، سبد سرمایه‌گذاری و محاسبه‌گر دونگ
+            بودجه‌بندی هوشمند دسته‌بندی‌ها و اهداف پس‌انداز مالی
           </p>
         </div>
         <SettingsButton />
@@ -612,7 +607,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
           borderRadius: 20,
         }}
       >
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 14 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14 }}>
           <div>
             <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>سقف بودجه ماهانه</div>
             <div style={{ fontSize: 16, fontWeight: 800, marginTop: 4, color: 'var(--hy-text)' }}>
@@ -635,24 +630,6 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
               از کل هدف {formatCompactMoney(totalTargetGoals)}
             </div>
           </div>
-
-          <div>
-            <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>ارزش کل سرمایه‌گذاری</div>
-            <div style={{ fontSize: 16, fontWeight: 800, marginTop: 4, color: 'var(--hy-accent)' }}>
-              {formatCompactMoney(totalInvestmentValue)}
-            </div>
-            <div
-              style={{
-                fontSize: 10,
-                fontWeight: 700,
-                color: totalInvestmentProfit >= 0 ? 'var(--hy-income)' : 'var(--hy-expense)',
-                marginTop: 2,
-              }}
-            >
-              {totalInvestmentProfit >= 0 ? '+' : ''}
-              {toFaDigits(totalInvestmentRoi)}% بازدهی کل
-            </div>
-          </div>
         </div>
       </div>
 
@@ -662,7 +639,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
         role="tablist"
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
+          gridTemplateColumns: 'repeat(2, 1fr)',
           marginBottom: 16,
           background: 'var(--glass-chrome)',
           borderRadius: 14,
@@ -675,7 +652,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
           onClick={() => setActiveTab('budget')}
           style={{ fontSize: 13, fontWeight: 700, padding: '8px 4px' }}
         >
-          📊 بودجه‌بندی
+          📊 بودجه‌بندی ماهانه
         </button>
         <button
           className={`seg-btn${activeTab === 'goals' ? ' active' : ''}`}
@@ -683,23 +660,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
           onClick={() => setActiveTab('goals')}
           style={{ fontSize: 13, fontWeight: 700, padding: '8px 4px' }}
         >
-          🎯 اهداف مالی
-        </button>
-        <button
-          className={`seg-btn${activeTab === 'investments' ? ' active' : ''}`}
-          type="button"
-          onClick={() => setActiveTab('investments')}
-          style={{ fontSize: 13, fontWeight: 700, padding: '8px 4px' }}
-        >
-          📈 سرمایه‌گذاری
-        </button>
-        <button
-          className={`seg-btn${activeTab === 'dong' ? ' active' : ''}`}
-          type="button"
-          onClick={() => setActiveTab('dong')}
-          style={{ fontSize: 13, fontWeight: 700, padding: '8px 4px' }}
-        >
-          👥 محاسبه دونگ
+          🎯 اهداف پس‌انداز
         </button>
       </div>
 
@@ -1423,8 +1384,8 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
         </div>
       )}
 
-      {/* ────────────────── 3. INVESTMENTS TAB ────────────────── */}
-      {activeTab === 'investments' && (
+      {/* ────────────────── 3. INVESTMENTS TAB (Temporarily hidden per Item 5) ────────────────── */}
+      {(activeTab as string) === 'investments' && (
         <div>
           {selectedAsset ? (
             /* DEDICATED ASSET DETAIL VIEW (صفحه اختصاصی دارایی) */

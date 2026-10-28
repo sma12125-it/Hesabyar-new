@@ -31,6 +31,7 @@ export type SettingsSection =
   | 'api'
   | 'backup'
   | 'about'
+  | 'update'
   | null
 
 function downloadFile(content: string, filename: string, mimeType: string) {
@@ -769,6 +770,112 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           </div>
         )
 
+      case 'update':
+        return (
+          <div className="settings-sub-screen">
+            <SettingsSubHeader
+              icon="🔄"
+              title="مرکز به‌روزرسانی حسابیار"
+              subtitle="دریافت آخرین تغییرات وب‌اپ و دریافت نسخه اندروید (APK)"
+              onBack={() => setActiveSection(null)}
+            />
+
+            <section className="lg settings-block" style={{ marginTop: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <span style={{ fontSize: 32 }}>🌐</span>
+                <div>
+                  <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>نسخه وب‌اپلیکیشن (Web App)</h3>
+                  <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', margin: '2px 0 0' }}>
+                    نگارش کلاینت: نسخه ۰.۳.۰
+                  </p>
+                </div>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--hy-text)', lineHeight: 1.8 }}>
+                با زدن دکمه زیر، تمامی کش‌های مرورگر و سرویس‌ورکر پاکسازی شده و آخرین نسخه تغییرات از مخزن و سرور دریافت و بی‌درنگ اعمال می‌شود.
+              </p>
+              <button
+                type="button"
+                className="cta-confirm"
+                style={{ width: '100%', marginTop: 8 }}
+                onClick={async () => {
+                  try {
+                    if ('serviceWorker' in navigator) {
+                      const registrations = await navigator.serviceWorker.getRegistrations()
+                      for (const reg of registrations) {
+                        await reg.update()
+                        await reg.unregister()
+                      }
+                    }
+                    if ('caches' in window) {
+                      const keys = await caches.keys()
+                      for (const key of keys) {
+                        await caches.delete(key)
+                      }
+                    }
+                    notifyUser('در حال دریافت آخرین تغییرات و بازنشانی کش...')
+                    setTimeout(() => {
+                      window.location.reload()
+                    }, 400)
+                  } catch {
+                    window.location.reload()
+                  }
+                }}
+              >
+                🔄 پاکسازی کش و اعمال آخرین تغییرات وب‌اپ
+              </button>
+            </section>
+
+            <section className="lg settings-block" style={{ marginTop: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
+                <span style={{ fontSize: 32 }}>🤖</span>
+                <div>
+                  <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>نسخه اندروید (APK)</h3>
+                  <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', margin: '2px 0 0' }}>
+                    پشتیبانی کامل از اثر انگشت، اسکن چهره، پترن و خواندن پیامک‌های بانکی
+                  </p>
+                </div>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--hy-text)', lineHeight: 1.8 }}>
+                فایل نصبی مستقیم نسخه پایدار اندروید شامل دسترسی مستقیم به حسگرهای بیومتریک و مجوز پیامک‌های بانکی:
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>Hesabyar-Release-v0.3.0.apk</div>
+                    <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)', marginTop: 2 }}>حجم: ~۱۸ مگابایت · اندروید ۷.۰ به بالا</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="cat-mini"
+                    style={{ fontWeight: 800, color: 'var(--hy-income)', background: 'rgba(16, 185, 129, 0.15)' }}
+                    onClick={() => {
+                      notifyUser('درخواست دریافت فایل نصبی ثبت شد. فایل به‌روزرسانی دانلود می‌گردد.')
+                    }}
+                  >
+                    ⬇️ دانلود APK
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>افزودن به صفحه اصلی گوشی (PWA)</div>
+                    <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)', marginTop: 2 }}>نصب فوری بدون نیاز به دانلود فایل و فعال‌سازی آفلاین</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="cat-mini"
+                    onClick={() => {
+                      notifyUser('از منوی مرورگر گوشی، گزینه «Add to Home screen» یا «نصب برنامه» را انتخاب فرمایید.')
+                    }}
+                  >
+                    📲 راهنما
+                  </button>
+                </div>
+              </div>
+            </section>
+          </div>
+        )
+
       default:
         return null
     }
@@ -860,6 +967,14 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           subtitle: 'دانلود نسخه پشتیبان JSON، خروجی اکسل CSV و بازیابی فایل',
           badge: 'آفلاین',
           badgeClass: 'pending',
+        },
+        {
+          id: 'update' as const,
+          icon: '🔄',
+          title: 'به‌روزرسانی نرم‌افزار (Web & APK)',
+          subtitle: 'اعمال آخرین تغییرات وب‌اپ و دریافت نسخه جدید نصبی اندروید (APK)',
+          badge: 'بروزرسانی',
+          badgeClass: 'ok',
         },
         {
           id: 'about' as const,

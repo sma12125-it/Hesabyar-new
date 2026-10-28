@@ -464,81 +464,101 @@ export function AccountsPage({
         </div>
 
         {subTab === 'accounts' ? (
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginLeft: 4 }}>ترتیب:</span>
             <button
               type="button"
               className={`cat-mini${accountSort === 'balance-desc' ? ' active' : ''}`}
               onClick={() => setAccountSort('balance-desc')}
-              style={{ fontSize: 11, padding: '4px 8px' }}
+              title="بیشترین موجودی"
+              aria-label="بیشترین موجودی"
+              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
             >
-              بیشترین موجودی
+              💰↓
             </button>
             <button
               type="button"
               className={`cat-mini${accountSort === 'balance-asc' ? ' active' : ''}`}
               onClick={() => setAccountSort('balance-asc')}
-              style={{ fontSize: 11, padding: '4px 8px' }}
+              title="کمترین موجودی"
+              aria-label="کمترین موجودی"
+              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
             >
-              کمترین موجودی
+              💰↑
             </button>
             <button
               type="button"
               className={`cat-mini${accountSort === 'usage' ? ' active' : ''}`}
               onClick={() => setAccountSort('usage')}
-              style={{ fontSize: 11, padding: '4px 8px' }}
+              title="بیشترین استفاده (تعداد تراکنش)"
+              aria-label="بیشترین استفاده"
+              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
             >
-              بیشترین استفاده
+              🔥
             </button>
             <button
               type="button"
               className={`cat-mini${accountSort === 'name' ? ' active' : ''}`}
               onClick={() => setAccountSort('name')}
-              style={{ fontSize: 11, padding: '4px 8px' }}
+              title="مرتب‌سازی بر اساس الفبا"
+              aria-label="مرتب‌سازی بر اساس الفبا"
+              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
             >
-              الفبا
+              🔤
             </button>
             <button
               type="button"
               className={`cat-mini${accountSort === 'manual' ? ' active' : ''}`}
               onClick={() => setAccountSort('manual')}
-              style={{ fontSize: 11, padding: '4px 8px' }}
+              title="دست‌چین (جابجایی دستی)"
+              aria-label="جابجایی دستی"
+              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
             >
-              دست‌چین (جابجایی دستی)
+              ↕️
             </button>
           </div>
         ) : (
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginLeft: 4 }}>ترتیب:</span>
             <button
               type="button"
               className={`cat-mini${cardSort === 'default' ? ' active' : ''}`}
               onClick={() => setCardSort('default')}
-              style={{ fontSize: 11, padding: '4px 8px' }}
+              title="پیش‌فرض سیستم"
+              aria-label="پیش‌فرض"
+              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
             >
-              پیش‌فرض
+              ⚡
             </button>
             <button
               type="button"
               className={`cat-mini${cardSort === 'expiry' ? ' active' : ''}`}
               onClick={() => setCardSort('expiry')}
-              style={{ fontSize: 11, padding: '4px 8px' }}
+              title="تاریخ انقضا"
+              aria-label="تاریخ انقضا"
+              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
             >
-              تاریخ انقضا
+              📅
             </button>
             <button
               type="button"
               className={`cat-mini${cardSort === 'name' ? ' active' : ''}`}
               onClick={() => setCardSort('name')}
-              style={{ fontSize: 11, padding: '4px 8px' }}
+              title="نام بانک و دارنده"
+              aria-label="نام بانک و دارنده"
+              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
             >
-              نام بانک / دارنده
+              👤
             </button>
             <button
               type="button"
               className={`cat-mini${cardSort === 'manual' ? ' active' : ''}`}
               onClick={() => setCardSort('manual')}
-              style={{ fontSize: 11, padding: '4px 8px' }}
+              title="دست‌چین (جابجایی دستی)"
+              aria-label="جابجایی دستی"
+              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
             >
-              دست‌چین (جابجایی دستی)
+              ↕️
             </button>
           </div>
         )}

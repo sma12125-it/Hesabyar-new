@@ -1,12 +1,24 @@
-import { NavLink } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 
 export function SettingsButton({ showLabel }: { showLabel?: boolean }) {
+  const navigate = useNavigate()
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (window.innerWidth < 900) {
+      e.preventDefault()
+      window.dispatchEvent(new CustomEvent('hy:open-drawer'))
+    } else {
+      navigate('/settings')
+    }
+  }
+
   return (
-    <NavLink
-      to="/settings"
-      className="icon-btn settings-inline"
-      aria-label="تنظیمات"
-      title="تنظیمات برنامه"
+    <button
+      type="button"
+      className="icon-btn settings-inline mobile-menu-btn"
+      aria-label="منوی برنامه و تنظیمات"
+      title="منوی برنامه و تنظیمات"
+      onClick={handleClick}
       style={{
         display: 'inline-flex',
         alignItems: 'center',
@@ -19,13 +31,16 @@ export function SettingsButton({ showLabel }: { showLabel?: boolean }) {
         padding: showLabel ? '0 14px' : undefined,
         borderRadius: showLabel ? 14 : '50%',
         cursor: 'pointer',
+        border: 'none',
+        background: 'var(--hy-input-bg, rgba(255, 255, 255, 0.08))',
       }}
     >
-      <span style={{ fontSize: 18, lineHeight: 1 }}>⚙</span>
+      <span className="mobile-only-icon" style={{ fontSize: 20, lineHeight: 1 }}>☰</span>
+      <span className="desktop-only-icon" style={{ fontSize: 18, lineHeight: 1 }}>⚙</span>
       {showLabel ? (
-        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--hy-text)' }}>تنظیمات</span>
+        <span className="desktop-only-icon" style={{ fontSize: 13, fontWeight: 700, color: 'var(--hy-text)' }}>تنظیمات</span>
       ) : null}
-    </NavLink>
+    </button>
   )
 }
 

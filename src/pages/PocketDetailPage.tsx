@@ -67,6 +67,18 @@ export function PocketDetailPage({
     return activeLoans.reduce((sum, d) => sum + Math.max(0, d.amount - (d.repaidAmount || 0)), 0)
   }, [activeLoans])
 
+  const pocketExpense = useMemo(() => {
+    return pocketTxs
+      .filter((t) => t.kind === 'expense')
+      .reduce((sum, t) => sum + t.amount, 0)
+  }, [pocketTxs])
+
+  const pocketIncome = useMemo(() => {
+    return pocketTxs
+      .filter((t) => t.kind === 'income')
+      .reduce((sum, t) => sum + t.amount, 0)
+  }, [pocketTxs])
+
   if (!account || !pocket) {
     return (
       <div className="app-scroll">
@@ -177,6 +189,49 @@ export function PocketDetailPage({
           </>
         }
       />
+
+      {/* Activity Breakdown Card */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 8,
+          marginTop: 12,
+        }}
+      >
+        <div
+          style={{
+            padding: '10px 12px',
+            borderRadius: 14,
+            background: 'var(--glass-chrome)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+          }}
+        >
+          <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>🔴 هزینه از حساب با این جیب</span>
+          <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--hy-expense)' }}>
+            {formatMoney(pocketExpense, true)}
+          </span>
+        </div>
+        <div
+          style={{
+            padding: '10px 12px',
+            borderRadius: 14,
+            background: 'var(--glass-chrome)',
+            border: '1px solid rgba(255, 255, 255, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+          }}
+        >
+          <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>🟢 واریز به حساب با این جیب</span>
+          <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--hy-income)' }}>
+            {formatMoney(pocketIncome, true)}
+          </span>
+        </div>
+      </div>
 
       {/* Action Row */}
       <div className="action-row" style={{ marginTop: 12 }}>

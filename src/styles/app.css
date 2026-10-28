@@ -2813,3 +2813,136 @@ button.cat-mini.active {
 .share-incoming-card dl div { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
 .share-incoming-card dt { color: var(--hy-text-secondary); }
 .share-incoming-card dd { margin: 0; font-weight: 700; }
+
+/* ─────────────────────────────────────────────────────────────
+   Frosted Sticky Header on Scroll (Item 8)
+   ───────────────────────────────────────────────────────────── */
+.top-row, .detail-top {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 30 !important;
+  padding: 10px 14px 12px !important;
+  margin: -10px -14px 12px !important;
+  background: var(--glass-chrome-float, rgba(15, 23, 42, 0.72)) !important;
+  backdrop-filter: blur(24px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(160%) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.35) !important;
+  transition: all 0.2s ease;
+}
+
+/* Responsive Hamburger & Desktop Icons */
+@media (min-width: 900px) {
+  .mobile-only-icon { display: none !important; }
+  .desktop-only-icon { display: inline-block !important; }
+}
+@media (max-width: 899px) {
+  .mobile-only-icon { display: inline-block !important; }
+  .desktop-only-icon { display: none !important; }
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Mobile Sliding Navigation Drawer (Item 4)
+   ───────────────────────────────────────────────────────────── */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 200;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.drawer-backdrop.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.drawer-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(320px, 86vw);
+  background: var(--glass-chrome-float, rgba(15, 23, 42, 0.95));
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  border-left: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.5);
+  z-index: 210;
+  transform: translateX(100%);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 16px;
+  box-sizing: border-box;
+  direction: rtl;
+  overflow-y: auto;
+}
+
+.drawer-panel.is-open {
+  transform: translateX(0);
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  margin-bottom: 14px;
+}
+
+.drawer-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  color: var(--hy-text);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+  transition: all 0.15s ease;
+  margin-bottom: 4px;
+}
+
+.drawer-nav-item:hover, .drawer-nav-item.active {
+  background: rgba(37, 99, 235, 0.18);
+  color: var(--hy-accent);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   Voice Visualizer Waves (Item 14)
+   ───────────────────────────────────────────────────────────── */
+.voice-wave-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 60px;
+  margin: 16px 0;
+}
+
+.voice-wave-bar {
+  width: 5px;
+  background: var(--hy-accent);
+  border-radius: 99px;
+  animation: wavePulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes wavePulse {
+  0% { height: 10px; opacity: 0.35; transform: scaleY(0.6); }
+  50% { height: 42px; opacity: 0.9; transform: scaleY(1.2); }
+  100% { height: 20px; opacity: 0.5; transform: scaleY(0.8); }
+}
+
+.voice-wave-bar:nth-child(2) { animation-delay: 0.15s; background: var(--hy-income); }
+.voice-wave-bar:nth-child(3) { animation-delay: 0.3s; background: var(--hy-accent); }
+.voice-wave-bar:nth-child(4) { animation-delay: 0.45s; background: #f59e0b; }
+.voice-wave-bar:nth-child(5) { animation-delay: 0.2s; background: var(--hy-teal); }
+.voice-wave-bar:nth-child(6) { animation-delay: 0.35s; background: var(--hy-income); }
+.voice-wave-bar:nth-child(7) { animation-delay: 0.1s; background: var(--hy-accent); }

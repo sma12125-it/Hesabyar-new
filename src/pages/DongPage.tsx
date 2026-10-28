@@ -19,7 +19,7 @@ import { notifyUser } from '../lib/sync'
 import { createId } from '../lib/ids'
 import { todayIso } from '../lib/iso'
 import { useExtras } from '../store/Extras'
-import type { DongEvent, DongExpenseItem } from '../types'
+import type { DongEvent, DongExpenseItem, DongPendingApproval } from '../types'
 
 export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }) {
   const { id: urlDongId } = useParams()
@@ -27,6 +27,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
     dongEvents,
     saveDongEvent,
     deleteDongEvent,
+    userProfile,
     currencyUnit,
     unitLabel,
     formatMoney,
@@ -41,6 +42,8 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
   const [dongFilter, setDongFilter] = useState<'active' | 'settled'>('active')
   const [selectedDongId, setSelectedDongId] = useState<string | null>(null)
   const [isCreateDongOpen, setIsCreateDongOpen] = useState(false)
+  const [isExpenseListModalOpen, setIsExpenseListModalOpen] = useState(false)
+  const [expenseSearchQuery, setExpenseSearchQuery] = useState('')
   const [dongTitle, setDongTitle] = useState('')
   const [dongMemberInput, setDongMemberInput] = useState('')
   const [dongMembers, setDongMembers] = useState<string[]>(['من'])
@@ -282,65 +285,72 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                           <div
                             key={evt.id}
                             style={{
-                              padding: '12px 16px',
+                              padding: '14px 16px',
                               borderRadius: 14,
                               background: 'rgba(255,255,255,0.04)',
                               border: '1px solid rgba(255,255,255,0.08)',
                               display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
+                              flexDirection: 'column',
+                              gap: 12,
                               cursor: 'pointer',
                               transition: 'all 0.15s ease',
                             }}
                             onClick={() => setSelectedDongId(evt.id)}
                           >
                             <div>
-                              <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--hy-text)' }}>
-                                {evt.title}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--hy-text)' }}>
+                                  {evt.title}
+                                </div>
+                                <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--hy-accent)' }}>
+                                  {formatMoney(totalCost)}
+                                </span>
                               </div>
-                              <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4 }}>
-                                <span>{toFaDigits(evt.participants.length)} نفر حاضر</span>
-                                <span style={{ margin: '0 6px', opacity: 0.5 }}>·</span>
+                              <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                                <span>👥 {toFaDigits(evt.participants.length)} نفر حاضر</span>
+                                <span style={{ opacity: 0.4 }}>·</span>
                                 <span>کل مخارج: <b>{formatMoney(totalCost)}</b></span>
                                 {isMadreKharjEnabled(evt) ? (
-                                  <span style={{ color: 'var(--hy-accent)', marginRight: 8, fontWeight: 700 }}>
+                                  <span style={{ color: 'var(--hy-accent)', fontWeight: 700 }}>
                                     مادرخرج
                                   </span>
                                 ) : null}
                                 {evt.shareRole === 'member' ? (
-                                  <span style={{ color: 'var(--hy-accent)', marginRight: 8, fontWeight: 700 }}>
-                                    اشتراکی
+                                  <span style={{ color: 'var(--hy-accent)', fontWeight: 700 }}>
+                                    اشتراکی (عضو)
                                   </span>
                                 ) : null}
-                                {evt.memberLinks && evt.memberLinks.length > 0 ? (
-                                  <span style={{ color: 'var(--hy-accent)', marginRight: 8, fontWeight: 700 }}>
-                                    شناسه
+                                {evt.pendingApprovals && evt.pendingApprovals.length > 0 ? (
+                                  <span style={{ color: '#facc15', fontWeight: 700, background: 'rgba(234, 179, 8, 0.15)', padding: '1px 6px', borderRadius: 6 }}>
+                                    ⏳ {toFaDigits(evt.pendingApprovals.length)} درخواست منتظر تأیید
                                   </span>
                                 ) : null}
                                 {evt.settled ? (
-                                  <span style={{ color: 'var(--hy-income)', marginRight: 8, fontWeight: 700 }}>
+                                  <span style={{ color: 'var(--hy-income)', fontWeight: 700 }}>
                                     ✓ تسویه شده
                                   </span>
                                 ) : (
-                                  <span style={{ color: 'var(--hy-accent)', marginRight: 8 }}>
+                                  <span style={{ color: 'var(--hy-accent)' }}>
                                     در جریان
                                   </span>
                                 )}
                               </div>
                             </div>
 
-                            <div style={{ display: 'flex', gap: 6 }} onClick={(e) => e.stopPropagation()}>
+                            <div style={{ display: 'flex', gap: 8, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10 }} onClick={(e) => e.stopPropagation()}>
                               <button
                                 className="cat-mini"
                                 type="button"
+                                style={{ flex: 1, justifyContent: 'center', height: 34, fontWeight: 700 }}
                                 onClick={() => setSelectedDongId(evt.id)}
                               >
-                                مشاهده و تسویه ←
+                                👁️ مشاهده و تسویه
                               </button>
                               {evt.shareRole === 'member' ? null : (
                                 <button
                                   className="cat-mini"
                                   type="button"
+                                  style={{ height: 34, padding: '0 12px' }}
                                   title={evt.settled ? 'بازگردانی به رویدادهای فعال' : 'اتمام و انتقال به تسویه شده'}
                                   onClick={() => {
                                     void saveDongEvent({ ...evt, settled: !evt.settled })
@@ -354,6 +364,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                                 <button
                                   className="cat-mini danger"
                                   type="button"
+                                  style={{ height: 34, padding: '0 12px' }}
                                   onClick={() => {
                                     if (confirm(`آیا از حذف رویداد «${evt.title}» اطمینان دارید؟`)) {
                                       void deleteDongEvent(evt.id)
@@ -817,128 +828,148 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                 </div>
               </div>
 
-              {/* Expense List with Edit & Delete */}
-              <div
-                style={{
-                  padding: 16,
-                  borderRadius: 16,
-                  background: 'rgba(255, 255, 255, 0.03)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
-                }}
-              >
-                <h3 style={{ fontSize: 13, fontWeight: 700, margin: '0 0 10px' }}>
-                  ریز مخارج رویداد ({toFaDigits(selectedDongEvent.expenses.length)} مورد)
-                </h3>
-                {selectedDongEvent.expenses.length === 0 ? (
-                  <p className="sheet-sub" style={{ margin: 0 }}>
-                    هنوز خرجی در این رویداد ثبت نشده است.
-                  </p>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {selectedDongEvent.expenses.map((exp) => {
-                      const payerName = dongPayerLabel(selectedDongEvent, exp.paidById)
-                      return (
-                        <div
-                          key={exp.id}
-                          style={{
-                            padding: '10px 14px',
-                            borderRadius: 12,
-                            background: 'rgba(0,0,0,0.18)',
-                            border: '1px solid rgba(255,255,255,0.06)',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                          }}
-                        >
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <span style={{ fontWeight: 800, fontSize: 14 }}>{exp.title}</span>
-                              <span
-                                style={{
-                                  fontSize: 10,
-                                  padding: '1px 6px',
-                                  borderRadius: 6,
-                                  background: exp.splitMode === 'custom' ? 'rgba(56, 189, 248, 0.15)' : 'rgba(15, 118, 110, 0.15)',
-                                  color: exp.splitMode === 'custom' ? '#38bdf8' : 'var(--hy-teal)',
-                                  fontWeight: 700,
-                                }}
-                              >
-                                {exp.splitMode === 'custom' ? 'تقسیم دستی' : 'تقسیم مساوی'}
-                              </span>
-                            </div>
-                            <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4 }}>
-                              <span>پرداخت توسط: <b>{payerName}</b></span>
-                              <span style={{ margin: '0 6px', opacity: 0.5 }}>·</span>
-                              <span>
-                                سهم ({toFaDigits(exp.splitAmongIds.length)} نفر):{' '}
-                                {exp.splitAmongIds
-                                  .map((id) => {
-                                    const part = selectedDongEvent.participants.find((p) => p.id === id)
-                                    if (exp.splitMode === 'custom' && exp.customShares && exp.customShares[id] !== undefined) {
-                                      return `${part?.name ?? id} (${formatMoney(exp.customShares[id]!)})`
-                                    }
-                                    return part?.name ?? id
-                                  })
-                                  .join('، ')}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--hy-text)' }}>
-                              {formatMoney(exp.amount)}
-                            </span>
-                            <button
-                              className="cat-mini"
-                              type="button"
-                              onClick={() => {
-                                // Load expense for editing
-                                setEditingExpId(exp.id)
-                                setNewExpTitle(exp.title)
-                                const unitMultiplier = currencyUnit === 'IRT' ? 10 : 1
-                                setNewExpAmount(formatSeparatedNumber(Math.round(exp.amount / unitMultiplier)))
-                                setNewExpPayer(exp.paidById)
-                                setNewExpSplits(exp.splitAmongIds)
-                                setNewExpSplitMode(exp.splitMode || 'equal')
-                                if (exp.customShares) {
-                                  const formattedMap: Record<string, string> = {}
-                                  for (const [uid, amt] of Object.entries(exp.customShares)) {
-                                    formattedMap[uid] = formatSeparatedNumber(Math.round(amt / unitMultiplier))
-                                  }
-                                  setNewExpCustomAmounts(formattedMap)
-                                  setManualEditedIds(new Set())
-                                } else {
-                                  setNewExpCustomAmounts({})
-                                  setManualEditedIds(new Set())
-                                }
-                                setIsDongExpenseModalOpen(true)
-                                notifyUser(`در حال ویرایش: ${exp.title}`)
-                              }}
-                            >
-                              ویرایش
-                            </button>
-                            <button
-                              className="cat-mini danger"
-                              type="button"
-                              onClick={() => {
-                                if (confirm(`آیا از حذف خرج «${exp.title}» اطمینان دارید؟`)) {
-                                  const updated = {
-                                    ...selectedDongEvent,
-                                    expenses: selectedDongEvent.expenses.filter((e) => e.id !== exp.id),
-                                  }
-                                  void saveDongEvent(updated)
-                                  notifyUser('خرج حذف شد')
-                                }
-                              }}
-                            >
-                              حذف
-                            </button>
-                          </div>
-                        </div>
-                      )
-                    })}
+              {/* Pending Approvals Banner (Item 3) */}
+              {selectedDongEvent.pendingApprovals && selectedDongEvent.pendingApprovals.length > 0 && (
+                <div
+                  style={{
+                    padding: '14px 16px',
+                    borderRadius: 14,
+                    background: 'rgba(234, 179, 8, 0.12)',
+                    border: '1px solid rgba(234, 179, 8, 0.35)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+                    <div style={{ fontWeight: 800, fontSize: 13, color: '#facc15', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>⏳</span>
+                      <span>درخواست‌های اعضا در انتظار تأیید مدیر ({toFaDigits(selectedDongEvent.pendingApprovals.length)})</span>
+                    </div>
+                    <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
+                      {selectedDongEvent.shareRole === 'member' ? 'در صف بررسی و تأیید مدیر' : 'برای اعمال در تراز نهایی بررسی و تأیید فرمایید'}
+                    </span>
                   </div>
-                )}
+
+                  {selectedDongEvent.pendingApprovals.map((req) => (
+                    <div
+                      key={req.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        background: 'rgba(0,0,0,0.25)',
+                        padding: '10px 12px',
+                        borderRadius: 10,
+                        flexWrap: 'wrap',
+                        gap: 8,
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 700 }}>
+                          {req.action === 'add-expense' ? '➕ ثبت خرج جدید: ' : '🗑️ درخواست حذف خرج: '}
+                          <b>{req.expense.title}</b> ({formatMoney(req.expense.amount)})
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
+                          پیشنهاد از: <b>{req.proposedByName}</b> · پرداخت‌کننده: {dongPayerLabel(selectedDongEvent, req.expense.paidById)}
+                        </div>
+                      </div>
+
+                      {selectedDongEvent.shareRole === 'member' ? (
+                        <span style={{ fontSize: 11, color: '#facc15', fontWeight: 700 }}>در انتظار بررسی مدیر...</span>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            type="button"
+                            className="cat-mini"
+                            style={{ background: 'rgba(16, 185, 129, 0.25)', color: 'var(--hy-income)', fontWeight: 700 }}
+                            onClick={() => {
+                              let nextExpenses = [...selectedDongEvent.expenses]
+                              if (req.action === 'add-expense') {
+                                const existsIdx = nextExpenses.findIndex((e) => e.id === req.expense.id)
+                                if (existsIdx >= 0) {
+                                  nextExpenses[existsIdx] = req.expense
+                                } else {
+                                  nextExpenses.push(req.expense)
+                                }
+                              } else if (req.action === 'delete-expense') {
+                                nextExpenses = nextExpenses.filter((e) => e.id !== req.expense.id)
+                              }
+                              const nextPending = selectedDongEvent.pendingApprovals?.filter((p) => p.id !== req.id) || []
+                              void saveDongEvent({
+                                ...selectedDongEvent,
+                                expenses: nextExpenses,
+                                pendingApprovals: nextPending,
+                              })
+                              notifyUser('درخواست با موفقیت تأیید و در رویداد اعمال شد')
+                            }}
+                          >
+                            ✓ تأیید و اعمال
+                          </button>
+                          <button
+                            type="button"
+                            className="cat-mini danger"
+                            onClick={() => {
+                              const nextPending = selectedDongEvent.pendingApprovals?.filter((p) => p.id !== req.id) || []
+                              void saveDongEvent({
+                                ...selectedDongEvent,
+                                pendingApprovals: nextPending,
+                              })
+                              notifyUser('درخواست رد شد')
+                            }}
+                          >
+                            ✕ رد
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Item 9: Summary Card of Total Expenses with Click to Open Detailed Breakdown Modal */}
+              <div
+                className="report-card"
+                style={{
+                  padding: '16px 18px',
+                  borderRadius: 16,
+                  background: 'linear-gradient(135deg, rgba(37,99,235,0.12), rgba(15,118,110,0.12))',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                }}
+                onClick={() => setIsExpenseListModalOpen(true)}
+              >
+                <div>
+                  <div style={{ fontSize: 12, color: 'var(--hy-text-secondary)', marginBottom: 4 }}>
+                    🧾 جمع کل مخارج و فاکتورها (کلیک برای مشاهده جزئیات)
+                  </div>
+                  <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--hy-text)' }}>
+                    {formatMoney(dongSummary.totalCost)}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4 }}>
+                    شامل {toFaDigits(selectedDongEvent.expenses.length)} خرج ثبت‌شده
+                    {selectedDongEvent.expenses.length > 0 ? ' · کلیک کنید برای جستجو، ویرایش و مشاهده ریز سهم هر نفر' : ''}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  className="cta-confirm"
+                  style={{ height: 38, fontSize: 13, padding: '0 16px', display: 'flex', alignItems: 'center', gap: 6 }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setIsExpenseListModalOpen(true)
+                  }}
+                >
+                  <span>مشاهده ریز مخارج ({toFaDigits(selectedDongEvent.expenses.length)})</span>
+                  <span>←</span>
+                </button>
               </div>
 
               <MadreKharjOverview
@@ -1873,6 +1904,41 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                               }
                             }
 
+                            if (selectedDongEvent.shareRole === 'member') {
+                              const expenseItem: DongExpenseItem = {
+                                id: editingExpId || createId('dexp'),
+                                title: newExpTitle.trim(),
+                                amount,
+                                paidById: payerId,
+                                splitAmongIds: targetSplits,
+                                splitMode: newExpSplitMode,
+                                customShares,
+                                date: todayIso(),
+                              }
+                              const pending: DongPendingApproval = {
+                                id: createId('papp'),
+                                action: 'add-expense',
+                                expense: expenseItem,
+                                proposedByName: userProfile?.handle ? `@${userProfile.handle}` : 'عضو گروه',
+                                proposedAt: Date.now(),
+                              }
+                              const nextPending = [...(selectedDongEvent.pendingApprovals || []), pending]
+                              void saveDongEvent({
+                                ...selectedDongEvent,
+                                pendingApprovals: nextPending,
+                              })
+                              notifyUser('خرج جدید برای بررسی و تأیید مدیر رویداد ارسال شد')
+                              setIsDongExpenseModalOpen(false)
+                              setEditingExpId(null)
+                              setNewExpTitle('')
+                              setNewExpAmount('')
+                              setNewExpSplits([])
+                              setNewExpCustomAmounts({})
+                              setManualEditedIds(new Set())
+                              setNewExpSplitMode('equal')
+                              return
+                            }
+
                             const updatedExpenses = [...selectedDongEvent.expenses]
                             if (editingExpId) {
                               // Edit existing expense
@@ -1995,9 +2061,56 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                         {isDongGuest(selectedDongEvent) ? (
                           <p className="sheet-sub">
-                            این سفر با شما به اشتراک گذاشته شده. ثبت خرج برای شما باز است. تغییر افراد، گروه‌ها و مادرخرج فقط با صاحب سفر است.
+                            این سفر با شما به اشتراک گذاشته شده است. ثبت خرج‌های جدید به عنوان پیشنهاد برای تأیید مدیر ارسال می‌گردد.
                           </p>
                         ) : null}
+
+                        {/* Event Manager Designation & Transfer (Item 3) */}
+                        <div
+                          style={{
+                            padding: '12px 14px',
+                            borderRadius: 14,
+                            background: 'rgba(234, 179, 8, 0.1)',
+                            border: '1px solid rgba(234, 179, 8, 0.25)',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <span style={{ fontSize: 12, fontWeight: 800, color: '#facc15' }}>
+                              👑 مدیر و تصمیم‌گیرنده رویداد:
+                            </span>
+                            <span style={{ fontSize: 10, color: 'var(--hy-text-secondary)' }}>
+                              مدیریت رویداد بر عهده ۱ نفر است
+                            </span>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <select
+                              className="field-input"
+                              style={{ flex: 1, height: 36, fontSize: 12 }}
+                              value={selectedDongEvent.managerParticipantId || selectedDongEvent.participants[0]?.id || ''}
+                              disabled={selectedDongEvent.shareRole === 'member'}
+                              onChange={(e) => {
+                                const newMgrId = e.target.value
+                                void saveDongEvent({
+                                  ...selectedDongEvent,
+                                  managerParticipantId: newMgrId,
+                                })
+                                const name = selectedDongEvent.participants.find((p) => p.id === newMgrId)?.name
+                                notifyUser(`مدیریت رویداد به «${name}» واگذار گردید`)
+                              }}
+                            >
+                              {selectedDongEvent.participants.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.name} {p.id === (selectedDongEvent.managerParticipantId || selectedDongEvent.participants[0]?.id) ? ' (مدیر فعلی رویداد)' : ''}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          {selectedDongEvent.shareRole === 'member' && (
+                            <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)', marginTop: 4 }}>
+                              تنها مدیر رویداد اجازه واگذاری مدیریت و تغییر ساختار گروه را دارد.
+                            </div>
+                          )}
+                        </div>
                         {/* Add new member form */}
                         {isDongGuest(selectedDongEvent) ? null : <div
                           style={{
@@ -2518,6 +2631,179 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                           notifyUser('مادرخرج رد شد. این گروه مثل قبل بین اعضا حساب می‌شود.')
                         }}
                       />
+                    )}
+                  </div>
+                </WindowPopup>
+              )}
+
+              {/* ────────────────── Modal 3: Detailed Expenses Breakdown Popup (Item 9) ────────────────── */}
+              {isExpenseListModalOpen && selectedDongEvent && (
+                <WindowPopup
+                  title={`ریز مخارج: ${selectedDongEvent.title}`}
+                  subtitle={`مجموع: ${formatMoney(dongSummary.totalCost)} (${toFaDigits(selectedDongEvent.expenses.length)} خرج ثبت‌شده)`}
+                  icon="🧾"
+                  isOpen={true}
+                  onClose={() => setIsExpenseListModalOpen(false)}
+                  defaultWidth={620}
+                  defaultHeight={580}
+                >
+                  <div className="sheet-body-scroll" style={{ padding: '6px 0 20px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 10 }}>
+                      <input
+                        className="field-input"
+                        placeholder="جستجو در عناوین مخارج..."
+                        value={expenseSearchQuery}
+                        onChange={(e) => setExpenseSearchQuery(e.target.value)}
+                        style={{ flex: 1, height: 36, fontSize: 12 }}
+                      />
+                      <button
+                        type="button"
+                        className="cta-confirm"
+                        style={{ height: 36, fontSize: 12, padding: '0 14px', whiteSpace: 'nowrap' }}
+                        onClick={() => {
+                          setEditingExpId(null)
+                          setNewExpTitle('')
+                          setNewExpAmount('')
+                          setNewExpPayer(defaultDongPayerId(selectedDongEvent))
+                          setNewExpSplits(selectedDongEvent.participants.map((p) => p.id))
+                          setNewExpSplitMode('equal')
+                          setNewExpCustomAmounts({})
+                          setManualEditedIds(new Set())
+                          setIsDongExpenseModalOpen(true)
+                        }}
+                      >
+                        ＋ ثبت خرج جدید
+                      </button>
+                    </div>
+
+                    {selectedDongEvent.expenses.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '36px 14px', color: 'var(--hy-text-secondary)' }}>
+                        <span style={{ fontSize: 32 }}>🧾</span>
+                        <p style={{ marginTop: 8 }}>هنوز خرجی در این رویداد ثبت نشده است.</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {selectedDongEvent.expenses
+                          .filter((exp) => !expenseSearchQuery.trim() || exp.title.includes(expenseSearchQuery.trim()))
+                          .map((exp) => {
+                            const payerName = dongPayerLabel(selectedDongEvent, exp.paidById)
+                            return (
+                              <div
+                                key={exp.id}
+                                style={{
+                                  padding: '12px 14px',
+                                  borderRadius: 12,
+                                  background: 'rgba(0,0,0,0.22)',
+                                  border: '1px solid rgba(255,255,255,0.06)',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  gap: 10,
+                                }}
+                              >
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                    <span style={{ fontWeight: 800, fontSize: 14 }}>{exp.title}</span>
+                                    <span
+                                      style={{
+                                        fontSize: 10,
+                                        padding: '1px 6px',
+                                        borderRadius: 6,
+                                        background: exp.splitMode === 'custom' ? 'rgba(56, 189, 248, 0.15)' : 'rgba(15, 118, 110, 0.15)',
+                                        color: exp.splitMode === 'custom' ? '#38bdf8' : 'var(--hy-teal)',
+                                        fontWeight: 700,
+                                      }}
+                                    >
+                                      {exp.splitMode === 'custom' ? 'تقسیم دستی' : 'تقسیم مساوی'}
+                                    </span>
+                                  </div>
+                                  <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4 }}>
+                                    <span>پرداخت توسط: <b>{payerName}</b></span>
+                                    <span style={{ margin: '0 6px', opacity: 0.5 }}>·</span>
+                                    <span>
+                                      سهم ({toFaDigits(exp.splitAmongIds.length)} نفر):{' '}
+                                      {exp.splitAmongIds
+                                        .map((id) => {
+                                          const part = selectedDongEvent.participants.find((p) => p.id === id)
+                                          if (exp.splitMode === 'custom' && exp.customShares && exp.customShares[id] !== undefined) {
+                                            return `${part?.name ?? id} (${formatMoney(exp.customShares[id]!)})`
+                                          }
+                                          return part?.name ?? id
+                                        })
+                                        .join('، ')}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--hy-text)', whiteSpace: 'nowrap' }}>
+                                    {formatMoney(exp.amount)}
+                                  </span>
+                                  <button
+                                    className="cat-mini"
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingExpId(exp.id)
+                                      setNewExpTitle(exp.title)
+                                      const unitMultiplier = currencyUnit === 'IRT' ? 10 : 1
+                                      setNewExpAmount(formatSeparatedNumber(Math.round(exp.amount / unitMultiplier)))
+                                      setNewExpPayer(exp.paidById)
+                                      setNewExpSplits(exp.splitAmongIds)
+                                      setNewExpSplitMode(exp.splitMode || 'equal')
+                                      if (exp.customShares) {
+                                        const formattedMap: Record<string, string> = {}
+                                        for (const [uid, amt] of Object.entries(exp.customShares)) {
+                                          formattedMap[uid] = formatSeparatedNumber(Math.round(amt / unitMultiplier))
+                                        }
+                                        setNewExpCustomAmounts(formattedMap)
+                                        setManualEditedIds(new Set())
+                                      } else {
+                                        setNewExpCustomAmounts({})
+                                        setManualEditedIds(new Set())
+                                      }
+                                      setIsDongExpenseModalOpen(true)
+                                    }}
+                                  >
+                                    ویرایش
+                                  </button>
+                                  <button
+                                    className="cat-mini danger"
+                                    type="button"
+                                    onClick={() => {
+                                      if (selectedDongEvent.shareRole === 'member') {
+                                        if (confirm(`آیا می‌خواهید درخواست حذف خرج «${exp.title}» برای مدیر ارسال شود؟`)) {
+                                          const pending: DongPendingApproval = {
+                                            id: createId('papp'),
+                                            action: 'delete-expense',
+                                            expense: exp,
+                                            proposedByName: userProfile?.handle ? `@${userProfile.handle}` : 'عضو گروه',
+                                            proposedAt: Date.now(),
+                                          }
+                                          void saveDongEvent({
+                                            ...selectedDongEvent,
+                                            pendingApprovals: [...(selectedDongEvent.pendingApprovals || []), pending],
+                                          })
+                                          notifyUser('درخواست حذف برای مدیر ارسال گردید')
+                                        }
+                                        return
+                                      }
+                                      if (confirm(`آیا از حذف خرج «${exp.title}» اطمینان دارید؟`)) {
+                                        const updated = {
+                                          ...selectedDongEvent,
+                                          expenses: selectedDongEvent.expenses.filter((e) => e.id !== exp.id),
+                                        }
+                                        void saveDongEvent(updated)
+                                        notifyUser('خرج حذف شد')
+                                      }
+                                    }}
+                                  >
+                                    حذف
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          })}
+                      </div>
                     )}
                   </div>
                 </WindowPopup>
