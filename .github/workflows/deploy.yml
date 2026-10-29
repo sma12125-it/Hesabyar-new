@@ -33,6 +33,13 @@ jobs:
       - run: npm run build -- --base=/Hesabyar-new/
       - name: Ensure .nojekyll
         run: touch dist/.nojekyll
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hesabyar-Android-APK
+          path: |
+            public/Hesabyar-Release.apk
+            public/Hesabyar-v0.3.0.apk
       - name: Setup Pages
         uses: actions/configure-pages@v5
         continue-on-error: true

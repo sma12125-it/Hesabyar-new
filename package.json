@@ -1,14 +1,15 @@
 {
   "name": "hesabyar",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
     "start": "tsx server.ts",
-    "build": "tsc -b && vite build",
+    "build:apk": "python3 scripts/build_apk.py",
+    "build": "python3 scripts/build_apk.py && tsc -b && vite build",
     "lint": "tsc -b",
-    "build:pages": "tsc -b && vite build --base=/hesabyar-new/",
+    "build:pages": "python3 scripts/build_apk.py && tsc -b && vite build --base=/hesabyar-new/",
     "preview": "vite preview --host 0.0.0.0 --port 3000",
     "test": "vitest run"
   },

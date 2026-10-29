@@ -8,7 +8,6 @@ import { SupabaseConfigSheet } from '../components/SupabaseConfigSheet'
 import { loadLock, registerBiometric, setPattern, type AppLockRecord } from '../lib/applock'
 import { rememberedAccountPassword } from '../lib/account'
 import { joinSharedCode } from '../lib/share'
-import { toFaDigits } from '../lib/money'
 import { notifyUser, loadSession, type CloudSession } from '../lib/sync'
 import { getSupabaseSettings } from '../lib/supabaseClient'
 import { useExtras } from '../store/Extras'
@@ -759,8 +758,8 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           <div className="settings-sub-screen">
             <SettingsSubHeader
               icon="ℹ️"
-              title="درباره حساب‌یار و نگارش ۰.۳.۰"
-              subtitle="مشخصات نسخه ۰.۳.۰، امکانات و گزارش به‌روزرسانی"
+              title="درباره حساب‌یار"
+              subtitle="مشخصات، امکانات و راهنمای کامل"
               onBack={() => setActiveSection(null)}
             />
 
@@ -775,29 +774,30 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           <div className="settings-sub-screen">
             <SettingsSubHeader
               icon="🔄"
-              title="مرکز به‌روزرسانی حسابیار"
-              subtitle="دریافت آخرین تغییرات وب‌اپ و دریافت نسخه اندروید (APK)"
+              title="مرکز به‌روزرسانی حساب‌یار"
+              subtitle="اعمال آخرین تغییرات وب‌اپ و دانلود خودکار فایل نصبی اندروید (APK)"
               onBack={() => setActiveSection(null)}
             />
 
             <section className="lg settings-block" style={{ marginTop: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                <span style={{ fontSize: 32 }}>🌐</span>
+                <span style={{ fontSize: 32 }}>🔄</span>
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>نسخه وب‌اپلیکیشن (Web App)</h3>
+                  <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>به‌روزرسانی سریع همه‌جانبه (Web & APK)</h3>
                   <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', margin: '2px 0 0' }}>
-                    نگارش کلاینت: نسخه ۰.۳.۰
+                    اعمال آخرین تغییرات کلاینت، پاکسازی کش و دانلود مستقیم فایل نصبی جدید
                   </p>
                 </div>
               </div>
               <p style={{ fontSize: 12, color: 'var(--hy-text)', lineHeight: 1.8 }}>
-                با زدن دکمه زیر، تمامی کش‌های مرورگر و سرویس‌ورکر پاکسازی شده و آخرین نسخه تغییرات از مخزن و سرور دریافت و بی‌درنگ اعمال می‌شود.
+                با زدن دکمه زیر، تمامی کش‌های مرورگر نوسازی شده و آخرین نسخه پایدار فایل APK اندروید به‌صورت خودکار در دستگاه شما ذخیره و آماده نصب می‌شود.
               </p>
               <button
                 type="button"
                 className="cta-confirm"
-                style={{ width: '100%', marginTop: 8 }}
+                style={{ width: '100%', marginTop: 8, padding: '12px 16px', fontSize: 13, fontWeight: 800 }}
                 onClick={async () => {
+                  notifyUser('در حال نوسازی کش و آماده‌سازی فایل نصبی APK...')
                   try {
                     if ('serviceWorker' in navigator) {
                       const registrations = await navigator.serviceWorker.getRegistrations()
@@ -812,16 +812,22 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                         await caches.delete(key)
                       }
                     }
-                    notifyUser('در حال دریافت آخرین تغییرات و بازنشانی کش...')
-                    setTimeout(() => {
-                      window.location.reload()
-                    }, 400)
-                  } catch {
-                    window.location.reload()
+                  } catch (e) {
+                    console.warn(e)
                   }
+
+                  // Trigger automatic APK download
+                  const link = document.createElement('a')
+                  link.href = './Hesabyar-Release.apk'
+                  link.download = 'Hesabyar-Release.apk'
+                  document.body.appendChild(link)
+                  link.click()
+                  document.body.removeChild(link)
+
+                  notifyUser('فایل نصبی Hesabyar-Release.apk دانلود شد. برای نصب لمس نمایید.')
                 }}
               >
-                🔄 پاکسازی کش و اعمال آخرین تغییرات وب‌اپ
+                ⚡ بروزرسانی و دانلود آخرین نسخه APK
               </button>
             </section>
 
@@ -829,31 +835,48 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
                 <span style={{ fontSize: 32 }}>🤖</span>
                 <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>نسخه اندروید (APK)</h3>
+                  <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>فایل نصبی اختصاصی اندروید (APK)</h3>
                   <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', margin: '2px 0 0' }}>
-                    پشتیبانی کامل از اثر انگشت، اسکن چهره، پترن و خواندن پیامک‌های بانکی
+                    پشتیبانی کامل از سنسور اثر انگشت، اسکن چهره، پترن و خواندن هوشمند پیامک‌ها
                   </p>
                 </div>
               </div>
               <p style={{ fontSize: 12, color: 'var(--hy-text)', lineHeight: 1.8 }}>
-                فایل نصبی مستقیم نسخه پایدار اندروید شامل دسترسی مستقیم به حسگرهای بیومتریک و مجوز پیامک‌های بانکی:
+                فایل نصبی رسمی اندروید بیلد شده در مخزن پروژه و آرتیفکت گیت‌هاب (GitHub Artifacts):
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>Hesabyar-Release-v0.3.0.apk</div>
-                    <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)', marginTop: 2 }}>حجم: ~۱۸ مگابایت · اندروید ۷.۰ به بالا</div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>Hesabyar-Release.apk</div>
+                    <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)', marginTop: 2 }}>پکیج رسمی اندروید · آماده نصب مستقیم</div>
                   </div>
-                  <button
-                    type="button"
+                  <a
+                    href="./Hesabyar-Release.apk"
+                    download="Hesabyar-Release.apk"
                     className="cat-mini"
-                    style={{ fontWeight: 800, color: 'var(--hy-income)', background: 'rgba(16, 185, 129, 0.15)' }}
+                    style={{ textDecoration: 'none', fontWeight: 800, color: 'var(--hy-income)', background: 'rgba(16, 185, 129, 0.15)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                     onClick={() => {
-                      notifyUser('درخواست دریافت فایل نصبی ثبت شد. فایل به‌روزرسانی دانلود می‌گردد.')
+                      notifyUser('دانلود فایل نصبی Hesabyar-Release.apk آغاز شد.')
                     }}
                   >
                     ⬇️ دانلود APK
-                  </button>
+                  </a>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>آرتیفکت‌های گیت‌هاب (GitHub Actions Artifacts)</div>
+                    <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)', marginTop: 2 }}>مشاهده بیلدهای خودکار و دانلود آخرین APK از مخزن</div>
+                  </div>
+                  <a
+                    href="https://github.com/hesabyar/hesabyar-app/actions"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="cat-mini"
+                    style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                  >
+                    🔗 گیت‌هاب
+                  </a>
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -979,10 +1002,10 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
         {
           id: 'about' as const,
           icon: 'ℹ️',
-          title: 'درباره حساب‌یار و نگارش ۰.۳.۰',
-          subtitle: 'مشاهده مشخصات کامل برنامه، امکانات و گزارش تغییرات نسخه ۰.۳.۰',
-          badge: 'نسخه ۰.۳.۰',
-          badgeClass: 'ok',
+          title: 'درباره حساب‌یار',
+          subtitle: 'مشاهده مشخصات کامل برنامه، امکانات و گزارش تغییرات',
+          badge: 'مشاهده',
+          badgeClass: 'info',
         },
       ],
     },
@@ -1002,18 +1025,6 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                 مدیریت بخش‌ها، تم‌های ظاهری و امنیت اطلاعات
               </p>
             </div>
-            <span
-              style={{
-                fontSize: '11px',
-                padding: '4px 10px',
-                borderRadius: 10,
-                background: 'rgba(16, 185, 129, 0.15)',
-                color: 'var(--hy-income)',
-                fontWeight: 700,
-              }}
-            >
-              نسخه {toFaDigits('0.2.0')}
-            </span>
           </div>
 
           {/* Quick Active Theme Banner */}
@@ -1093,7 +1104,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
 
           {/* Footer credit */}
           <p className="settings-credit">
-            حساب‌یار · سازنده محمد احمدی · نسخه {toFaDigits('0.2.0').replaceAll('.', '\u066b')}
+            حساب‌یار · توسعه و نگهداری توسط محمد احمدی
           </p>
         </div>
       )}

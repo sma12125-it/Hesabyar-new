@@ -14,6 +14,7 @@ import { getCategory } from '../lib/categories'
 import { computePocketBalances } from '../lib/balance'
 import { PocketFormSheet } from '../components/PocketFormSheet'
 import { PocketTransferSheet } from '../components/PocketTransferSheet'
+import { SwipeRow } from '../components/SwipeRow'
 import type { Pocket } from '../types'
 
 export function AccountDetailPage({
@@ -31,7 +32,7 @@ export function AccountDetailPage({
 }) {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { accounts, transactions, pockets, pocketTransfers, archiveAccount, restoreAccount, customCategories } = useStore()
+  const { accounts, transactions, pockets, pocketTransfers, archiveAccount, restoreAccount, deletePocket, customCategories } = useStore()
   const { cards, formatMoney, unitLabel } = useExtras()
   const actions = useUiActions()
   const [menu, setMenu] = useState(false)
@@ -258,9 +259,8 @@ export function AccountDetailPage({
             {accountPockets.map((p) => {
               const bal = pocketBalances[p.id] ?? 0
               const isNegative = bal < 0
-              return (
+              const pocketCard = (
                 <div
-                  key={p.id}
                   className="tx-row lg-row"
                   onClick={() => navigate(`/accounts/${account.id}/pockets/${p.id}`)}
                   style={{
@@ -269,6 +269,7 @@ export function AccountDetailPage({
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
+                    width: '100%',
                   }}
                   role="button"
                   tabIndex={0}
@@ -315,6 +316,32 @@ export function AccountDetailPage({
                     ) : null}
                   </div>
                 </div>
+              )
+
+              if (p.isMain) {
+                return (
+                  <div key={p.id}>
+                    {pocketCard}
+                  </div>
+                )
+              }
+
+              return (
+                <SwipeRow
+                  key={p.id}
+                  onEdit={() => {
+                    setEditingPocket(p)
+                    setPocketFormOpen(true)
+                  }}
+                  onDelete={() => {
+                    if (window.confirm(`آیا از حذف جیب «${p.name}» اطمینان دارید؟ تراکنش‌های مرتبط به جیب اصلی نسبت داده می‌شوند.`)) {
+                      void deletePocket(p.id)
+                      notifyUser(`جیب «${p.name}» با موفقیت حذف شد`)
+                    }
+                  }}
+                >
+                  {pocketCard}
+                </SwipeRow>
               )
             })}
           </div>
