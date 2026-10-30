@@ -146,6 +146,13 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
   const [vaultInfo, setVaultInfo] = useState<string | null>(null)
   const [vaultError, setVaultError] = useState<string | null>(null)
 
+  const [showThemeGallery, setShowThemeGallery] = useState(false)
+  const [securityTab, setSecurityTab] = useState<'lock' | 'vault' | 'share'>('lock')
+  const [updatePlatform, setUpdatePlatform] = useState<'webapp' | 'apk'>('webapp')
+  const [isDownloadingApk, setIsDownloadingApk] = useState(false)
+  const [apkProgress, setApkProgress] = useState(0)
+  const [showRestartConfirm, setShowRestartConfirm] = useState(false)
+
   const { currencyUnit, setCurrencyUnit, exportLocal, importLocal, vaultConfigured, setVaultPassword, changeVaultPassword } = useExtras()
   const { accounts, transactions, plans, items, customCategories, importCloud } = useStore()
 
@@ -274,20 +281,62 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           <div className="settings-sub-screen">
             <SettingsSubHeader
               icon="🎨"
-              title="شخصی‌سازی و تم‌های ظاهری"
-              subtitle="انتخاب از بین ۷ استایل گرافیکی و واحد پول برنامه"
+              title="شخصی‌سازی"
+              subtitle="انتخاب تم ظاهری و واحد پول پیش‌فرض برنامه"
               onBack={() => setActiveSection(null)}
             />
 
             <section className="lg settings-block" style={{ marginTop: 12 }}>
-              <h2 style={{ fontSize: '14px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>🎨</span>
-                <span>استایل‌های طراحی و گرافیک (۷ تم اختصاصی)</span>
-              </h2>
-              <p className="sheet-sub" style={{ marginTop: 4 }}>
-                هر تم دارای پالت رنگی، کادربندی‌ها، منوی ناوبری و دکمه‌های کاملاً منطبق بر سبک طراحی خود است.
-              </p>
-              <ThemeGallery />
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  padding: '4px 0',
+                }}
+                onClick={() => setShowThemeGallery((v) => !v)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 12,
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 20,
+                    }}
+                  >
+                    {currentTheme?.icon || '🎨'}
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: '14px', fontWeight: 800, margin: 0 }}>تم ظاهری برنامه</h2>
+                    <p style={{ fontSize: '11px', color: 'var(--hy-text-secondary)', margin: '2px 0 0' }}>
+                      تم فعال فعلی: {currentTheme?.name || 'تاریک مات'} (برای تغییر کلیک کنید)
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="cat-mini"
+                  style={{ fontWeight: 700 }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setShowThemeGallery((v) => !v)
+                  }}
+                >
+                  {showThemeGallery ? 'بستن منوی تم‌ها ▲' : 'انتخاب تم ▼'}
+                </button>
+              </div>
+
+              {showThemeGallery && (
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  <ThemeGallery />
+                </div>
+              )}
             </section>
 
             <section className="lg settings-block" style={{ marginTop: 14 }}>
@@ -392,202 +441,270 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           <div className="settings-sub-screen">
             <SettingsSubHeader
               icon="🛡️"
-              title="امنیت، قفل ورود و بیومتریک"
-              subtitle="الگوی ترسیمی، اثر انگشت و تشخیص چهره گوشی"
+              title="امنیت"
+              subtitle="الگوی ورود و بیومتریک، گاوصندوق کارت‌ها، کارت مشترک و دسترسی‌ها"
               onBack={() => setActiveSection(null)}
             />
 
-            <section className="lg settings-block" style={{ marginTop: 12 }}>
-              <h2 style={{ fontSize: 14, fontWeight: 800 }}>الگوی ترسیمی ورود (Pattern Lock)</h2>
-              <p className="sheet-sub" style={{ marginTop: 4 }}>
-                الگو را با کشیدن انگشت روی نقطه‌ها تعیین کنید (حداقل ۴ نقطه).
-              </p>
-              <div style={{ margin: '14px 0' }}>
-                <PatternLock value={pattern} onChange={setPatternValue} />
-              </div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  className="cta-confirm"
-                  type="button"
-                  style={{ flex: 1, height: 42 }}
-                  onClick={() => {
-                    if (pattern.length < 4) {
-                      setSecurityInfo('حداقل ۴ نقطه را به هم وصل کنید')
-                      return
-                    }
-                    void setPattern(pattern.join('-')).then(() => {
-                      setLock(loadLock())
-                      setPatternValue([])
-                      setSecurityInfo('الگوی ورود با موفقیت ذخیره شد')
-                      notifyUser('الگوی ورود ثبت شد')
-                    })
-                  }}
-                >
-                  ثبت الگوی جدید
-                </button>
-                {lock.patternHash ? (
-                  <button
-                    className="home-pill ghost"
-                    type="button"
-                    style={{ height: 42 }}
-                    onClick={() => {
-                      void setPattern('').then(() => {
-                        setLock(loadLock())
-                        setSecurityInfo('الگوی ورود حذف شد')
-                        notifyUser('الگوی ورود غیرفعال شد')
-                      })
-                    }}
-                  >
-                    حذف الگو
-                  </button>
-                ) : null}
-              </div>
-            </section>
-
-            <section className="lg settings-block" style={{ marginTop: 14 }}>
-              <h2 style={{ fontSize: 14, fontWeight: 800 }}>ورود بیومتریک (اثر انگشت / تشخیص چهره)</h2>
-              <p className="sheet-sub" style={{ marginTop: 4 }}>
-                قفل گوشی از طریق حسگر دستگاه فراخوانی می‌شود و اطلاعات حساس در سرور ذخیره نمی‌گردد.
-              </p>
+            {/* Segmented security tabs */}
+            <div className="seg" role="tablist" style={{ marginTop: 12 }}>
               <button
-                className="cta-confirm"
+                className={`seg-btn${securityTab === 'lock' ? ' active' : ''}`}
                 type="button"
-                style={{ width: '100%', height: 42, marginTop: 10 }}
-                onClick={() =>
-                  void registerBiometric()
-                    .then(() => {
-                      setLock(loadLock())
-                      setSecurityInfo('ورود با قفل بیومتریک گوشی فعال شد')
-                      notifyUser('قفل بیومتریک فعال شد')
-                    })
-                    .catch((err) =>
-                      setSecurityInfo(err instanceof Error ? err.message : 'قفل گوشی در دسترس نیست')
-                    )
-                }
+                onClick={() => setSecurityTab('lock')}
               >
-                🔐 فعال‌سازی ورود با اثر انگشت یا چهره
+                🛡️ الگو و بیومتریک
               </button>
-            </section>
+              <button
+                className={`seg-btn${securityTab === 'vault' ? ' active' : ''}`}
+                type="button"
+                onClick={() => setSecurityTab('vault')}
+              >
+                🔐 گاوصندوق کارت‌ها
+              </button>
+              <button
+                className={`seg-btn${securityTab === 'share' ? ' active' : ''}`}
+                type="button"
+                onClick={() => setSecurityTab('share')}
+              >
+                🤝 کارت مشترک
+              </button>
+            </div>
 
-            {securityInfo ? (
-              <div className="banner info" style={{ marginTop: 12 }}>
-                <span>{securityInfo}</span>
-              </div>
-            ) : null}
-          </div>
-        )
-
-      case 'vault':
-        return (
-          <div className="settings-sub-screen">
-            <SettingsSubHeader
-              icon="🔐"
-              title="گاوصندوق کارت‌های محرمانه"
-              subtitle="رمزگذاری کارت‌های بانکی، CVV2 و رمز دوم با رمز اختصاصی"
-              onBack={() => setActiveSection(null)}
-            />
-
-            <section className="lg settings-block" style={{ marginTop: 12 }}>
-              <h2 style={{ fontSize: 14, fontWeight: 800 }}>
-                {vaultConfigured ? 'تغییر رمز گاوصندوق' : 'تعیین رمز برای گاوصندوق کارت‌ها'}
-              </h2>
-              <p className="sheet-sub" style={{ marginTop: 4 }}>
-                {vaultConfigured
-                  ? 'رمز فعلی و رمز تازه را وارد کنید. کارت‌ها با رمز تازه مجدداً رمزگذاری می‌شوند.'
-                  : 'یک رمز اختصاصی برای گاوصندوق کارت‌ها تنظیم کنید تا مشخصات حساس کارت‌ها قفل شوند.'}
-              </p>
-
-              <div className="field-stack" style={{ marginTop: 12 }}>
-                {vaultConfigured ? (
-                  <input
-                    className="field-input"
-                    type="password"
-                    placeholder="رمز فعلی گاوصندوق"
-                    value={vaultCurrent}
-                    onChange={(e) => setVaultCurrent(e.target.value)}
-                  />
-                ) : null}
-                <input
-                  className="field-input"
-                  type="password"
-                  placeholder="رمز جدید گاوصندوق (حداقل ۴ نویسه)"
-                  value={vaultNext}
-                  onChange={(e) => setVaultNext(e.target.value)}
-                />
-                <input
-                  className="field-input"
-                  type="password"
-                  placeholder="تکرار رمز جدید گاوصندوق"
-                  value={vaultAgain}
-                  onChange={(e) => setVaultAgain(e.target.value)}
-                />
-                {rememberedAccountPassword() ? null : (
-                  <input
-                    className="field-input"
-                    type="password"
-                    placeholder="رمز حساب برای بازیابی بعدی"
-                    value={vaultAccountPassword}
-                    onChange={(e) => setVaultAccountPassword(e.target.value)}
-                  />
-                )}
-
-                <button
-                  className="cta-confirm"
-                  type="button"
-                  style={{ height: 44, marginTop: 4 }}
-                  onClick={() => void handleSaveVault()}
-                >
-                  ثبت و ذخیره رمز گاوصندوق
-                </button>
-              </div>
-
-              {vaultRecoveryCode ? (
-                <div style={{ marginTop: 14, padding: 12, borderRadius: 12, background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                  <p className="sheet-sub" style={{ fontWeight: 700, color: 'var(--hy-income)' }}>
-                    کد بازیابی اضطراری گاوصندوق (آن را در جای امن نگه دارید):
+            {securityTab === 'lock' && (
+              <>
+                <section className="lg settings-block" style={{ marginTop: 12 }}>
+                  <h2 style={{ fontSize: 14, fontWeight: 800 }}>الگوی ترسیمی ورود (Pattern Lock)</h2>
+                  <p className="sheet-sub" style={{ marginTop: 4 }}>
+                    الگو را با کشیدن انگشت روی نقطه‌ها تعیین کنید (حداقل ۴ نقطه).
                   </p>
-                  <p className="recovery-code" style={{ textAlign: 'center', margin: '8px 0', fontSize: 18 }}>
-                    {vaultRecoveryCode}
-                  </p>
-                </div>
-              ) : null}
+                  <div style={{ margin: '14px 0' }}>
+                    <PatternLock value={pattern} onChange={setPatternValue} />
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      className="cta-confirm"
+                      type="button"
+                      style={{ flex: 1, height: 42 }}
+                      onClick={() => {
+                        if (pattern.length < 4) {
+                          setSecurityInfo('حداقل ۴ نقطه را به هم وصل کنید')
+                          return
+                        }
+                        void setPattern(pattern.join('-')).then(() => {
+                          setLock(loadLock())
+                          setPatternValue([])
+                          setSecurityInfo('الگوی ورود با موفقیت ذخیره شد')
+                          notifyUser('الگوی ورود ثبت شد')
+                        })
+                      }}
+                    >
+                      ثبت الگوی جدید
+                    </button>
+                    {lock.patternHash ? (
+                      <button
+                        className="home-pill ghost"
+                        type="button"
+                        style={{ height: 42 }}
+                        onClick={() => {
+                          void setPattern('').then(() => {
+                            setLock(loadLock())
+                            setSecurityInfo('الگوی ورود حذف شد')
+                            notifyUser('الگوی ورود غیرفعال شد')
+                          })
+                        }}
+                      >
+                        حذف الگو
+                      </button>
+                    ) : null}
+                  </div>
+                </section>
 
-              {vaultConfigured ? (
-                <div style={{ marginTop: 14 }}>
+                <section className="lg settings-block" style={{ marginTop: 14 }}>
+                  <h2 style={{ fontSize: 14, fontWeight: 800 }}>ورود بیومتریک (اثر انگشت / تشخیص چهره)</h2>
+                  <p className="sheet-sub" style={{ marginTop: 4 }}>
+                    قفل گوشی از طریق حسگر دستگاه فراخوانی می‌شود و اطلاعات حساس در سرور ذخیره نمی‌گردد.
+                  </p>
                   <button
-                    className="link"
+                    className="cta-confirm"
                     type="button"
-                    onClick={() => setVaultForgot((v) => !v)}
-                    style={{ fontSize: 12 }}
+                    style={{ width: '100%', height: 42, marginTop: 10 }}
+                    onClick={() =>
+                      void registerBiometric()
+                        .then(() => {
+                          setLock(loadLock())
+                          setSecurityInfo('ورود با قفل بیومتریک گوشی فعال شد')
+                          notifyUser('قفل بیومتریک فعال شد')
+                        })
+                        .catch((err) =>
+                          setSecurityInfo(err instanceof Error ? err.message : 'قفل گوشی در دسترس نیست')
+                        )
+                    }
                   >
-                    رمز گاوصندوق را فراموش کرده‌ام (بازیابی اضطراری)
+                    🔐 فعال‌سازی ورود با اثر انگشت یا چهره
+                  </button>
+                </section>
+
+                {securityInfo ? (
+                  <div className="banner info" style={{ marginTop: 12 }}>
+                    <span>{securityInfo}</span>
+                  </div>
+                ) : null}
+              </>
+            )}
+
+            {securityTab === 'vault' && (
+              <section className="lg settings-block" style={{ marginTop: 12 }}>
+                <h2 style={{ fontSize: 14, fontWeight: 800 }}>
+                  {vaultConfigured ? 'تغییر رمز گاوصندوق کارت‌ها' : 'تعیین رمز برای گاوصندوق کارت‌ها'}
+                </h2>
+                <p className="sheet-sub" style={{ marginTop: 4 }}>
+                  {vaultConfigured
+                    ? 'رمز فعلی و رمز تازه را وارد کنید. کارت‌ها با رمز تازه مجدداً رمزگذاری می‌شوند.'
+                    : 'یک رمز اختصاصی برای گاوصندوق کارت‌ها تنظیم کنید تا مشخصات حساس کارت‌ها قفل شوند.'}
+                </p>
+
+                <div className="field-stack" style={{ marginTop: 12 }}>
+                  {vaultConfigured ? (
+                    <input
+                      className="field-input"
+                      type="password"
+                      placeholder="رمز فعلی گاوصندوق"
+                      value={vaultCurrent}
+                      onChange={(e) => setVaultCurrent(e.target.value)}
+                    />
+                  ) : null}
+                  <input
+                    className="field-input"
+                    type="password"
+                    placeholder="رمز جدید گاوصندوق (حداقل ۴ نویسه)"
+                    value={vaultNext}
+                    onChange={(e) => setVaultNext(e.target.value)}
+                  />
+                  <input
+                    className="field-input"
+                    type="password"
+                    placeholder="تکرار رمز جدید گاوصندوق"
+                    value={vaultAgain}
+                    onChange={(e) => setVaultAgain(e.target.value)}
+                  />
+                  {rememberedAccountPassword() ? null : (
+                    <input
+                      className="field-input"
+                      type="password"
+                      placeholder="رمز حساب برای بازیابی بعدی"
+                      value={vaultAccountPassword}
+                      onChange={(e) => setVaultAccountPassword(e.target.value)}
+                    />
+                  )}
+
+                  <button
+                    className="cta-confirm"
+                    type="button"
+                    style={{ height: 44, marginTop: 4 }}
+                    onClick={() => void handleSaveVault()}
+                  >
+                    ثبت و ذخیره رمز گاوصندوق
                   </button>
                 </div>
-              ) : null}
 
-              {vaultForgot ? (
-                <div style={{ marginTop: 12 }}>
-                  <VaultRecover
-                    onDone={(code) => {
-                      setVaultRecoveryCode(code)
-                      setVaultForgot(false)
-                      setVaultInfo('رمز گاوصندوق با موفقیت بازیابی شد')
-                    }}
+                {vaultRecoveryCode ? (
+                  <div style={{ marginTop: 14, padding: 12, borderRadius: 12, background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                    <p className="sheet-sub" style={{ fontWeight: 700, color: 'var(--hy-income)' }}>
+                      کد بازیابی اضطراری گاوصندوق (آن را در جای امن نگه دارید):
+                    </p>
+                    <p className="recovery-code" style={{ textAlign: 'center', margin: '8px 0', fontSize: 18 }}>
+                      {vaultRecoveryCode}
+                    </p>
+                  </div>
+                ) : null}
+
+                {vaultConfigured ? (
+                  <div style={{ marginTop: 14 }}>
+                    <button
+                      className="link"
+                      type="button"
+                      onClick={() => setVaultForgot((v) => !v)}
+                      style={{ fontSize: 12 }}
+                    >
+                      رمز گاوصندوق را فراموش کرده‌ام (بازیابی اضطراری)
+                    </button>
+                  </div>
+                ) : null}
+
+                {vaultForgot ? (
+                  <div style={{ marginTop: 12 }}>
+                    <VaultRecover
+                      onDone={(code) => {
+                        setVaultRecoveryCode(code)
+                        setVaultForgot(false)
+                        setVaultInfo('رمز گاوصندوق با موفقیت بازیابی شد')
+                      }}
+                    />
+                  </div>
+                ) : null}
+
+                {vaultError ? (
+                  <div className="banner error" style={{ marginTop: 10 }}>
+                    <span>{vaultError}</span>
+                  </div>
+                ) : null}
+                {vaultInfo ? (
+                  <div className="banner ok" style={{ marginTop: 10 }}>
+                    <span>{vaultInfo}</span>
+                  </div>
+                ) : null}
+              </section>
+            )}
+
+            {securityTab === 'share' && (
+              <section className="lg settings-block" style={{ marginTop: 12 }}>
+                <h2 style={{ fontSize: 14, fontWeight: 800 }}>پیوستن به کارت مشترک</h2>
+                <p className="sheet-sub" style={{ marginTop: 4, lineHeight: 1.7 }}>
+                  کد اشتراکی که مالک حساب به شما داده را وارد کنید. دسترسی تنها در صورتی تایید می‌شود که ایمیل شما در لیست افراد مجاز ثبت شده باشد.
+                </p>
+
+                {shareError ? (
+                  <div className="banner error" style={{ margin: '10px 0', fontSize: 11 }}>
+                    <span>{shareError}</span>
+                  </div>
+                ) : null}
+
+                <div className="field-stack" style={{ marginTop: 12 }}>
+                  <input
+                    className="field-input"
+                    dir="ltr"
+                    placeholder="مثال: AB12-CD34"
+                    value={shareCode}
+                    onChange={(e) => setShareCode(e.target.value.toUpperCase())}
+                    aria-label="کد اشتراک"
+                    style={{ textAlign: 'center', letterSpacing: 2, fontFamily: 'monospace', fontWeight: 800 }}
                   />
+                  <button
+                    className="cta-confirm"
+                    type="button"
+                    disabled={joining || shareCode.trim().length < 4}
+                    style={{ height: 44 }}
+                    onClick={() => {
+                      setJoining(true)
+                      setShareError(null)
+                      void joinSharedCode(shareCode)
+                        .then(() => {
+                          setShareCode('')
+                          notifyUser('با موفقیت به حساب مشترک متصل شدید!')
+                          window.dispatchEvent(new Event('hy-share-refresh'))
+                        })
+                        .catch((err: unknown) => {
+                          setShareError(err instanceof Error ? err.message : 'پیوستن انجام نشد')
+                        })
+                        .finally(() => setJoining(false))
+                    }}
+                  >
+                    {joining ? 'در حال بررسی مجوز دسترسی…' : 'پیوستن امن به کارت'}
+                  </button>
                 </div>
-              ) : null}
-
-              {vaultError ? (
-                <div className="banner error" style={{ marginTop: 10 }}>
-                  <span>{vaultError}</span>
-                </div>
-              ) : null}
-              {vaultInfo ? (
-                <div className="banner ok" style={{ marginTop: 10 }}>
-                  <span>{vaultInfo}</span>
-                </div>
-              ) : null}
-            </section>
+              </section>
+            )}
           </div>
         )
 
@@ -604,65 +721,6 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
             <div style={{ marginTop: 12 }}>
               <SmsSettingsSection />
             </div>
-          </div>
-        )
-
-      case 'share':
-        return (
-          <div className="settings-sub-screen">
-            <SettingsSubHeader
-              icon="🤝"
-              title="کارت مشترک و دسترسی‌ها"
-              subtitle="پیوستن به کارت‌های اشتراکی با کد امنیتی"
-              onBack={() => setActiveSection(null)}
-            />
-
-            <section className="lg settings-block" style={{ marginTop: 12 }}>
-              <h2 style={{ fontSize: 14, fontWeight: 800 }}>پیوستن به کارت مشترک</h2>
-              <p className="sheet-sub" style={{ marginTop: 4, lineHeight: 1.7 }}>
-                کد اشتراکی که مالک حساب به شما داده را وارد کنید. دسترسی تنها در صورتی تایید می‌شود که ایمیل شما در لیست افراد مجاز ثبت شده باشد.
-              </p>
-
-              {shareError ? (
-                <div className="banner error" style={{ margin: '10px 0', fontSize: 11 }}>
-                  <span>{shareError}</span>
-                </div>
-              ) : null}
-
-              <div className="field-stack" style={{ marginTop: 12 }}>
-                <input
-                  className="field-input"
-                  dir="ltr"
-                  placeholder="مثال: AB12-CD34"
-                  value={shareCode}
-                  onChange={(e) => setShareCode(e.target.value.toUpperCase())}
-                  aria-label="کد اشتراک"
-                  style={{ textAlign: 'center', letterSpacing: 2, fontFamily: 'monospace', fontWeight: 800 }}
-                />
-                <button
-                  className="cta-confirm"
-                  type="button"
-                  disabled={joining || shareCode.trim().length < 4}
-                  style={{ height: 44 }}
-                  onClick={() => {
-                    setJoining(true)
-                    setShareError(null)
-                    void joinSharedCode(shareCode)
-                      .then(() => {
-                        setShareCode('')
-                        notifyUser('با موفقیت به حساب مشترک متصل شدید!')
-                        window.dispatchEvent(new Event('hy-share-refresh'))
-                      })
-                      .catch((err: unknown) => {
-                        setShareError(err instanceof Error ? err.message : 'پیوستن انجام نشد')
-                      })
-                      .finally(() => setJoining(false))
-                  }}
-                >
-                  {joining ? 'در حال بررسی مجوز دسترسی…' : 'پیوستن امن به کارت'}
-                </button>
-              </div>
-            </section>
           </div>
         )
 
@@ -774,128 +832,208 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           <div className="settings-sub-screen">
             <SettingsSubHeader
               icon="🔄"
-              title="مرکز به‌روزرسانی حساب‌یار"
-              subtitle="اعمال آخرین تغییرات وب‌اپ و دانلود خودکار فایل نصبی اندروید (APK)"
+              title="بروزرسانی"
+              subtitle="بررسی وضعیت نسخه و اعمال جدیدترین تغییرات"
               onBack={() => setActiveSection(null)}
             />
 
+            {/* Version & Info Card */}
             <section className="lg settings-block" style={{ marginTop: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                <span style={{ fontSize: 32 }}>🔄</span>
-                <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>به‌روزرسانی سریع همه‌جانبه (Web & APK)</h3>
-                  <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', margin: '2px 0 0' }}>
-                    اعمال آخرین تغییرات کلاینت، پاکسازی کش و دانلود مستقیم فایل نصبی جدید
-                  </p>
-                </div>
-              </div>
-              <p style={{ fontSize: 12, color: 'var(--hy-text)', lineHeight: 1.8 }}>
-                با زدن دکمه زیر، تمامی کش‌های مرورگر نوسازی شده و آخرین نسخه پایدار فایل APK اندروید به‌صورت خودکار در دستگاه شما ذخیره و آماده نصب می‌شود.
-              </p>
-              <button
-                type="button"
-                className="cta-confirm"
-                style={{ width: '100%', marginTop: 8, padding: '12px 16px', fontSize: 13, fontWeight: 800 }}
-                onClick={async () => {
-                  notifyUser('در حال نوسازی کش و آماده‌سازی فایل نصبی APK...')
-                  try {
-                    if ('serviceWorker' in navigator) {
-                      const registrations = await navigator.serviceWorker.getRegistrations()
-                      for (const reg of registrations) {
-                        await reg.update()
-                        await reg.unregister()
-                      }
-                    }
-                    if ('caches' in window) {
-                      const keys = await caches.keys()
-                      for (const key of keys) {
-                        await caches.delete(key)
-                      }
-                    }
-                  } catch (e) {
-                    console.warn(e)
-                  }
-
-                  // Trigger automatic APK download
-                  const link = document.createElement('a')
-                  link.href = './Hesabyar-Release.apk'
-                  link.download = 'Hesabyar-Release.apk'
-                  document.body.appendChild(link)
-                  link.click()
-                  document.body.removeChild(link)
-
-                  notifyUser('فایل نصبی Hesabyar-Release.apk دانلود شد. برای نصب لمس نمایید.')
-                }}
-              >
-                ⚡ بروزرسانی و دانلود آخرین نسخه APK
-              </button>
-            </section>
-
-            <section className="lg settings-block" style={{ marginTop: 14 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-                <span style={{ fontSize: 32 }}>🤖</span>
-                <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>فایل نصبی اختصاصی اندروید (APK)</h3>
-                  <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', margin: '2px 0 0' }}>
-                    پشتیبانی کامل از سنسور اثر انگشت، اسکن چهره، پترن و خواندن هوشمند پیامک‌ها
-                  </p>
-                </div>
-              </div>
-              <p style={{ fontSize: 12, color: 'var(--hy-text)', lineHeight: 1.8 }}>
-                فایل نصبی رسمی اندروید بیلد شده در مخزن پروژه و آرتیفکت گیت‌هاب (GitHub Artifacts):
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>Hesabyar-Release.apk</div>
-                    <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)', marginTop: 2 }}>پکیج رسمی اندروید · آماده نصب مستقیم</div>
-                  </div>
-                  <a
-                    href="./Hesabyar-Release.apk"
-                    download="Hesabyar-Release.apk"
-                    className="cat-mini"
-                    style={{ textDecoration: 'none', fontWeight: 800, color: 'var(--hy-income)', background: 'rgba(16, 185, 129, 0.15)', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                    onClick={() => {
-                      notifyUser('دانلود فایل نصبی Hesabyar-Release.apk آغاز شد.')
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div
+                    style={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 16,
+                      background: 'rgba(15, 118, 110, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 26,
                     }}
                   >
-                    ⬇️ دانلود APK
-                  </a>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>آرتیفکت‌های گیت‌هاب (GitHub Actions Artifacts)</div>
-                    <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)', marginTop: 2 }}>مشاهده بیلدهای خودکار و دانلود آخرین APK از مخزن</div>
+                    🔄
                   </div>
-                  <a
-                    href="https://github.com/hesabyar/hesabyar-app/actions"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="cat-mini"
-                    style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                  >
-                    🔗 گیت‌هاب
-                  </a>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                   <div>
-                    <div style={{ fontSize: 13, fontWeight: 700 }}>افزودن به صفحه اصلی گوشی (PWA)</div>
-                    <div style={{ fontSize: 10, color: 'var(--hy-text-secondary)', marginTop: 2 }}>نصب فوری بدون نیاز به دانلود فایل و فعال‌سازی آفلاین</div>
+                    <div style={{ fontSize: 15, fontWeight: 800 }}>حساب‌یار نگارش ۰.۳.۰</div>
+                    <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
+                      تاریخ آخرین بروزرسانی: ۸ آبان ۱۴۰۵ (۲۹ اکتبر ۲۰۲۶)
+                    </div>
                   </div>
+                </div>
+                <span className="badge ok">جدیدترین</span>
+              </div>
+
+              {/* Platform Selector */}
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>پلتفرم هدف برای بروزرسانی:</div>
+                <div className="seg" role="tablist">
                   <button
+                    className={`seg-btn${updatePlatform === 'webapp' ? ' active' : ''}`}
                     type="button"
-                    className="cat-mini"
-                    onClick={() => {
-                      notifyUser('از منوی مرورگر گوشی، گزینه «Add to Home screen» یا «نصب برنامه» را انتخاب فرمایید.')
-                    }}
+                    onClick={() => setUpdatePlatform('webapp')}
                   >
-                    📲 راهنما
+                    🌐 نسخه وب (Web App)
+                  </button>
+                  <button
+                    className={`seg-btn${updatePlatform === 'apk' ? ' active' : ''}`}
+                    type="button"
+                    onClick={() => setUpdatePlatform('apk')}
+                  >
+                    🤖 نسخه اندروید (APK)
                   </button>
                 </div>
               </div>
+
+              {/* Progress bar when downloading APK */}
+              {isDownloadingApk && (
+                <div style={{ marginTop: 14, padding: 12, borderRadius: 12, background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+                    <span>در حال دریافت فایل نصبی Hesabyar-Release.apk...</span>
+                    <span>{apkProgress}٪</span>
+                  </div>
+                  <div style={{ width: '100%', height: 8, background: 'rgba(255, 255, 255, 0.1)', borderRadius: 999, overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        width: `${apkProgress}%`,
+                        height: '100%',
+                        background: 'linear-gradient(90deg, #10b981, #06b6d4)',
+                        transition: 'width 0.2s ease',
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Update Action Button */}
+              <button
+                type="button"
+                className="cta-confirm"
+                disabled={isDownloadingApk}
+                style={{ width: '100%', marginTop: 14, height: 46, fontSize: 13, fontWeight: 800 }}
+                onClick={async () => {
+                  if (updatePlatform === 'webapp') {
+                    notifyUser('در حال نوسازی کش و دریافت آخرین تغییرات وب‌اپ...')
+                    try {
+                      if ('serviceWorker' in navigator) {
+                        const registrations = await navigator.serviceWorker.getRegistrations()
+                        for (const reg of registrations) {
+                          await reg.update()
+                          await reg.unregister()
+                        }
+                      }
+                      if ('caches' in window) {
+                        const keys = await caches.keys()
+                        for (const key of keys) {
+                          await caches.delete(key)
+                        }
+                      }
+                    } catch (e) {
+                      console.warn(e)
+                    }
+                    setTimeout(() => {
+                      notifyUser('بروزرسانی وب‌اپ کامل شد. در حال بازنشانی صفحه...')
+                      window.location.reload()
+                    }, 800)
+                  } else {
+                    // APK download with progress
+                    setIsDownloadingApk(true)
+                    setApkProgress(0)
+                    let p = 0
+                    const interval = setInterval(() => {
+                      p += 20
+                      if (p >= 100) {
+                        p = 100
+                        setApkProgress(100)
+                        clearInterval(interval)
+                        setIsDownloadingApk(false)
+
+                        // Trigger download
+                        const link = document.createElement('a')
+                        link.href = './Hesabyar-Release.apk'
+                        link.download = 'Hesabyar-Release.apk'
+                        document.body.appendChild(link)
+                        link.click()
+                        document.body.removeChild(link)
+
+                        setShowRestartConfirm(true)
+                      } else {
+                        setApkProgress(p)
+                      }
+                    }, 250)
+                  }
+                }}
+              >
+                {isDownloadingApk
+                  ? 'در حال دانلود بسته نصبی...'
+                  : updatePlatform === 'webapp'
+                    ? '🔄 بروزرسانی و اعمال آخرین نسخه وب‌اپ'
+                    : '⬇️ بروزرسانی و دانلود فایل نصبی APK'}
+              </button>
             </section>
+
+            {/* Guide Section */}
+            <section className="lg settings-block" style={{ marginTop: 14 }}>
+              <h2 style={{ fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>📖</span>
+                <span>راهنمای بروزرسانی و نصب</span>
+              </h2>
+
+              <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ padding: 12, borderRadius: 12, background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--hy-accent)' }}>راهنمای وب‌اپلیکیشن (PWA)</div>
+                  <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4, lineHeight: 1.8 }}>
+                    در نسخه وب با کلیک بر روی دکمه بروزرسانی، حافظه پنهان مرورگر و سرویس‌ورکر پاکسازی شده و جدیدترین نگارش سرور بارگذاری می‌شود.
+                  </p>
+                </div>
+
+                <div style={{ padding: 12, borderRadius: 12, background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--hy-income)' }}>راهنمای نسخه اندروید (APK)</div>
+                  <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4, lineHeight: 1.8 }}>
+                    پس از اتمام دانلود فایل Hesabyar-Release.apk، اعلان نصب در گوشی شما ظاهر می‌شود. با تایید نصب نسخه جدید، تمام حساب‌ها و اطلاعات قبلی شما بدون تغییر محفوظ خواهند ماند.
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* Restart Confirmation Modal for APK */}
+            {showRestartConfirm && (
+              <div className="sheet-backdrop" onClick={() => setShowRestartConfirm(false)}>
+                <div className="sheet" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+                  <div style={{ textAlign: 'center', padding: '16px 8px 8px' }}>
+                    <div style={{ fontSize: 48, marginBottom: 8 }}>✅</div>
+                    <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>دانلود نسخه جدید به پایان رسید!</h3>
+                    <p style={{ fontSize: 12, color: 'var(--hy-text-secondary)', marginTop: 8, lineHeight: 1.8 }}>
+                      فایل نصبی Hesabyar-Release.apk با موفقیت دریافت شد. برای تکمیل مراحل و اعمال تغییرات، یکبار نرم‌افزار را راه‌اندازی مجدد کنید.
+                    </p>
+
+                    <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+                      <button
+                        type="button"
+                        className="cta-confirm"
+                        style={{ flex: 1, height: 44, fontWeight: 800 }}
+                        onClick={() => {
+                          setShowRestartConfirm(false)
+                          notifyUser('در حال راه‌اندازی مجدد حساب‌یار...')
+                          window.location.reload()
+                        }}
+                      >
+                        تأیید و راه‌اندازی مجدد
+                      </button>
+                      <button
+                        type="button"
+                        className="home-pill ghost"
+                        style={{ height: 44, padding: '0 16px' }}
+                        onClick={() => setShowRestartConfirm(false)}
+                      >
+                        بستن
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )
 
@@ -915,8 +1053,8 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
         {
           id: 'themes' as const,
           icon: '🎨',
-          title: 'شخصی‌سازی و تم‌های ظاهری',
-          subtitle: `انتخاب از بین ۷ استایل گرافیکی مجزا · واحد پول فعلی: ${currencyUnit === 'IRT' ? 'تومان' : 'ریال'}`,
+          title: 'شخصی‌سازی',
+          subtitle: `انتخاب تم ظاهری و واحد پول پیش‌فرض برنامه · واحد فعلی: ${currencyUnit === 'IRT' ? 'تومان' : 'ریال'}`,
           badge: currentTheme?.name ? currentTheme.name.split(' ')[0] : '۷ تم',
           badgeClass: 'theme',
         },
@@ -928,23 +1066,15 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
         {
           id: 'security' as const,
           icon: '🛡️',
-          title: 'امنیت، الگو و بیومتریک',
-          subtitle: 'الگوی ترسیمی ورود، اثر انگشت و حسگر چهره گوشی',
-          badge: lock.patternHash || lock.credentialId ? 'فعال' : 'خاموش',
-          badgeClass: lock.patternHash || lock.credentialId ? 'ok' : 'pending',
-        },
-        {
-          id: 'vault' as const,
-          icon: '🔐',
-          title: 'گاوصندوق کارت‌های محرمانه',
-          subtitle: vaultConfigured ? 'رمز تنظیم شده و کارت‌ها محافظت‌شده‌اند' : 'تعیین رمز اختصاصی و قفل CVV2 کارت‌ها',
-          badge: vaultConfigured ? 'محافظت‌شده' : 'تنظیم‌نشده',
-          badgeClass: vaultConfigured ? 'ok' : 'pending',
+          title: 'امنیت',
+          subtitle: 'الگو و بیومتریک، گاوصندوق کارت‌ها، کارت مشترک و دسترسی‌ها',
+          badge: lock.patternHash || lock.credentialId || vaultConfigured ? 'فعال' : 'خاموش',
+          badgeClass: lock.patternHash || lock.credentialId || vaultConfigured ? 'ok' : 'pending',
         },
       ],
     },
     {
-      groupTitle: 'اتصال، پیامک و همکاری',
+      groupTitle: 'اتصال، پیامک و هوش مصنوعی',
       items: [
         {
           id: 'cloud' as const,
@@ -961,14 +1091,6 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           subtitle: 'استخراج خودکار تراکنش‌ها از پیامک‌های واریز و برداشت بانک‌های کشور',
           badge: 'هوشمند',
           badgeClass: 'accent',
-        },
-        {
-          id: 'share' as const,
-          icon: '🤝',
-          title: 'کارت مشترک و دسترسی‌ها',
-          subtitle: 'پیوستن به حساب‌ها و کارت‌های اشتراکی با کد امنیتی و تایید ایمیل',
-          badge: 'همکاری',
-          badgeClass: 'info',
         },
         {
           id: 'api' as const,
@@ -994,16 +1116,16 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
         {
           id: 'update' as const,
           icon: '🔄',
-          title: 'به‌روزرسانی نرم‌افزار (Web & APK)',
-          subtitle: 'اعمال آخرین تغییرات وب‌اپ و دریافت نسخه جدید نصبی اندروید (APK)',
-          badge: 'بروزرسانی',
+          title: 'بروزرسانی',
+          subtitle: 'بررسی و اعمال آخرین نسخه وب‌اپ و دریافت نسخه جدید نصبی اندروید (APK)',
+          badge: 'نسخه ۰.۳.۰',
           badgeClass: 'ok',
         },
         {
           id: 'about' as const,
           icon: 'ℹ️',
           title: 'درباره حساب‌یار',
-          subtitle: 'مشاهده مشخصات کامل برنامه، امکانات و گزارش تغییرات',
+          subtitle: 'مشاهده مشخصات کامل برنامه، امکانات و راهنما',
           badge: 'مشاهده',
           badgeClass: 'info',
         },
@@ -1022,41 +1144,17 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
             <div>
               <h1 style={{ fontSize: '20px', fontWeight: 800 }}>تنظیمات حساب‌یار</h1>
               <p style={{ fontSize: '11px', color: 'var(--hy-text-secondary)', marginTop: 2 }}>
-                مدیریت بخش‌ها، تم‌های ظاهری و امنیت اطلاعات
+                شخصی‌سازی تم، امنیت، پشتیبان‌گیری و بروزرسانی نرم‌افزار
               </p>
             </div>
           </div>
 
-          {/* Quick Active Theme Banner */}
-          <div
-            onClick={() => setActiveSection('themes')}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') setActiveSection('themes')
-            }}
-            className="settings-hero-card lg"
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span className="hero-theme-icon">{currentTheme?.icon || '🎨'}</span>
-              <div>
-                <div className="hero-theme-title">
-                  تم ظاهری فعال: {currentTheme?.name || 'تاریک مات'}
-                </div>
-                <div className="hero-theme-sub">
-                  واحد پول: {currencyUnit === 'IRT' ? 'تومان' : 'ریال'} · لمس برای انتخاب از بین ۷ تم
-                </div>
-              </div>
-            </div>
-            <span className="hero-chevron" aria-hidden="true">‹</span>
-          </div>
-
-          <Link to="/profile" className="settings-hero-card lg" style={{ textDecoration: 'none', marginTop: 12 }}>
+          <Link to="/profile" className="settings-hero-card lg" style={{ textDecoration: 'none', marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <span className="hero-theme-icon">👤</span>
               <div>
-                <div className="hero-theme-title">پروفایل و شناسه اختصاصی</div>
-                <div className="hero-theme-sub">نام، تماس، تصویر و شناسه یکتا برای اشتراک دونگ و کارت</div>
+                <div className="hero-theme-title">پروفایل و اشتراک نرم‌افزار</div>
+                <div className="hero-theme-sub">مشاهده مشخصات، مدیریت اشتراک و شناسه کاربری</div>
               </div>
             </div>
             <span className="hero-chevron" aria-hidden="true">‹</span>

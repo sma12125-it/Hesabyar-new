@@ -1,7 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
-import { SettingsButton } from '../components/SettingsButton'
 import { AmountField } from '../components/AmountField'
 import { DateField } from '../components/DateField'
 import { categoriesFor, getCategory } from '../lib/categories'
@@ -31,12 +30,51 @@ export function PendingTransactionsPage({ onScroll }: { onScroll: (compact: bool
           ›
         </button>
         <h1>تراکنش‌های در انتظار تأیید</h1>
-        <SettingsButton />
       </div>
       <p className="sheet-sub sms-lead">{capability.detail}</p>
-      <div className="sms-actions">
+      <div className="sms-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button
+          className="cta-confirm"
+          type="button"
+          style={{ height: 40, fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          onClick={async () => {
+            try {
+              if (!navigator.clipboard?.readText) {
+                notifyUser('دسترسی به کلیپ‌بورد در این مرورگر پشتیبانی نمی‌شود.')
+                setPasteOpen(true)
+                return
+              }
+              const text = await navigator.clipboard.readText()
+              if (!text || text.trim().length < 5) {
+                notifyUser('متنی در کلیپ‌بورد یافت نشد. متن پیامک را دستی وارد کنید.')
+                setPasteOpen(true)
+                return
+              }
+              const result = await ingestBankSms({
+                sender: 'بانک',
+                body: text.trim(),
+                mode: 'manual-import',
+              })
+              if (result.status === 'created') {
+                notifyUser(result.needsReview ? 'پیامک خوانده شد و در صف بررسی قرار گرفت' : 'پیامک بانکی شناسایی شد و آماده تایید است')
+              } else if (result.status === 'duplicate') {
+                notifyUser('این پیامک قبلاً ثبت شده است.')
+              } else {
+                notifyUser('متن کلیپ‌بورد پیامک بانکی معتبری نبود. لطفاً دستی بررسی کنید.')
+                setPasteOpen(true)
+              }
+            } catch {
+              notifyUser('اجازه دسترسی به کلیپ‌بورد داده نشد. متن را دستی وارد کنید.')
+              setPasteOpen(true)
+            }
+          }}
+        >
+          <span>📋</span>
+          <span>خواندن هوشمند از کلیپ‌بورد</span>
+        </button>
+
         <button className="home-pill ghost" type="button" onClick={() => setPasteOpen(true)}>
-          ورود متن پیامک
+          ورود دستی متن پیامک
         </button>
       </div>
       {state == null ? (

@@ -5,7 +5,6 @@ import { useStore } from '../store/Store'
 import { useExtras } from '../store/Extras'
 import { CardFormSheet } from '../components/CardFormSheet'
 import { AccountRow } from '../components/TxRow'
-import { SettingsButton } from '../components/SettingsButton'
 import { IncomingShares, ShareByHandle } from '../components/ShareByHandle'
 import { shareableCard } from '../lib/profile'
 import { BankCardFace } from '../components/BankCardFace'
@@ -246,13 +245,35 @@ export function AccountsPage({
     <div className="app-scroll page-accounts" onScroll={(e) => onScroll(e.currentTarget.scrollTop > 28)}>
       {/* Top Header */}
       <div className="top-row">
-        <div>
-          <h1>حساب‌ها و کارت‌ها</h1>
-          <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--hy-text-secondary)' }}>
-            تفکیک حساب‌های نقدی، اعتباری و سرمایه‌گذاری با دسترسی مجزا به حساب‌ها و کارت‌ها
-          </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            type="button"
+            className="icon-btn mobile-only-icon"
+            onClick={() => window.dispatchEvent(new CustomEvent('hy:open-drawer'))}
+            title="منوی ناوبری سایدبار"
+            aria-label="منوی ناوبری سایدبار"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'var(--hy-input-bg, rgba(255, 255, 255, 0.08))',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 20,
+            }}
+          >
+            ☰
+          </button>
+          <div>
+            <h1>حساب‌ها و کارت‌ها</h1>
+            <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--hy-text-secondary)' }}>
+              تفکیک حساب‌های نقدی، اعتباری و سرمایه‌گذاری با دسترسی مجزا به حساب‌ها و کارت‌ها
+            </p>
+          </div>
         </div>
-        <SettingsButton showLabel={true} />
       </div>
 
       <IncomingShares />

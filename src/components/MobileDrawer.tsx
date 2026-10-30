@@ -1,14 +1,11 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useExtras } from '../store/Extras'
-import { getCurrentTheme, applyTheme, THEMES, type ThemeId } from '../lib/theme'
 import { displayNameOf } from '../lib/profile'
 
 export function MobileDrawer() {
   const [isOpen, setIsOpen] = useState(false)
   const { userProfile, activePlanId } = useExtras()
-  const [currentTheme, setCurrentThemeState] = useState<ThemeId>(() => getCurrentTheme())
-  const isDark = THEMES.find((t) => t.id === currentTheme)?.isDark ?? true
 
   useEffect(() => {
     const handleOpen = () => setIsOpen(true)
@@ -20,12 +17,6 @@ export function MobileDrawer() {
       window.removeEventListener('hy:close-drawer', handleClose)
     }
   }, [])
-
-  const toggleTheme = () => {
-    const next: ThemeId = isDark ? 'glass' : 'dark-obsidian'
-    applyTheme(next)
-    setCurrentThemeState(next)
-  }
 
   const userDisplayName = userProfile ? displayNameOf(userProfile) : 'کاربر حسابیار'
   const userHandle = userProfile?.handle ? `@${userProfile.handle}` : '@hesabyar'
@@ -94,9 +85,19 @@ export function MobileDrawer() {
               justifyContent: 'center',
               fontWeight: 800,
               fontSize: 18,
+              overflow: 'hidden',
+              flexShrink: 0,
             }}
           >
-            {userDisplayName.charAt(0) || '👤'}
+            {userProfile?.avatarUrl ? (
+              <img
+                src={userProfile.avatarUrl}
+                alt={userDisplayName}
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              />
+            ) : (
+              userDisplayName.charAt(0) || '👤'
+            )}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--hy-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -172,48 +173,19 @@ export function MobileDrawer() {
           </NavLink>
 
           <NavLink
-            to="/profile"
-            className={({ isActive }) => `drawer-nav-item${isActive ? ' active' : ''}`}
-            onClick={() => setIsOpen(false)}
-          >
-            <span>👤</span>
-            <span>پروفایل و اشتراک نرم‌افزار</span>
-          </NavLink>
-
-          <NavLink
             to="/settings"
             className={({ isActive }) => `drawer-nav-item${isActive ? ' active' : ''}`}
             onClick={() => setIsOpen(false)}
           >
             <span>⚙️</span>
-            <span>تنظیمات و پشتیبان‌گیری</span>
+            <span>تنظیمات</span>
           </NavLink>
         </nav>
 
-        {/* Footer Quick Controls */}
-        <div style={{ paddingTop: 14, borderTop: '1px solid rgba(255, 255, 255, 0.1)', display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <button
-            type="button"
-            className="cat-mini"
-            onClick={toggleTheme}
-            style={{ width: '100%', justifyContent: 'center', height: 38 }}
-          >
-            <span>{isDark ? '☀️' : '🌙'}</span>
-            <span>{isDark ? 'تغییر به تم شیشه‌ای روشن' : 'تغییر به تم تیره'}</span>
-          </button>
-
-          <NavLink
-            to="/settings"
-            onClick={() => setIsOpen(false)}
-            className="cat-mini"
-            style={{ width: '100%', justifyContent: 'center', height: 38, textDecoration: 'none' }}
-          >
-            <span>🔄</span>
-            <span>بررسی به‌روزرسانی نرم‌افزار</span>
-          </NavLink>
-
-          <div style={{ textAlign: 'center', fontSize: 10, color: 'var(--hy-text-secondary)', marginTop: 4 }}>
-            حسابیار · نسخه ۰.۳.۰
+        {/* Footer info */}
+        <div style={{ paddingTop: 14, borderTop: '1px solid rgba(255, 255, 255, 0.1)', textAlign: 'center' }}>
+          <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
+            حساب‌یار · مدیریت هوشمند مالی
           </div>
         </div>
       </aside>

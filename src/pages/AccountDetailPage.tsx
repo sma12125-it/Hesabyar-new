@@ -3,7 +3,6 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { useStore } from '../store/Store'
 import { BalanceHero } from '../components/BalanceHero'
 import { TxRow } from '../components/TxRow'
-import { SettingsButton } from '../components/SettingsButton'
 import { useUiActions } from '../components/UiActions'
 import { useExtras } from '../store/Extras'
 import { notifyUser } from '../lib/sync'
@@ -101,7 +100,6 @@ export function AccountDetailPage({
           ›
         </button>
         <h1>{account.name}</h1>
-        <SettingsButton />
         <button className="icon-btn" type="button" onClick={() => setMenu((v) => !v)} aria-label="گزینه‌ها">
           ⋯
         </button>

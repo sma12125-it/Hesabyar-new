@@ -2,7 +2,6 @@ import { useNavigate } from 'react-router-dom'
 import { todayIso } from '../lib/iso'
 import { toFaDigits } from '../lib/money'
 import { useStore } from '../store/Store'
-import { SettingsButton } from '../components/SettingsButton'
 import { PlanCard } from './InstallmentsPage'
 
 export function InstallmentsArchivePage({ onScroll }: { onScroll: (compact: boolean) => void }) {
@@ -20,7 +19,6 @@ export function InstallmentsArchivePage({ onScroll }: { onScroll: (compact: bool
           ›
         </button>
         <h1>بایگانی اقساط</h1>
-        <SettingsButton />
       </div>
 
       {empty ? (

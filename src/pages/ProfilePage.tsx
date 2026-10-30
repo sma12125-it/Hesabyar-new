@@ -22,6 +22,7 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
   const [cloudError, setCloudError] = useState(profileCloudError)
   const [handleHint, setHandleHint] = useState('')
   const [busy, setBusy] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
 
   useEffect(() => {
     let cancel = false
@@ -123,21 +124,25 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
       if (result.cloud === 'pushed') {
         setCloudError('')
         setHint('در حساب ابری ذخیره شد. فقط خودتان این مشخصات را می‌بینید؛ دیگران فقط شناسه و نام نمایشی را می‌بینند.')
+        setIsEditing(false)
         notifyUser('پروفایل ذخیره شد')
         return
       }
       if (result.cloud === 'pulled') {
         setCloudError('')
         setHint('مشخصات از حساب ابری بار شد.')
+        setIsEditing(false)
         notifyUser('نسخه ابری جایگزین شد')
         return
       }
       if (result.cloud === 'local') {
         setCloudError('')
         setHint(result.error)
+        setIsEditing(false)
         notifyUser('پروفایل روی این دستگاه ذخیره شد')
         return
       }
+      setIsEditing(false)
       setHint('روی این دستگاه ماند.')
       setCloudError(result.error)
     } catch (err) {
@@ -169,89 +174,193 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
           </div>
         </div>
 
-        <section className="lg settings-block profile-card">
-          <div className="profile-head">
-            <label className="profile-avatar">
-              {profile.avatarUrl ? <img src={profile.avatarUrl} alt="" /> : <span>{shown.slice(0, 1)}</span>}
-              <input
-                type="file"
-                accept="image/*"
-                aria-label="تصویر پروفایل"
-                onChange={(e) => void onAvatar(e.target.files?.[0])}
-              />
-            </label>
-            <div>
-              <strong>{shown}</strong>
-              <p className="sheet-sub">{profile.handle ? `@${profile.handle}` : 'هنوز شناسه انتخاب نشده'}</p>
-            </div>
-          </div>
+        {!isEditing ? (
+          <section className="lg settings-block profile-card">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div
+                  style={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 20,
+                    background: 'var(--hy-accent)',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 800,
+                    fontSize: 26,
+                    overflow: 'hidden',
+                    boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
+                    flexShrink: 0,
+                  }}
+                >
+                  {profile.avatarUrl ? (
+                    <img src={profile.avatarUrl} alt={shown} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    shown.slice(0, 1) || '👤'
+                  )}
+                </div>
+                <div>
+                  <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: 'var(--hy-text)' }}>{shown}</h2>
+                  <div style={{ fontSize: 12, color: 'var(--hy-accent)', marginTop: 4, direction: 'ltr', textAlign: 'right', fontWeight: 700 }}>
+                    {profile.handle ? `@${profile.handle}` : 'شناسه تنظیم نشده'}
+                  </div>
+                </div>
+              </div>
 
-          <div className="profile-grid">
-            <label>
-              نام
-              <input className="field-input" value={profile.firstName} onChange={(e) => patch({ firstName: e.target.value })} />
-            </label>
-            <label>
-              نام خانوادگی
-              <input className="field-input" value={profile.lastName} onChange={(e) => patch({ lastName: e.target.value })} />
-            </label>
-            <label>
-              نام نمایشی
-              <input
-                className="field-input"
-                value={profile.displayName}
-                placeholder="اگر خالی بماند، نام و نام خانوادگی نشان داده می‌شود"
-                onChange={(e) => patch({ displayName: e.target.value })}
-              />
-            </label>
-            <label>
-              شناسه اختصاصی
-              <input
-                className="field-input"
-                dir="ltr"
-                value={profile.handle}
-                placeholder="مثلاً ali_reza"
-                onChange={(e) => patch({ handle: e.target.value })}
-              />
-              {handleHint ? <span className={handleClass(handleHint)}>{handleHint}</span> : null}
-            </label>
-            <label>
-              ایمیل تماس
-              <input
-                className="field-input"
-                dir="ltr"
-                inputMode="email"
-                value={profile.email}
-                placeholder="متمایز از ایمیل ورود"
-                onChange={(e) => patch({ email: e.target.value })}
-              />
-            </label>
-            <label>
-              موبایل
-              <input
-                className="field-input"
-                dir="ltr"
-                inputMode="tel"
-                value={profile.phone}
-                placeholder="0912xxxxxxx"
-                onChange={(e) => patch({ phone: e.target.value })}
-              />
-            </label>
-          </div>
-          <label className="profile-about">
-            درباره
-            <textarea className="field-input" rows={3} value={profile.about} onChange={(e) => patch({ about: e.target.value })} />
-          </label>
-          {cloudError ? (
-            <div className="banner error" role="alert">
-              <span>{cloudError}</span>
+              <button
+                type="button"
+                className="cta-confirm"
+                onClick={() => setIsEditing(true)}
+                style={{ padding: '8px 16px', fontSize: 12, fontWeight: 800, height: 38 }}
+              >
+                ✏️ ویرایش مشخصات
+              </button>
             </div>
-          ) : null}
-          {hint ? <p className="sheet-sub">{hint}</p> : null}
-          <button className="cta-confirm" type="button" disabled={busy} onClick={() => void save()}>
-            {busy ? 'در حال ذخیره…' : 'ذخیره پروفایل'}
-          </button>
-        </section>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginTop: 14, padding: '14px', borderRadius: 14, background: 'rgba(255, 255, 255, 0.03)', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>نام و نام خانوادگی</div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginTop: 3 }}>
+                  {[profile.firstName, profile.lastName].filter(Boolean).join(' ') || '—'}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>نام نمایشی</div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginTop: 3 }}>
+                  {profile.displayName || '—'}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>شماره تماس (موبایل)</div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginTop: 3, direction: 'ltr', textAlign: 'right' }}>
+                  {profile.phone || '—'}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>ایمیل ارتباطی</div>
+                <div style={{ fontSize: 14, fontWeight: 700, marginTop: 3, direction: 'ltr', textAlign: 'right' }}>
+                  {profile.email || '—'}
+                </div>
+              </div>
+
+              {profile.about ? (
+                <div style={{ gridColumn: '1 / -1' }}>
+                  <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>درباره / بیوگرافی</div>
+                  <div style={{ fontSize: 13, color: 'var(--hy-text)', marginTop: 4, lineHeight: 1.6 }}>
+                    {profile.about}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            {hint ? <p className="sheet-sub" style={{ marginTop: 10 }}>{hint}</p> : null}
+          </section>
+        ) : (
+          <section className="lg settings-block profile-card">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>ویرایش اطلاعات پروفایل</h2>
+              <button
+                type="button"
+                className="cat-mini"
+                onClick={() => setIsEditing(false)}
+              >
+                انصراف ✕
+              </button>
+            </div>
+
+            <div className="profile-head">
+              <label className="profile-avatar">
+                {profile.avatarUrl ? <img src={profile.avatarUrl} alt="" /> : <span>{shown.slice(0, 1)}</span>}
+                <input
+                  type="file"
+                  accept="image/*"
+                  aria-label="تصویر پروفایل"
+                  onChange={(e) => void onAvatar(e.target.files?.[0])}
+                />
+              </label>
+              <div>
+                <strong>{shown}</strong>
+                <p className="sheet-sub">برای تغییر عکس، روی کادر کلیک فرمایید</p>
+              </div>
+            </div>
+
+            <div className="profile-grid">
+              <label>
+                نام
+                <input className="field-input" value={profile.firstName} onChange={(e) => patch({ firstName: e.target.value })} />
+              </label>
+              <label>
+                نام خانوادگی
+                <input className="field-input" value={profile.lastName} onChange={(e) => patch({ lastName: e.target.value })} />
+              </label>
+              <label>
+                نام نمایشی
+                <input
+                  className="field-input"
+                  value={profile.displayName}
+                  placeholder="اگر خالی بماند، نام و نام خانوادگی نشان داده می‌شود"
+                  onChange={(e) => patch({ displayName: e.target.value })}
+                />
+              </label>
+              <label>
+                شناسه اختصاصی
+                <input
+                  className="field-input"
+                  dir="ltr"
+                  value={profile.handle}
+                  placeholder="مثلاً ali_reza"
+                  onChange={(e) => patch({ handle: e.target.value })}
+                />
+                {handleHint ? <span className={handleClass(handleHint)}>{handleHint}</span> : null}
+              </label>
+              <label>
+                ایمیل تماس
+                <input
+                  className="field-input"
+                  dir="ltr"
+                  inputMode="email"
+                  value={profile.email}
+                  placeholder="متمایز از ایمیل ورود"
+                  onChange={(e) => patch({ email: e.target.value })}
+                />
+              </label>
+              <label>
+                موبایل
+                <input
+                  className="field-input"
+                  dir="ltr"
+                  inputMode="tel"
+                  value={profile.phone}
+                  placeholder="0912xxxxxxx"
+                  onChange={(e) => patch({ phone: e.target.value })}
+                />
+              </label>
+            </div>
+            <label className="profile-about">
+              درباره
+              <textarea className="field-input" rows={3} value={profile.about} onChange={(e) => patch({ about: e.target.value })} />
+            </label>
+            {cloudError ? (
+              <div className="banner error" role="alert">
+                <span>{cloudError}</span>
+              </div>
+            ) : null}
+            {hint ? <p className="sheet-sub">{hint}</p> : null}
+            <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
+              <button className="cta-confirm" type="button" style={{ flex: 1 }} disabled={busy} onClick={() => void save()}>
+                {busy ? 'در حال ذخیره…' : 'ذخیره تغییرات'}
+              </button>
+              <button className="home-pill ghost" type="button" onClick={() => setIsEditing(false)}>
+                انصراف
+              </button>
+            </div>
+          </section>
+        )}
 
         {/* Subscription & Plans Management Section (Item 12) */}
         <section className="profile-form" style={{ marginTop: 14 }}>

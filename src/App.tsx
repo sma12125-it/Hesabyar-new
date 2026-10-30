@@ -311,6 +311,7 @@ function Shell() {
           <Route path="/settings" element={<SettingsPage onScroll={onScroll} />} />
           <Route path="/profile" element={<ProfilePage onScroll={onScroll} />} />
           <Route path="/transactions/pending" element={<PendingTransactionsPage onScroll={onScroll} />} />
+          <Route path="/pending" element={<PendingTransactionsPage onScroll={onScroll} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
 

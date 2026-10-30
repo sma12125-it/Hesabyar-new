@@ -8,7 +8,6 @@ import { todayIso } from '../lib/iso'
 import { toFaDigits } from '../lib/money'
 import { notifyUser } from '../lib/sync'
 import { useStore } from '../store/Store'
-import { SettingsButton } from '../components/SettingsButton'
 import { SwipeRow } from '../components/SwipeRow'
 import { useUiActions } from '../components/UiActions'
 import { ChequeSheet } from '../components/ChequeSheet'
@@ -403,13 +402,35 @@ export function InstallmentsPage({
     <div className="app-scroll page-installments" onScroll={(e) => onScroll(e.currentTarget.scrollTop > 28)}>
       {/* Top Header */}
       <div className="top-row">
-        <div>
-          <h1>اقساط، وام‌ها و تعهدات</h1>
-          <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--hy-text-secondary)' }}>
-            مدیریت برنامه‌های اقساط، چک‌های صیادی، قرض‌الحسنه و بدهی‌ها
-          </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            type="button"
+            className="icon-btn mobile-only-icon"
+            onClick={() => window.dispatchEvent(new CustomEvent('hy:open-drawer'))}
+            title="منوی ناوبری سایدبار"
+            aria-label="منوی ناوبری سایدبار"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'var(--hy-input-bg, rgba(255, 255, 255, 0.08))',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 20,
+            }}
+          >
+            ☰
+          </button>
+          <div>
+            <h1>اقساط، وام‌ها و تعهدات</h1>
+            <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--hy-text-secondary)' }}>
+              مدیریت برنامه‌های اقساط، چک‌های صیادی، قرض‌الحسنه و بدهی‌ها
+            </p>
+          </div>
         </div>
-        <SettingsButton showLabel={true} />
       </div>
 
       {/* Main 3 Tabs */}

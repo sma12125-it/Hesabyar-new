@@ -4,7 +4,6 @@ import { monthKey, expenseByCategory, spentInCategory } from '../lib/reports'
 import { todayIso } from '../lib/iso'
 import { createId } from '../lib/ids'
 import { digitsOnly, formatSeparatedNumber, toFaDigits } from '../lib/money'
-import { SettingsButton } from '../components/SettingsButton'
 import { WindowPopup } from '../components/WindowPopup'
 import { useExtras } from '../store/Extras'
 import { useStore } from '../store/Store'
@@ -573,27 +572,35 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
     <div className="app-scroll" onScroll={(e) => onScroll(e.currentTarget.scrollTop > 28)}>
       {/* Header */}
       <div className="top-row">
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button
+            type="button"
+            className="icon-btn mobile-only-icon"
+            onClick={() => window.dispatchEvent(new CustomEvent('hy:open-drawer'))}
+            title="منوی ناوبری سایدبار"
+            aria-label="منوی ناوبری سایدبار"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'var(--hy-input-bg, rgba(255, 255, 255, 0.08))',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 20,
+            }}
+          >
+            ☰
+          </button>
+          <div>
             <h1>مدیریت بودجه و دارایی‌ها</h1>
-            <span
-              style={{
-                fontSize: 11,
-                padding: '2px 8px',
-                borderRadius: 8,
-                background: 'rgba(37, 99, 235, 0.15)',
-                color: 'var(--hy-accent)',
-                fontWeight: 700,
-              }}
-            >
-              نسخه ۰.۳.۰
-            </span>
+            <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--hy-text-secondary)' }}>
+              بودجه‌بندی هوشمند دسته‌بندی‌ها و اهداف پس‌انداز مالی
+            </p>
           </div>
-          <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--hy-text-secondary)' }}>
-            بودجه‌بندی هوشمند دسته‌بندی‌ها و اهداف پس‌انداز مالی
-          </p>
         </div>
-        <SettingsButton />
       </div>
 
       {/* Top Summary Banner */}

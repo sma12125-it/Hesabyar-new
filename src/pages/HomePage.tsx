@@ -2,8 +2,6 @@ import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { Link } from 'react-router-dom'
 import { CloudLamp } from '../components/CloudLamp'
 import { HomeDashboard } from '../components/HomeDashboard'
-import { SettingsButton } from '../components/SettingsButton'
-import { ThemeModal } from '../components/ThemeModal'
 import { useSmsDrafts } from '../lib/sms/useSmsDrafts'
 import { isoToJalali, JALALI_MONTHS } from '../lib/jalaali'
 import { todayIso } from '../lib/iso'
@@ -20,9 +18,8 @@ interface HomePageProps {
 
 const PERSIAN_WEEKDAYS = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه', 'شنبه']
 
-export function HomePage({ onScroll, onQuickEntry, onTransfer, onAll, onSettings }: HomePageProps) {
+export function HomePage({ onScroll, onQuickEntry, onTransfer, onAll }: HomePageProps) {
   const [now, setNow] = useState(() => new Date())
-  const [showThemeModal, setShowThemeModal] = useState(false)
   const { pending } = useSmsDrafts()
 
   useEffect(() => {
@@ -43,44 +40,40 @@ export function HomePage({ onScroll, onQuickEntry, onTransfer, onAll, onSettings
     <div className="app-scroll page-home" onScroll={(e) => onScroll(e.currentTarget.scrollTop > 28)}>
       <div className="home-head">
         <div className="home-top-bar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: 12 }}>
-          <div className="home-title">
-            <h1
-              onContextMenu={(e) => {
-                e.preventDefault()
-                onSettings()
-              }}
-            >
-              نمای کلی مالی
-            </h1>
-            <p style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 3 }}>
-              <span>📅 {dateStr}</span>
-              <span style={{ opacity: 0.4 }}>·</span>
-              <span style={{ fontWeight: 700, color: 'var(--hy-teal)', letterSpacing: '0.5px' }}>⏰ {timeStr}</span>
-            </p>
-          </div>
-          <div className="home-head-icons" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <button
               type="button"
-              className="cat-mini"
-              onClick={() => setShowThemeModal(true)}
-              title="انتخاب و تغییر تم ظاهری"
-              aria-label="انتخاب تم ظاهری"
+              className="icon-btn mobile-only-icon"
+              onClick={() => window.dispatchEvent(new CustomEvent('hy:open-drawer'))}
+              title="منوی ناوبری سایدبار"
+              aria-label="منوی ناوبری سایدبار"
               style={{
+                width: 38,
+                height: 38,
+                borderRadius: 12,
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: 4,
-                padding: '6px 10px',
-                borderRadius: 12,
-                fontSize: 12,
-                fontWeight: 700,
+                justifyContent: 'center',
+                background: 'var(--hy-input-bg, rgba(255, 255, 255, 0.08))',
+                border: 'none',
                 cursor: 'pointer',
+                fontSize: 20,
               }}
             >
-              <span>🎨</span>
-              <span>تم</span>
+              ☰
             </button>
+            <div>
+              <h1 className="top-title" style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>نمای کلی مالی</h1>
+              <p style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 3 }}>
+                <span>📅 {dateStr}</span>
+                <span style={{ opacity: 0.4 }}>·</span>
+                <span style={{ fontWeight: 700, color: 'var(--hy-teal)', letterSpacing: '0.5px' }}>⏰ {timeStr}</span>
+              </p>
+            </div>
+          </div>
+          <div className="home-head-icons" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <CloudLamp />
-            {/* Notification button for pending SMS transactions (Request 3) */}
+            {/* Notification button for pending SMS transactions */}
             <Link
               to="/transactions/pending"
               className="icon-btn"
@@ -127,25 +120,6 @@ export function HomePage({ onScroll, onQuickEntry, onTransfer, onAll, onSettings
                 </span>
               ) : null}
             </Link>
-            <Link
-              to="/profile"
-              className="icon-btn settings-inline"
-              aria-label="پروفایل"
-              title="پروفایل و شناسه"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 40,
-                height: 40,
-                borderRadius: '50%',
-                textDecoration: 'none',
-                flexShrink: 0,
-              }}
-            >
-              <span style={{ fontSize: 18, lineHeight: 1 }}>👤</span>
-            </Link>
-            <SettingsButton showLabel={true} />
           </div>
         </div>
 
@@ -207,7 +181,6 @@ export function HomePage({ onScroll, onQuickEntry, onTransfer, onAll, onSettings
         </div>
       </div>
       <HomeDashboard onAll={() => onAll('')} />
-      {showThemeModal && <ThemeModal onClose={() => setShowThemeModal(false)} />}
     </div>
   )
 }

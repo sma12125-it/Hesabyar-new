@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { DateField } from '../components/DateField'
-import { SettingsButton } from '../components/SettingsButton'
 import { formatPersianDateFull } from '../lib/dates'
 import { todayIso } from '../lib/iso'
 import {
@@ -209,7 +208,6 @@ export function InvestmentDetailPage({ onScroll }: { onScroll: (compact: boolean
           ›
         </button>
         <h1>{asset.name}</h1>
-        <SettingsButton />
       </div>
 
       <div className="inv-page">

@@ -1567,13 +1567,10 @@ html[data-theme='dark'] .corner-item-ico {
 
 @media (min-width: 1100px) {
   .top-row {
-    position: sticky;
-    top: 0;
-    z-index: 4;
+    position: relative;
     padding: 8px 2px;
     margin-bottom: 4px;
-    background: rgba(255, 255, 255, 0.45);
-    border-radius: 14px;
+    background: transparent;
   }
 
   .head-actions { display: flex; }
@@ -2815,20 +2812,20 @@ button.cat-mini.active {
 .share-incoming-card dd { margin: 0; font-weight: 700; }
 
 /* ─────────────────────────────────────────────────────────────
-   Frosted Sticky Header on Scroll (Item 8)
+/* ─────────────────────────────────────────────────────────────
+   Natural Scrolling Headers (Item 2 - Unpinned, No Halo)
    ───────────────────────────────────────────────────────────── */
 .top-row, .detail-top {
-  position: sticky !important;
-  top: 0 !important;
-  z-index: 30 !important;
-  padding: 10px 14px 12px !important;
-  margin: -10px -14px 12px !important;
-  background: var(--glass-chrome-float, rgba(15, 23, 42, 0.72)) !important;
-  backdrop-filter: blur(24px) saturate(160%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(160%) !important;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
-  box-shadow: 0 10px 24px -6px rgba(0, 0, 0, 0.35) !important;
-  transition: all 0.2s ease;
+  position: relative !important;
+  top: auto !important;
+  z-index: 10 !important;
+  padding: 8px 0 12px !important;
+  margin: 0 0 12px !important;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-bottom: none !important;
+  box-shadow: none !important;
 }
 
 /* Responsive Hamburger & Desktop Icons */
@@ -2842,7 +2839,8 @@ button.cat-mini.active {
 }
 
 /* ─────────────────────────────────────────────────────────────
-   Mobile Sliding Navigation Drawer (Item 4)
+   Mobile Sliding Navigation Drawer (Items 3 & 4)
+   Shadow only visible when sidebar is open
    ───────────────────────────────────────────────────────────── */
 .drawer-backdrop {
   position: fixed;
@@ -2871,10 +2869,11 @@ button.cat-mini.active {
   backdrop-filter: blur(32px) saturate(180%);
   -webkit-backdrop-filter: blur(32px) saturate(180%);
   border-left: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.5);
+  box-shadow: none;
+  visibility: hidden;
   z-index: 210;
   transform: translateX(100%);
-  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.28s ease, box-shadow 0.28s ease;
   display: flex;
   flex-direction: column;
   padding: 18px 16px;
@@ -2885,6 +2884,8 @@ button.cat-mini.active {
 
 .drawer-panel.is-open {
   transform: translateX(0);
+  visibility: visible;
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.5);
 }
 
 .drawer-header {
