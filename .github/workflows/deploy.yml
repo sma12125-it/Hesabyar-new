@@ -39,7 +39,7 @@ jobs:
           name: Hesabyar-Android-APK
           path: |
             public/Hesabyar-Release.apk
-            public/Hesabyar-v0.3.0.apk
+            public/Hesabyar-v0.3.3.apk
       - name: Setup Pages
         uses: actions/configure-pages@v5
         continue-on-error: true

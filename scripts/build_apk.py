@@ -12,16 +12,16 @@ import shutil
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PUBLIC_DIR = os.path.join(ROOT_DIR, 'public')
 OUTPUT_APK = os.path.join(PUBLIC_DIR, 'Hesabyar-Release.apk')
-OUTPUT_APK_V3 = os.path.join(PUBLIC_DIR, 'Hesabyar-v0.3.0.apk')
+OUTPUT_APK_V3 = os.path.join(PUBLIC_DIR, 'Hesabyar-v0.3.3.apk')
 
 # Minimal AndroidManifest.xml for Hesabyar
 ANDROID_MANIFEST = """<?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="ir.hesabyar.app"
-    android:versionCode="30"
-    android:versionName="0.3.0">
+    android:versionCode="33"
+    android:versionName="0.3.3">
 
-    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="34" />
+    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34" />
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
@@ -87,7 +87,7 @@ def build_apk():
         # Meta-inf signature markers
         manifest_mf = (
             "Manifest-Version: 1.0\r\n"
-            "Created-By: Hesabyar Build System 0.3.0\r\n"
+            "Created-By: Hesabyar Build System 0.3.3\r\n"
             "Built-By: Hesabyar Release Bot\r\n"
             "\r\n"
         )

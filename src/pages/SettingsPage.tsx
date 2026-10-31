@@ -856,9 +856,9 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                     🔄
                   </div>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 800 }}>حساب‌یار نگارش ۰.۳.۰</div>
+                    <div style={{ fontSize: 15, fontWeight: 800 }}>حساب‌یار نگارش ۰.۳.۳</div>
                     <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
-                      تاریخ آخرین بروزرسانی: ۸ آبان ۱۴۰۵ (۲۹ اکتبر ۲۰۲۶)
+                      تاریخ آخرین بروزرسانی: ۹ آبان ۱۴۰۵ (۳۱ اکتبر ۲۰۲۶)
                     </div>
                   </div>
                 </div>
@@ -989,9 +989,12 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                 </div>
 
                 <div style={{ padding: 12, borderRadius: 12, background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--hy-income)' }}>راهنمای نسخه اندروید (APK)</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--hy-income)' }}>راهنمای نسخه اندروید (APK) و رفع خطای بسته (Parse Error)</div>
                   <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4, lineHeight: 1.8 }}>
-                    پس از اتمام دانلود فایل Hesabyar-Release.apk، اعلان نصب در گوشی شما ظاهر می‌شود. با تایید نصب نسخه جدید، تمام حساب‌ها و اطلاعات قبلی شما بدون تغییر محفوظ خواهند ماند.
+                    خطای «There was a problem while parsing the package» معمولاً به علت ناسازگاری نسخه اندروید با پکیج نصبی، محدودیت‌های امنیتی نصب برنامه‌های ناشناس (Install Unknown Apps)، یا تفاوت معماری پردازنده گوشی رخ می‌دهد.
+                  </p>
+                  <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4, lineHeight: 1.8 }}>
+                    💡 <strong>روش برتر و بدون خطا (نصب فوری PWA):</strong> حساب‌یار یک وب‌اپلیکیشن پیش‌رونده (PWA) است. در مرورگر گوشی (کروم یا سامسونگ اینترنت) منوی ۳ نقطه را لمس کرده و گزینه <strong>«افزودن به صفحه اصلی» (Add to Home screen)</strong> یا <strong>«نصب برنامه» (Install app)</strong> را بزنید. اپلیکیشن با همان آیکون، بدون نیاز به مجوز فایل و با سرعت بالاتر و به صورت کاملاً آفلاین روی گوشی شما نصب خواهد شد.
                   </p>
                 </div>
               </div>
@@ -1118,7 +1121,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           icon: '🔄',
           title: 'بروزرسانی',
           subtitle: 'بررسی و اعمال آخرین نسخه وب‌اپ و دریافت نسخه جدید نصبی اندروید (APK)',
-          badge: 'نسخه ۰.۳.۰',
+          badge: 'نسخه ۰.۳.۳',
           badgeClass: 'ok',
         },
         {
