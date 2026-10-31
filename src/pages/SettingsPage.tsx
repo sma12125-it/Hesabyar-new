@@ -18,6 +18,7 @@ import { AboutContent } from '../components/AboutPopup'
 import { ThemeGallery } from '../components/ThemeGallery'
 import { ChatGPTApiSection } from '../components/ChatGPTApiSection'
 import { getCurrentTheme, THEMES } from '../lib/theme'
+import { promptPwaInstall } from '../lib/pwaInstall'
 import type { Account, Category, Transaction } from '../types'
 
 export type SettingsSection =
@@ -906,71 +907,110 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                 </div>
               )}
 
-              {/* Update Action Button */}
-              <button
-                type="button"
-                className="cta-confirm"
-                disabled={isDownloadingApk}
-                style={{ width: '100%', marginTop: 14, height: 46, fontSize: 13, fontWeight: 800 }}
-                onClick={async () => {
-                  if (updatePlatform === 'webapp') {
-                    notifyUser('در حال نوسازی کش و دریافت آخرین تغییرات وب‌اپ...')
-                    try {
-                      if ('serviceWorker' in navigator) {
-                        const registrations = await navigator.serviceWorker.getRegistrations()
-                        for (const reg of registrations) {
-                          await reg.update()
-                          await reg.unregister()
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
+                {updatePlatform === 'apk' ? (
+                  <>
+                    <button
+                      type="button"
+                      className="cta-confirm"
+                      style={{
+                        width: '100%',
+                        height: 48,
+                        fontSize: 13,
+                        fontWeight: 800,
+                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                      }}
+                      onClick={async () => {
+                        const result = await promptPwaInstall()
+                        if (result === 'accepted') {
+                          notifyUser('حساب‌یار با موفقیت روی گوشی شما نصب شد!')
+                        } else if (result === 'dismissed') {
+                          notifyUser('نصب برنامه لغو شد.')
+                        } else {
+                          notifyUser('برای نصب مستقیم، از منوی سه نقطه مرورگر گزینه «نصب برنامه» یا Add to Home screen را بزنید.')
                         }
-                      }
-                      if ('caches' in window) {
-                        const keys = await caches.keys()
-                        for (const key of keys) {
-                          await caches.delete(key)
+                      }}
+                    >
+                      <span>📲</span>
+                      <span>نصب مستقیم و فوری روی گوشی (بدون خطای پکیج)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      className="home-pill ghost"
+                      disabled={isDownloadingApk}
+                      style={{ width: '100%', height: 44, fontSize: 12, fontWeight: 700, justifyContent: 'center' }}
+                      onClick={() => {
+                        setIsDownloadingApk(true)
+                        setApkProgress(0)
+                        let p = 0
+                        const interval = setInterval(() => {
+                          p += 25
+                          if (p >= 100) {
+                            p = 100
+                            setApkProgress(100)
+                            clearInterval(interval)
+                            setIsDownloadingApk(false)
+
+                            // Trigger download of release APK
+                            const link = document.createElement('a')
+                            link.href = './Hesabyar-Release.apk'
+                            link.download = 'Hesabyar-Release.apk'
+                            document.body.appendChild(link)
+                            link.click()
+                            document.body.removeChild(link)
+
+                            setShowRestartConfirm(true)
+                          } else {
+                            setApkProgress(p)
+                          }
+                        }, 200)
+                      }}
+                    >
+                      {isDownloadingApk
+                        ? 'در حال آماده‌سازی و دانلود فایل APK...'
+                        : '⬇️ دانلود فایل بسته خام APK (Hesabyar-Release.apk)'}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="cta-confirm"
+                    style={{ width: '100%', height: 46, fontSize: 13, fontWeight: 800 }}
+                    onClick={async () => {
+                      notifyUser('در حال نوسازی کش و دریافت آخرین تغییرات وب‌اپ...')
+                      try {
+                        if ('serviceWorker' in navigator) {
+                          const registrations = await navigator.serviceWorker.getRegistrations()
+                          for (const reg of registrations) {
+                            await reg.update()
+                            await reg.unregister()
+                          }
                         }
+                        if ('caches' in window) {
+                          const keys = await caches.keys()
+                          for (const key of keys) {
+                            await caches.delete(key)
+                          }
+                        }
+                      } catch (e) {
+                        console.warn(e)
                       }
-                    } catch (e) {
-                      console.warn(e)
-                    }
-                    setTimeout(() => {
-                      notifyUser('بروزرسانی وب‌اپ کامل شد. در حال بازنشانی صفحه...')
-                      window.location.reload()
-                    }, 800)
-                  } else {
-                    // APK download with progress
-                    setIsDownloadingApk(true)
-                    setApkProgress(0)
-                    let p = 0
-                    const interval = setInterval(() => {
-                      p += 20
-                      if (p >= 100) {
-                        p = 100
-                        setApkProgress(100)
-                        clearInterval(interval)
-                        setIsDownloadingApk(false)
-
-                        // Trigger download
-                        const link = document.createElement('a')
-                        link.href = './Hesabyar-Release.apk'
-                        link.download = 'Hesabyar-Release.apk'
-                        document.body.appendChild(link)
-                        link.click()
-                        document.body.removeChild(link)
-
-                        setShowRestartConfirm(true)
-                      } else {
-                        setApkProgress(p)
-                      }
-                    }, 250)
-                  }
-                }}
-              >
-                {isDownloadingApk
-                  ? 'در حال دانلود بسته نصبی...'
-                  : updatePlatform === 'webapp'
-                    ? '🔄 بروزرسانی و اعمال آخرین نسخه وب‌اپ'
-                    : '⬇️ بروزرسانی و دانلود فایل نصبی APK'}
-              </button>
+                      setTimeout(() => {
+                        notifyUser('بروزرسانی وب‌اپ کامل شد. در حال بازنشانی صفحه...')
+                        window.location.reload()
+                      }, 800)
+                    }}
+                  >
+                    🔄 بروزرسانی و اعمال آخرین نسخه وب‌اپ
+                  </button>
+                )}
+              </div>
             </section>
 
             {/* Guide Section */}
