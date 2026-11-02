@@ -1,14 +1,19 @@
 import { useEffect, useState } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { getCurrentTheme, applyTheme, THEMES, type ThemeId } from '../lib/theme'
+import { ActionMenuModal, type ActionMenuItem } from './ActionMenuModal'
 
 interface TabBarProps {
   compact?: boolean
   onQuickEntry: () => void
+  onVoiceEntry?: () => void
+  onInstallmentEntry?: () => void
 }
 
-export function TabBar({ onQuickEntry }: TabBarProps) {
+export function TabBar({ onQuickEntry, onVoiceEntry, onInstallmentEntry }: TabBarProps) {
   const { pathname } = useLocation()
+  const navigate = useNavigate()
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false)
   const accountsActive = pathname.startsWith('/accounts')
   const installmentsActive = pathname.startsWith('/installments')
   const dongActive = pathname.startsWith('/dong')
@@ -27,6 +32,86 @@ export function TabBar({ onQuickEntry }: TabBarProps) {
 
   const [currentTheme, setCurrentThemeState] = useState<ThemeId>(() => getCurrentTheme())
   const isDark = THEMES.find((t) => t.id === currentTheme)?.isDark ?? true
+
+  const actionMenuItems: ActionMenuItem[] = [
+    {
+      id: 'tx',
+      title: 'تراکنش جدید (درآمد / هزینه)',
+      desc: 'ثبت سریع درآمد، مخارج روزمره و واریزی‌ها',
+      icon: '💸',
+      color: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+      badge: 'پراستفاده',
+      onClick: onQuickEntry,
+    },
+    {
+      id: 'voice',
+      title: 'ورود صوتی هوشمند تراکنش',
+      desc: 'ثبت خودکار با گفتار زنده میکروفن مانند دستیار هوشمند',
+      icon: '🎙️',
+      color: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+      badge: 'هوشمند',
+      onClick: () => {
+        if (onVoiceEntry) {
+          onVoiceEntry()
+        } else {
+          window.dispatchEvent(new CustomEvent('hy:open-voice-sheet'))
+        }
+      },
+    },
+    {
+      id: 'installment',
+      title: 'قسط و وام جدید',
+      desc: 'افزودن وام بانکی، اقساط ثابت یا متغیر با سررسید',
+      icon: '📅',
+      color: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+      onClick: () => {
+        if (onInstallmentEntry) {
+          onInstallmentEntry()
+        } else {
+          window.dispatchEvent(new CustomEvent('hy:open-installment-sheet'))
+        }
+      },
+    },
+    {
+      id: 'debt',
+      title: 'بدهی و طلب جدید',
+      desc: 'ثبت قرض، قرض‌دادن و طلب شخصی از اشخاص',
+      icon: '🤝',
+      color: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+      onClick: () => {
+        navigate('/installments?tab=debts')
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('hy-open-debt-sheet', { detail: {} }))
+        }, 80)
+      },
+    },
+    {
+      id: 'cheque',
+      title: 'چک جدید (صیادی / عادی)',
+      desc: 'ثبت چک دریافتی یا صادره همراه با یادآوری سررسید',
+      icon: '🧾',
+      color: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)',
+      onClick: () => {
+        navigate('/installments?tab=cheques')
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('hy-open-cheque-sheet', { detail: {} }))
+        }, 80)
+      },
+    },
+    {
+      id: 'dong',
+      title: 'دونگ و سفر جدید',
+      desc: 'ایجاد رویداد گروهی جدید، مادرخرج و محاسبه تقسیم دُنگ',
+      icon: '👥',
+      color: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+      onClick: () => {
+        navigate('/dong')
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('hy:open-create-dong'))
+        }, 80)
+      },
+    },
+  ]
 
   useEffect(() => {
     try {
@@ -81,11 +166,11 @@ export function TabBar({ onQuickEntry }: TabBarProps) {
         <button
           type="button"
           className="desk-action-btn"
-          onClick={onQuickEntry}
-          title="ثبت تراکنش جدید (+)"
+          onClick={() => setIsActionMenuOpen(true)}
+          title="ثبت سریع و منوی افزودن (+)"
         >
           <span className="desk-action-icon">＋</span>
-          {!isCollapsed && <span className="desk-action-label">ثبت تراکنش جدید</span>}
+          {!isCollapsed && <span className="desk-action-label">ثبت جدید (+)</span>}
         </button>
 
         {/* پیوندهای ناوبری اصلی */}
@@ -201,9 +286,9 @@ export function TabBar({ onQuickEntry }: TabBarProps) {
         <button
           className="tab tab-center-action"
           type="button"
-          onClick={onQuickEntry}
-          title="ثبت تراکنش جدید (+)"
-          aria-label="ثبت تراکنش جدید"
+          onClick={() => setIsActionMenuOpen(true)}
+          title="منوی ثبت جدید (+)"
+          aria-label="منوی ثبت جدید"
         >
           <span className="center-action-circle" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
@@ -226,6 +311,13 @@ export function TabBar({ onQuickEntry }: TabBarProps) {
           <span className="lbl">دونگ</span>
         </NavLink>
       </nav>
+
+      {/* مودال گرافیکی جذاب اکشن‌منوی ثبت چندگانه */}
+      <ActionMenuModal
+        isOpen={isActionMenuOpen}
+        onClose={() => setIsActionMenuOpen(false)}
+        items={actionMenuItems}
+      />
     </>
   )
 }

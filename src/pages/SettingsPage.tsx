@@ -857,9 +857,9 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                     🔄
                   </div>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 800 }}>حساب‌یار نگارش ۰.۳.۳</div>
+                    <div style={{ fontSize: 15, fontWeight: 800 }}>حساب‌یار نگارش ۰.۳.۴</div>
                     <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
-                      تاریخ آخرین بروزرسانی: ۹ آبان ۱۴۰۵ (۳۱ اکتبر ۲۰۲۶)
+                      تاریخ آخرین بروزرسانی: ۱۲ آبان ۱۴۰۵ (۲ نوامبر ۲۰۲۶)
                     </div>
                   </div>
                 </div>

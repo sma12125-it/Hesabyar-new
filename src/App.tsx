@@ -151,8 +151,29 @@ function Shell() {
     const onNewAccount = () => {
       setSheet({ type: 'account' })
     }
+    const onOpenVoice = () => setSheet({ type: 'voice' })
+    const onOpenInstallment = () => setSheet({ type: 'installment-plan' })
+
     window.addEventListener('hy-new-account', onNewAccount)
-    return () => window.removeEventListener('hy-new-account', onNewAccount)
+    window.addEventListener('hy:open-voice-sheet', onOpenVoice)
+    window.addEventListener('hy:open-installment-sheet', onOpenInstallment)
+
+    // Handle launcher/widget URL query parameters like ?action=voice or ?action=quick-entry
+    try {
+      const searchParams = new URLSearchParams(window.location.search)
+      const action = searchParams.get('action')
+      if (action === 'voice') {
+        setSheet({ type: 'voice' })
+      } else if (action === 'quick-entry') {
+        setSheet({ type: 'quick', kind: 'expense' })
+      }
+    } catch {}
+
+    return () => {
+      window.removeEventListener('hy-new-account', onNewAccount)
+      window.removeEventListener('hy:open-voice-sheet', onOpenVoice)
+      window.removeEventListener('hy:open-installment-sheet', onOpenInstallment)
+    }
   }, [])
 
   const isHome = location.pathname === '/'
@@ -327,7 +348,11 @@ function Shell() {
         ) : null}
 
         {!sheetOpen ? (
-          <TabBar onQuickEntry={() => setSheet({ type: 'quick', kind: 'expense' })} />
+          <TabBar
+            onQuickEntry={() => setSheet({ type: 'quick', kind: 'expense' })}
+            onVoiceEntry={() => setSheet({ type: 'voice' })}
+            onInstallmentEntry={() => setSheet({ type: 'installment-plan' })}
+          />
         ) : null}
       </div>
 

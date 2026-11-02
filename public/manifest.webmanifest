@@ -29,5 +29,92 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "ثبت تراکنش جدید",
+      "short_name": "ثبت تراکنش",
+      "description": "ثبت سریع هزینه یا درآمد در حساب‌یار",
+      "url": "./?action=quick-entry",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "دستیار صوتی هوشمند",
+      "short_name": "ورود صوتی",
+      "description": "ثبت هوشمند تراکنش با گفتار صوتی",
+      "url": "./?action=voice",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "اقساط و وام‌ها",
+      "short_name": "اقساط",
+      "description": "مشاهده و پرداخت اقساط سررسید شده",
+      "url": "./installments",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "چک و بدهی/طلب",
+      "short_name": "چک و بدهی",
+      "description": "مدیریت چک‌های صیادی و طلب‌ها",
+      "url": "./installments?tab=debts",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "دونگ و سفر جدید",
+      "short_name": "دونگ جدید",
+      "description": "ثبت هزینه گروهی و سفر جدید",
+      "url": "./dong?action=new",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "widgets": [
+    {
+      "name": "حساب‌یار - دسترسی سریع",
+      "short_name": "ثبت سریع",
+      "description": "ویجت هوم‌اسکرین اندروید برای ثبت تراکنش و ورود صوتی",
+      "tag": "hesabyar-quick-entry",
+      "template": "widget-quick",
+      "ms_ac_template": "widget.json",
+      "data": "widget-data.json",
+      "type": "application/json",
+      "screenshots": [
+        {
+          "src": "icons/icon-512.png",
+          "sizes": "512x512",
+          "label": "پیش‌نمایش ویجت حساب‌یار"
+        }
+      ],
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
   ]
 }

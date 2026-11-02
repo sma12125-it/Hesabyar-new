@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { WindowPopup } from '../components/WindowPopup'
 import { DongMemberShare } from '../components/DongMemberShare'
@@ -48,6 +48,25 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
   const [dongMembers, setDongMembers] = useState<string[]>(['من'])
   const [editingMemberIdx, setEditingMemberIdx] = useState<number | null>(null)
   const [editingMemberName, setEditingMemberName] = useState('')
+
+  useEffect(() => {
+    const handleOpen = () => {
+      setSelectedDongId(null)
+      setDongTitle('')
+      setDongMembers(['من'])
+      setIsCreateDongOpen(true)
+    }
+    window.addEventListener('hy:open-create-dong', handleOpen)
+
+    try {
+      const searchParams = new URLSearchParams(window.location.search)
+      if (searchParams.get('action') === 'new') {
+        handleOpen()
+      }
+    } catch {}
+
+    return () => window.removeEventListener('hy:open-create-dong', handleOpen)
+  }, [])
 
   // Selected Dong detail view states
   const selectedDongEvent = useMemo(

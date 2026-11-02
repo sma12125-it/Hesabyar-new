@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useScrollFocusedIntoView } from '../lib/keyboardInset'
 import { parseVoiceCommand } from '../lib/voice'
 import { formatRial } from '../lib/money'
@@ -6,53 +6,56 @@ import { notifyUser } from '../lib/sync'
 import { categoriesFor } from '../lib/categories'
 import { suggestCategory } from '../lib/sms/categorize'
 import { useStore } from '../store/Store'
-import { WindowPopup } from './WindowPopup'
+import { useExtras } from '../store/Extras'
 
-type Rec = {
+type SpeechRecognitionResultItem = { transcript: string }
+type SpeechRecognitionResultList = ArrayLike<SpeechRecognitionResultItem> & { isFinal?: boolean }
+
+type SpeechRecognitionInstance = {
   lang: string
   continuous: boolean
   interimResults: boolean
-  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null
+  onresult: ((event: { results: ArrayLike<SpeechRecognitionResultList> }) => void) | null
   onerror: ((event: { error?: string }) => void) | null
   onend: (() => void) | null
   start: () => void
   stop: () => void
 }
 
-function micError(err: unknown) {
-  const name = err instanceof DOMException ? err.name : ''
-  if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || name === 'SecurityError') {
-    return 'اجازه دسترسی به میکروفن داده نشد. لطفاً در تنظیمات مرورگر اجازه میکروفن را فعال کنید و دوباره «شنیدن» را بزنید.'
-  }
-  if (name === 'NotFoundError') return 'میکروفنی روی این دستگاه پیدا نشد. می‌توانید متن را بنویسید.'
-  return 'میکروفن فعال نشد. لطفاً متن را بنویسید، یا دوباره دکمه «شنیدن» را بزنید.'
-}
-
-function speechCtor() {
+function speechCtor(): (new () => SpeechRecognitionInstance) | undefined {
   if (typeof window === 'undefined') return undefined
   const host = window as Window & {
-    SpeechRecognition?: new () => Rec
-    webkitSpeechRecognition?: new () => Rec
+    SpeechRecognition?: new () => SpeechRecognitionInstance
+    webkitSpeechRecognition?: new () => SpeechRecognitionInstance
   }
   return host.SpeechRecognition ?? host.webkitSpeechRecognition
 }
 
 export function VoiceSheet({
   onClose,
-  onMinimize,
 }: {
   onClose: () => void
   onMinimize?: () => void
 }) {
   const { activeAccounts, addQuickEntry, customCategories } = useStore()
+  const { currencyUnit, formatMoney } = useExtras()
   const [text, setText] = useState('')
+  const [interimText, setInterimText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [listening, setListening] = useState(false)
+  const [audioLevel, setAudioLevel] = useState<number>(0)
   const [accountId, setAccountId] = useState(() => activeAccounts[0]?.id ?? '')
   const [categoryId, setCategoryId] = useState('')
+  
+  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const mediaStreamRef = useRef<MediaStream | null>(null)
+  const animFrameRef = useRef<number | null>(null)
+
   useScrollFocusedIntoView()
-  const draft = parseVoiceCommand(text)
+  const draft = parseVoiceCommand(text || interimText)
 
   const kind = draft?.kind ?? 'expense'
   const availableCategories = useMemo(
@@ -60,88 +63,187 @@ export function VoiceSheet({
     [kind, customCategories],
   )
 
-  // Automatically suggest category when speech/text changes
+  // Suggest category automatically when voice recognition identifies note or amount
   useEffect(() => {
-    if (draft) {
-      const suggested = suggestCategory(text, draft.kind === 'income' ? 'INCOME' : 'EXPENSE')
+    const currentText = text || interimText
+    if (draft && currentText) {
+      const suggested = suggestCategory(currentText, draft.kind === 'income' ? 'INCOME' : 'EXPENSE')
       if (suggested) {
         setCategoryId(suggested)
       } else if (!categoryId) {
         setCategoryId(draft.kind === 'income' ? 'other-inc' : 'other-exp')
       }
     }
-  }, [text, draft?.kind])
+  }, [text, interimText, draft?.kind])
 
-  // Sync default account if not yet selected
+  // Clean up audio streams and speech recognition on unmount
   useEffect(() => {
-    if (!accountId && activeAccounts.length > 0) {
-      setAccountId(activeAccounts[0]!.id)
+    return () => {
+      stopAudioVisualizer()
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop()
+        } catch {}
+      }
     }
-  }, [activeAccounts, accountId])
+  }, [])
 
-  async function listen() {
+  // Auto-start listening on open for instant assistant feel
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void startListening()
+    }, 350)
+    return () => clearTimeout(timer)
+  }, [])
+
+  function startAudioVisualizer(stream: MediaStream) {
+    try {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
+      if (!AudioCtx) return
+      const ctx = new AudioCtx()
+      audioContextRef.current = ctx
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 64
+      analyserRef.current = analyser
+      const source = ctx.createMediaStreamSource(stream)
+      source.connect(analyser)
+
+      const dataArray = new Uint8Array(analyser.frequencyBinCount)
+
+      const updateLevel = () => {
+        if (!analyserRef.current) return
+        analyserRef.current.getByteFrequencyData(dataArray)
+        let sum = 0
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i]!
+        }
+        const avg = sum / dataArray.length
+        setAudioLevel(Math.min(100, Math.round((avg / 128) * 100)))
+        animFrameRef.current = requestAnimationFrame(updateLevel)
+      }
+      updateLevel()
+    } catch {}
+  }
+
+  function stopAudioVisualizer() {
+    if (animFrameRef.current) {
+      cancelAnimationFrame(animFrameRef.current)
+      animFrameRef.current = null
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      try {
+        void audioContextRef.current.close()
+      } catch {}
+      audioContextRef.current = null
+    }
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop())
+      mediaStreamRef.current = null
+    }
+    setAudioLevel(0)
+  }
+
+  async function startListening() {
     setError(null)
-    const Ctor = speechCtor()
+    setInterimText('')
 
-    // Request direct microphone permission via getUserMedia first (standard for Android / iOS / Desktop)
+    // 1. Explicitly request microphone stream for Android Chrome, iOS Safari & Mobile WebApp
     if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        // Once permission is granted, release stream so SpeechRecognition can bind
-        stream.getTracks().forEach((track) => track.stop())
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        })
+        mediaStreamRef.current = stream
+        startAudioVisualizer(stream)
       } catch (err) {
-        setError(micError(err))
+        const name = err instanceof DOMException ? err.name : ''
+        if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+          setError('دسترسی به میکروفن توسط دستگاه یا مرورگر مسدود شده است. لطفاً از نوار آدرس یا تنظیمات گوشی، مجوز میکروفن را برای حساب‌یار فعال کنید.')
+        } else {
+          setError('میکروفن در دسترس نیست. می‌توانید متن را دستی در کادر پایین بنویسید.')
+        }
         return
       }
     }
 
-    if (!Ctor) {
-      setError('مرورگر شما از تبدیل صوت به متن پشتیبانی نمی‌کند. لطفاً متن را در کادر زیر بنویسید یا از مرورگر کروم استفاده کنید.')
+    // 2. Setup Web Speech Recognition
+    const SpeechCtor = speechCtor()
+    if (!SpeechCtor) {
+      setError('مرورگر از تبدیل گفتار به متن پشتیبانی نمی‌کند. لطفاً متن را در کادر زیر تایپ کنید.')
       return
     }
 
     try {
-      const rec = new Ctor()
+      const rec = new SpeechCtor()
+      recognitionRef.current = rec
       rec.lang = 'fa-IR'
-      rec.continuous = false
+      rec.continuous = true
       rec.interimResults = true
 
       rec.onresult = (event) => {
-        const last = event.results[event.results.length - 1]
-        const transcript = last?.[0]?.transcript ?? ''
-        if (transcript) {
-          setText(transcript)
+        let finalStr = ''
+        let interimStr = ''
+        for (let i = 0; i < event.results.length; i++) {
+          const res = event.results[i]
+          if (res && res[0]) {
+            if (res.isFinal) {
+              finalStr += res[0].transcript + ' '
+            } else {
+              interimStr += res[0].transcript
+            }
+          }
+        }
+        if (finalStr.trim()) {
+          setText(finalStr.trim())
+          setInterimText('')
+        } else if (interimStr.trim()) {
+          setInterimText(interimStr.trim())
+        }
+      }
+
+      rec.onerror = (event) => {
+        if (event.error === 'not-allowed') {
+          setError('مجوز دسترسی به میکروفن فعال نیست.')
+        } else if (event.error === 'no-speech') {
+          // Keep waiting for user voice
+        } else if (event.error !== 'aborted') {
+          setError('دریافت صدا با خطا روبرو شد. لطفاً دوباره صحبت کنید.')
         }
       }
 
       rec.onend = () => {
         setListening(false)
-      }
-
-      rec.onerror = (event) => {
-        setListening(false)
-        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          setError('اجازه میکروفن داده نشد. لطفاً در تنظیمات مرورگر اجازه دسترسی به میکروفن را فعال کنید.')
-        } else if (event.error === 'no-speech') {
-          setError('صدایی شنیده نشد. لطفاً نزدیک‌تر به میکروفن صحبت کرده و دوباره دکمه را بزنید.')
-        } else if (event.error !== 'aborted') {
-          setError('گفتار به درستی شنیده نشد. لطفاً دوباره امتحان کنید یا متن را بنویسید.')
-        }
+        stopAudioVisualizer()
       }
 
       rec.start()
       setListening(true)
-    } catch (err) {
+    } catch {
       setListening(false)
-      setError(micError(err))
+      stopAudioVisualizer()
     }
   }
 
-  async function confirm() {
+  function stopListening() {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop()
+      } catch {}
+      recognitionRef.current = null
+    }
+    stopAudioVisualizer()
+    setListening(false)
+  }
+
+  async function handleConfirm() {
     if (!draft) return
     const account = activeAccounts.find((a) => a.id === accountId) || activeAccounts[0]
     if (!account) {
-      setError('اول یک حساب بانکی یا نقدی بسازید.')
+      setError('لطفاً ابتدا حداقل یک حساب بانکی یا نقدی ایجاد کنید.')
       return
     }
     setSaving(true)
@@ -153,155 +255,188 @@ export function VoiceSheet({
         categoryId: categoryId || (draft.kind === 'income' ? 'other-inc' : 'other-exp'),
         note: draft.note || (draft.kind === 'income' ? 'درآمد صوتی' : 'هزینه صوتی'),
       })
+      notifyUser('تراکنش صوتی با موفقیت ثبت شد ✨')
       onClose()
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'ثبت نشد'
-      setError(message)
-      notifyUser(message)
+      const msg = err instanceof Error ? err.message : 'ثبت تراکنش انجام نشد'
+      setError(msg)
+      notifyUser(msg)
     } finally {
       setSaving(false)
     }
   }
 
+  const displayText = text || interimText
+
   return (
-    <WindowPopup
-      title="دستیار صوتی هوشمند"
-      subtitle="ثبت سریع با گفتار زنده یا متن"
-      icon="🎙️"
-      isOpen={true}
-      onClose={onClose}
-      onMinimize={onMinimize}
-      defaultWidth={520}
-      defaultHeight={580}
-      footer={
-        <div style={{ display: 'flex', gap: 8, width: '100%', justifyContent: 'flex-end' }}>
-          <button
-            className={`cta-confirm${listening ? ' active' : ''}`}
-            type="button"
-            onClick={() => void listen()}
-            style={{
-              flex: 1,
-              background: listening ? 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' : undefined,
-              animation: listening ? 'pulse 1.5s infinite' : undefined,
-            }}
-          >
-            {listening ? '🔴 در حال شنیدن صدای شما…' : '🎙️ شنیدن صدا (میکروفن)'}
-          </button>
-          <button
-            className="cta-confirm"
-            type="button"
-            disabled={!draft || saving || activeAccounts.length === 0}
-            onClick={() => void confirm()}
-            style={{ flex: 1 }}
-          >
-            {saving ? 'در حال ثبت…' : 'تأیید و ثبت'}
+    <div className="voice-assistant-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="voice-assistant-modal" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="voice-modal-header">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span className="voice-modal-sparkle">✨</span>
+            <div>
+              <h2 className="voice-modal-title">دستیار صوتی هوشمند حساب‌یار</h2>
+              <p className="voice-modal-subtitle">با گفتار طبیعی یا تایپ، تراکنش خود را آنی ثبت کنید</p>
+            </div>
+          </div>
+          <button type="button" className="voice-modal-close" onClick={onClose} aria-label="بستن">
+            ✕
           </button>
         </div>
-      }
-    >
-      <div className="sheet-body-scroll" style={{ padding: '8px 2px' }}>
-        {/* Quick Suggestion Chips */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
-          <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)', fontWeight: 700 }}>نمونه‌های سریع:</span>
+
+        {/* Central Orb / Microphone Visualizer */}
+        <div className="voice-orb-container">
+          <div
+            className={`voice-glow-orb${listening ? ' is-listening' : ''}`}
+            style={{
+              transform: `scale(${1 + (audioLevel / 100) * 0.45})`,
+              boxShadow: listening
+                ? `0 0 ${35 + audioLevel}px rgba(16, 185, 129, ${0.4 + (audioLevel / 100) * 0.5})`
+                : '0 0 25px rgba(37, 99, 235, 0.35)',
+            }}
+            onClick={() => {
+              if (listening) {
+                stopListening()
+              } else {
+                void startListening()
+              }
+            }}
+            role="button"
+            tabIndex={0}
+            title={listening ? 'کلیک برای توقف شنیدن' : 'کلیک برای شروع شنیدن'}
+          >
+            <div className="voice-orb-inner">
+              <span className="voice-orb-icon">{listening ? '🎙️' : '🎤'}</span>
+            </div>
+          </div>
+
+          {/* Sound waves animation bars */}
+          {listening ? (
+            <div className="voice-bars-row">
+              {[0.4, 0.8, 1.2, 0.6, 1.4, 0.9, 0.5].map((factor, idx) => (
+                <span
+                  key={idx}
+                  className="voice-bar-item"
+                  style={{
+                    height: `${Math.max(8, Math.min(42, 8 + audioLevel * factor))}px`,
+                    opacity: 0.6 + (audioLevel / 100) * 0.4,
+                  }}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="voice-tap-hint">برای شروع ضبط مجدد، روی میکروفن لمس کنید</div>
+          )}
+        </div>
+
+        {/* Live Recognized Transcript Display */}
+        <div className="voice-transcript-card">
+          <div className="voice-transcript-header">
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--hy-text-secondary)' }}>
+              {listening ? '🔴 در حال شنیدن و تحلیل زنده گفتار شما…' : 'متن شناسایی‌شده:'}
+            </span>
+            {displayText && (
+              <button
+                type="button"
+                className="voice-clear-btn"
+                onClick={() => {
+                  setText('')
+                  setInterimText('')
+                }}
+              >
+                پاک کردن
+              </button>
+            )}
+          </div>
+          <div className="voice-transcript-body">
+            {displayText ? (
+              <span className="voice-text-highlight">{displayText}</span>
+            ) : (
+              <span className="voice-text-placeholder">
+                مثال بگویید: «پنجاه هزار تومان اسنپ» یا «دو میلیون حقوق واریزی»...
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Example Chips */}
+        <div className="voice-chips-scroll">
+          <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)', alignSelf: 'center', flexShrink: 0 }}>
+            عبارات آماده:
+          </span>
           {[
-            '۵۰ هزار تومان اسنپ',
-            '۱۵۰ هزار تومان سوپرمارکت',
-            '۱۰ میلیون حقوق واریزی',
-            '۸۰ هزار تومان ناهار',
+            '۵۰ هزار تومان کرایه تاکسی',
+            '۱۸۰ هزار تومان سوپرمارکت',
+            '۱۵ میلیون واریز حقوق',
+            '۷۵ هزار تومان ناهار',
           ].map((sample, idx) => (
             <button
               key={idx}
               type="button"
-              className="cat-mini"
-              style={{ fontSize: 11, padding: '2px 8px', borderRadius: 8 }}
-              onClick={() => setText(sample)}
+              className="voice-chip-btn"
+              onClick={() => {
+                setText(sample)
+                setInterimText('')
+              }}
             >
               {sample}
             </button>
           ))}
         </div>
 
-        {error ? <div className="banner error"><span>{error}</span></div> : null}
-
-        {/* Text Input with Microphone Status */}
-        <textarea
-          className="field-input voice-box"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="اینجا صحبت کنید یا بنویسید (مثلاً: ۵۰ هزار تومان سوپرمارکت)..."
-          rows={3}
-          style={{ width: '100%', resize: 'none', fontSize: 14 }}
-        />
-
-        {/* Animated Waveform Visualizer when recording */}
-        {listening ? (
-          <div style={{ textAlign: 'center', margin: '14px 0 6px' }}>
-            <div className="voice-wave-container">
-              <span className="voice-wave-bar" />
-              <span className="voice-wave-bar" />
-              <span className="voice-wave-bar" />
-              <span className="voice-wave-bar" />
-              <span className="voice-wave-bar" />
-              <span className="voice-wave-bar" />
-              <span className="voice-wave-bar" />
-            </div>
-            <p style={{ fontSize: 12, color: 'var(--hy-accent)', margin: '8px 0 0', fontWeight: 700 }}>
-              در حال ضبط و پردازش صدای شما... واضح صحبت کنید
-            </p>
+        {/* Error notification banner if any */}
+        {error && (
+          <div className="banner error" style={{ margin: '8px 0 0', fontSize: 12 }}>
+            <span>⚠️ {error}</span>
           </div>
-        ) : null}
+        )}
 
-        {draft ? (
-          <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div
-              style={{
-                padding: '12px 14px',
-                borderRadius: 14,
-                background: draft.kind === 'income' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                border: draft.kind === 'income' ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(239, 68, 68, 0.3)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
+        {/* Parsed Draft Result Preview Card */}
+        {draft && (
+          <div className={`voice-draft-card ${draft.kind === 'income' ? 'is-income' : 'is-expense'}`}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>تراکنش شناسایی‌شده:</div>
-                <div style={{ fontWeight: 800, fontSize: 16, color: draft.kind === 'income' ? 'var(--hy-income)' : 'var(--hy-expense)', marginTop: 2 }}>
-                  {draft.kind === 'income' ? '🟢 درآمد: ' : '🔴 هزینه: '} {formatRial(draft.amount)} ریال
+                <span className="voice-draft-badge">
+                  {draft.kind === 'income' ? '🟢 واریز / درآمد شناسایی شد' : '🔴 برداشت / هزینه شناسایی شد'}
+                </span>
+                <div className="voice-draft-amount">
+                  {currencyUnit === 'IRT' ? formatMoney(draft.amount) : `${formatRial(draft.amount)} ریال`}
                 </div>
                 {draft.note && (
-                  <div style={{ fontSize: 12, color: 'var(--hy-text)', marginTop: 2 }}>
-                    توضیحات: <b>{draft.note}</b>
+                  <div className="voice-draft-note">
+                    بابت: <strong>{draft.note}</strong>
                   </div>
                 )}
               </div>
-              <span style={{ fontSize: 28 }}>{draft.kind === 'income' ? '💰' : '🛒'}</span>
+              <div className="voice-draft-icon">{draft.kind === 'income' ? '💰' : '🛒'}</div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            {/* Account & Category Selectors */}
+            <div className="voice-draft-inputs">
               <label className="field-stack" style={{ margin: 0 }}>
-                <span style={{ fontSize: 12, fontWeight: 700 }}>حساب واریز/برداشت</span>
+                <span style={{ fontSize: 11, fontWeight: 700 }}>حساب بانکی / نقدی</span>
                 <select
                   className="field-input"
                   value={accountId}
                   onChange={(e) => setAccountId(e.target.value)}
-                  style={{ fontSize: 13 }}
+                  style={{ fontSize: 12, height: 38 }}
                 >
-                  {activeAccounts.map((acc) => (
-                    <option key={acc.id} value={acc.id}>
-                      {acc.name}
+                  {activeAccounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} ({formatMoney(a.balance)})
                     </option>
                   ))}
                 </select>
               </label>
 
               <label className="field-stack" style={{ margin: 0 }}>
-                <span style={{ fontSize: 12, fontWeight: 700 }}>دسته‌بندی</span>
+                <span style={{ fontSize: 11, fontWeight: 700 }}>دسته‌بندی</span>
                 <select
                   className="field-input"
                   value={categoryId}
                   onChange={(e) => setCategoryId(e.target.value)}
-                  style={{ fontSize: 13 }}
+                  style={{ fontSize: 12, height: 38 }}
                 >
                   {availableCategories.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -312,8 +447,34 @@ export function VoiceSheet({
               </label>
             </div>
           </div>
-        ) : null}
+        )}
+
+        {/* Footer Actions */}
+        <div className="voice-modal-footer">
+          <button
+            type="button"
+            className={`voice-listen-toggle-btn${listening ? ' active' : ''}`}
+            onClick={() => {
+              if (listening) {
+                stopListening()
+              } else {
+                void startListening()
+              }
+            }}
+          >
+            {listening ? '⏹️ توقف شنیدن' : '🎙️ شروع صحبت'}
+          </button>
+
+          <button
+            type="button"
+            className="cta-confirm voice-confirm-btn"
+            disabled={!draft || saving || activeAccounts.length === 0}
+            onClick={() => void handleConfirm()}
+          >
+            {saving ? 'در حال ثبت…' : '✨ تایید و ثبت تراکنش'}
+          </button>
+        </div>
       </div>
-    </WindowPopup>
+    </div>
   )
 }
