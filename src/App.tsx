@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom'
+import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { PhoneShell } from './components/PhoneShell'
 import { TabBar } from './components/TabBar'
 import { Toast } from './components/Toast'
@@ -62,7 +62,6 @@ export type Sheet =
   | { type: 'confirm'; title: string; message: string; confirmLabel?: string; run: () => Promise<void>; returnToAll?: string }
 
 function Shell() {
-  const location = useLocation()
   const { ready, error, totalBalance, accounts, transactions, plans, items, resetDemo, wipeAll, deleteTransaction, deleteAccount, deleteInstallmentPlan, deleteInstallmentItem, unpayInstallment } = useStore()
   const [toast, setToast] = useState<string | null>(null)
   const [sheet, setSheet] = useState<Sheet | null>(null)
@@ -209,7 +208,6 @@ function Shell() {
     }
   }, [])
 
-  const isHome = location.pathname === '/'
   const sheetOpen = sheet !== null
   const editingAccount =
     sheet?.type === 'account' && sheet.accountId
@@ -368,17 +366,6 @@ function Shell() {
           <Route path="/pending" element={<PendingTransactionsPage onScroll={onScroll} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-
-        {!sheetOpen && isHome ? (
-          <button
-            className="mic-fab"
-            type="button"
-            title="ورودی صوتی"
-            onClick={() => setSheet({ type: 'voice' })}
-          >
-            🎤
-          </button>
-        ) : null}
 
         {!sheetOpen ? (
           <TabBar

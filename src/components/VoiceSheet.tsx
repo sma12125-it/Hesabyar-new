@@ -15,11 +15,13 @@ type SpeechRecognitionInstance = {
   lang: string
   continuous: boolean
   interimResults: boolean
+  onstart: (() => void) | null
   onresult: ((event: { results: ArrayLike<SpeechRecognitionResultList> }) => void) | null
   onerror: ((event: { error?: string }) => void) | null
   onend: (() => void) | null
   start: () => void
   stop: () => void
+  abort: () => void
 }
 
 function speechCtor(): (new () => SpeechRecognitionInstance) | undefined {
@@ -40,22 +42,17 @@ export function VoiceSheet({
   const { activeAccounts, addQuickEntry, customCategories } = useStore()
   const { currencyUnit, formatMoney } = useExtras()
   const [text, setText] = useState('')
-  const [interimText, setInterimText] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [listening, setListening] = useState(false)
-  const [audioLevel, setAudioLevel] = useState<number>(0)
   const [accountId, setAccountId] = useState(() => activeAccounts[0]?.id ?? '')
   const [categoryId, setCategoryId] = useState('')
-  
+
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const analyserRef = useRef<AnalyserNode | null>(null)
-  const mediaStreamRef = useRef<MediaStream | null>(null)
-  const animFrameRef = useRef<number | null>(null)
+  const isListeningRef = useRef(false)
 
   useScrollFocusedIntoView()
-  const draft = parseVoiceCommand(text || interimText)
+  const draft = parseVoiceCommand(text)
 
   const kind = draft?.kind ?? 'expense'
   const availableCategories = useMemo(
@@ -65,178 +62,127 @@ export function VoiceSheet({
 
   // Suggest category automatically when voice recognition identifies note or amount
   useEffect(() => {
-    const currentText = text || interimText
-    if (draft && currentText) {
-      const suggested = suggestCategory(currentText, draft.kind === 'income' ? 'INCOME' : 'EXPENSE')
+    if (draft && text) {
+      const suggested = suggestCategory(text, draft.kind === 'income' ? 'INCOME' : 'EXPENSE')
       if (suggested) {
         setCategoryId(suggested)
       } else if (!categoryId) {
         setCategoryId(draft.kind === 'income' ? 'other-inc' : 'other-exp')
       }
     }
-  }, [text, interimText, draft?.kind])
+  }, [text, draft?.kind])
 
-  // Clean up audio streams and speech recognition on unmount
+  // Clean up speech recognition on unmount
   useEffect(() => {
     return () => {
-      stopAudioVisualizer()
+      isListeningRef.current = false
       if (recognitionRef.current) {
         try {
-          recognitionRef.current.stop()
+          recognitionRef.current.abort()
         } catch {}
+        recognitionRef.current = null
       }
     }
   }, [])
 
-  // Auto-start listening on open for instant assistant feel
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      void startListening()
-    }, 350)
-    return () => clearTimeout(timer)
-  }, [])
-
-  function startAudioVisualizer(stream: MediaStream) {
-    try {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext
-      if (!AudioCtx) return
-      const ctx = new AudioCtx()
-      audioContextRef.current = ctx
-      const analyser = ctx.createAnalyser()
-      analyser.fftSize = 64
-      analyserRef.current = analyser
-      const source = ctx.createMediaStreamSource(stream)
-      source.connect(analyser)
-
-      const dataArray = new Uint8Array(analyser.frequencyBinCount)
-
-      const updateLevel = () => {
-        if (!analyserRef.current) return
-        analyserRef.current.getByteFrequencyData(dataArray)
-        let sum = 0
-        for (let i = 0; i < dataArray.length; i++) {
-          sum += dataArray[i]!
-        }
-        const avg = sum / dataArray.length
-        setAudioLevel(Math.min(100, Math.round((avg / 128) * 100)))
-        animFrameRef.current = requestAnimationFrame(updateLevel)
-      }
-      updateLevel()
-    } catch {}
-  }
-
-  function stopAudioVisualizer() {
-    if (animFrameRef.current) {
-      cancelAnimationFrame(animFrameRef.current)
-      animFrameRef.current = null
-    }
-    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      try {
-        void audioContextRef.current.close()
-      } catch {}
-      audioContextRef.current = null
-    }
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop())
-      mediaStreamRef.current = null
-    }
-    setAudioLevel(0)
-  }
-
-  async function startListening() {
+  function startListening() {
     setError(null)
-    setInterimText('')
 
-    // 1. Explicitly request microphone stream for Android Chrome, iOS Safari & Mobile WebApp
-    if (typeof navigator !== 'undefined' && navigator.mediaDevices?.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
-          },
-        })
-        mediaStreamRef.current = stream
-        startAudioVisualizer(stream)
-      } catch (err) {
-        const name = err instanceof DOMException ? err.name : ''
-        if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
-          setError('دسترسی به میکروفن توسط دستگاه یا مرورگر مسدود شده است. لطفاً از نوار آدرس یا تنظیمات گوشی، مجوز میکروفن را برای حساب‌یار فعال کنید.')
-        } else {
-          setError('میکروفن در دسترس نیست. می‌توانید متن را دستی در کادر پایین بنویسید.')
-        }
-        return
-      }
-    }
-
-    // 2. Setup Web Speech Recognition
     const SpeechCtor = speechCtor()
     if (!SpeechCtor) {
-      setError('مرورگر از تبدیل گفتار به متن پشتیبانی نمی‌کند. لطفاً متن را در کادر زیر تایپ کنید.')
+      setError('مرورگر شما از تبدیل گفتار پشتیبانی نمی‌کند. می‌توانید متن را در کادر زیر بنویسید یا از دکمه میکروفن کیبورد گوشی استفاده کنید.')
       return
+    }
+
+    // Stop any existing instance
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort()
+      } catch {}
+      recognitionRef.current = null
     }
 
     try {
       const rec = new SpeechCtor()
       recognitionRef.current = rec
       rec.lang = 'fa-IR'
-      rec.continuous = true
+
+      // On mobile browsers (iOS WebKit and Android Chrome), continuous=false ensures instant,
+      // responsive delivery of onresult without buffering hangs or CoreAudio hardware locks.
+      const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+      rec.continuous = !isMobile
       rec.interimResults = true
 
+      rec.onstart = () => {
+        isListeningRef.current = true
+        setListening(true)
+        setError(null)
+      }
+
       rec.onresult = (event) => {
-        let finalStr = ''
-        let interimStr = ''
+        let fullTranscript = ''
         for (let i = 0; i < event.results.length; i++) {
           const res = event.results[i]
           if (res && res[0]) {
-            if (res.isFinal) {
-              finalStr += res[0].transcript + ' '
-            } else {
-              interimStr += res[0].transcript
-            }
+            fullTranscript += res[0].transcript + ' '
           }
         }
-        if (finalStr.trim()) {
-          setText(finalStr.trim())
-          setInterimText('')
-        } else if (interimStr.trim()) {
-          setInterimText(interimStr.trim())
+        const clean = fullTranscript.trim()
+        if (clean) {
+          setText(clean)
         }
       }
 
       rec.onerror = (event) => {
-        if (event.error === 'not-allowed') {
-          setError('مجوز دسترسی به میکروفن فعال نیست.')
-        } else if (event.error === 'no-speech') {
-          // Keep waiting for user voice
-        } else if (event.error !== 'aborted') {
-          setError('دریافت صدا با خطا روبرو شد. لطفاً دوباره صحبت کنید.')
+        const err = event?.error || ''
+        if (err === 'no-speech' || err === 'aborted') {
+          // Normal pause or user abort, no banner needed
+          return
+        }
+        if (err === 'not-allowed' || err === 'service-not-allowed') {
+          setError('مجوز دسترسی به میکروفن فعال نیست. لطفاً از نوار آدرس مرورگر یا تنظیمات گوشی به حساب‌یار دسترسی میکروفن دهید.')
+        } else if (err === 'audio-capture') {
+          setError('میکروفن دستگاه در دسترس نیست یا توسط برنامه دیگری اشغال شده است.')
+        } else if (err === 'network') {
+          setError('خطای اتصال به سرور تبدیل گفتار. لطفاً اینترنت خود را بررسی کنید.')
+        } else {
+          setError(`خطا در دریافت صدا (${err}). لطفاً مجدداً روی میکروفن لمس کنید.`)
         }
       }
 
       rec.onend = () => {
+        isListeningRef.current = false
         setListening(false)
-        stopAudioVisualizer()
       }
 
       rec.start()
+      isListeningRef.current = true
       setListening(true)
-    } catch {
+    } catch (err) {
+      isListeningRef.current = false
       setListening(false)
-      stopAudioVisualizer()
+      const msg = err instanceof Error ? err.message : String(err)
+      setError('خطا در راه‌اندازی میکروفن: ' + msg)
     }
   }
 
   function stopListening() {
+    isListeningRef.current = false
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop()
       } catch {}
       recognitionRef.current = null
     }
-    stopAudioVisualizer()
     setListening(false)
+  }
+
+  function toggleListening() {
+    if (listening) {
+      stopListening()
+    } else {
+      startListening()
+    }
   }
 
   async function handleConfirm() {
@@ -266,8 +212,6 @@ export function VoiceSheet({
     }
   }
 
-  const displayText = text || interimText
-
   return (
     <div className="voice-assistant-overlay" onClick={onClose} role="dialog" aria-modal="true">
       <div className="voice-assistant-modal" onClick={(e) => e.stopPropagation()}>
@@ -289,22 +233,10 @@ export function VoiceSheet({
         <div className="voice-orb-container">
           <div
             className={`voice-glow-orb${listening ? ' is-listening' : ''}`}
-            style={{
-              transform: `scale(${1 + (audioLevel / 100) * 0.45})`,
-              boxShadow: listening
-                ? `0 0 ${35 + audioLevel}px rgba(16, 185, 129, ${0.4 + (audioLevel / 100) * 0.5})`
-                : '0 0 25px rgba(37, 99, 235, 0.35)',
-            }}
-            onClick={() => {
-              if (listening) {
-                stopListening()
-              } else {
-                void startListening()
-              }
-            }}
+            onClick={toggleListening}
             role="button"
             tabIndex={0}
-            title={listening ? 'کلیک برای توقف شنیدن' : 'کلیک برای شروع شنیدن'}
+            title={listening ? 'توقف ضبط صدا' : 'شروع ضبط صدا'}
           >
             <div className="voice-orb-inner">
               <span className="voice-orb-icon">{listening ? '🎙️' : '🎤'}</span>
@@ -314,49 +246,56 @@ export function VoiceSheet({
           {/* Sound waves animation bars */}
           {listening ? (
             <div className="voice-bars-row">
-              {[0.4, 0.8, 1.2, 0.6, 1.4, 0.9, 0.5].map((factor, idx) => (
-                <span
-                  key={idx}
-                  className="voice-bar-item"
-                  style={{
-                    height: `${Math.max(8, Math.min(42, 8 + audioLevel * factor))}px`,
-                    opacity: 0.6 + (audioLevel / 100) * 0.4,
-                  }}
-                />
+              {[0, 1, 2, 3, 4, 5, 6].map((idx) => (
+                <span key={idx} className="voice-bar-item" />
               ))}
             </div>
           ) : (
-            <div className="voice-tap-hint">برای شروع ضبط مجدد، روی میکروفن لمس کنید</div>
+            <div className="voice-tap-hint">
+              {text ? 'برای ضبط مجدد روی میکروفن لمس کنید' : 'برای شروع صحبت، روی میکروفن لمس کنید'}
+            </div>
           )}
         </div>
 
-        {/* Live Recognized Transcript Display */}
+        {/* Live Recognized Transcript / Editable Input */}
         <div className="voice-transcript-card">
           <div className="voice-transcript-header">
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--hy-text-secondary)' }}>
-              {listening ? '🔴 در حال شنیدن و تحلیل زنده گفتار شما…' : 'متن شناسایی‌شده:'}
+              {listening ? '🔴 در حال شنیدن گفتار شما…' : 'متن فرمان صوتی (قابل ویرایش):'}
             </span>
-            {displayText && (
+            {text && (
               <button
                 type="button"
                 className="voice-clear-btn"
-                onClick={() => {
-                  setText('')
-                  setInterimText('')
-                }}
+                onClick={() => setText('')}
               >
                 پاک کردن
               </button>
             )}
           </div>
           <div className="voice-transcript-body">
-            {displayText ? (
-              <span className="voice-text-highlight">{displayText}</span>
-            ) : (
-              <span className="voice-text-placeholder">
-                مثال بگویید: «پنجاه هزار تومان اسنپ» یا «دو میلیون حقوق واریزی»...
-              </span>
-            )}
+            <textarea
+              className="voice-text-highlight"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder={listening ? 'در حال گوش دادن... بگویید مثلاً: پنجاه هزار تومان اسنپ' : 'روی میکروفن لمس کرده و صحبت کنید، یا متن را اینجا بنویسید...'}
+              rows={2}
+              style={{
+                width: '100%',
+                background: 'transparent',
+                border: 'none',
+                outline: 'none',
+                resize: 'none',
+                fontFamily: 'inherit',
+                fontSize: 14,
+                fontWeight: 600,
+                color: 'var(--hy-text)',
+                lineHeight: 1.6,
+                direction: 'rtl',
+                padding: 0,
+                margin: 0,
+              }}
+            />
           </div>
         </div>
 
@@ -375,10 +314,7 @@ export function VoiceSheet({
               key={idx}
               type="button"
               className="voice-chip-btn"
-              onClick={() => {
-                setText(sample)
-                setInterimText('')
-              }}
+              onClick={() => setText(sample)}
             >
               {sample}
             </button>
@@ -454,13 +390,7 @@ export function VoiceSheet({
           <button
             type="button"
             className={`voice-listen-toggle-btn${listening ? ' active' : ''}`}
-            onClick={() => {
-              if (listening) {
-                stopListening()
-              } else {
-                void startListening()
-              }
-            }}
+            onClick={toggleListening}
           >
             {listening ? '⏹️ توقف شنیدن' : '🎙️ شروع صحبت'}
           </button>
