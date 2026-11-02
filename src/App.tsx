@@ -35,6 +35,9 @@ import { SharedSync } from './components/SharedSync'
 import { ProfileSync } from './components/ProfileSync'
 import { ShareSheet } from './components/ShareSheet'
 import { SmsBridge } from './components/SmsBridge'
+import { ChequeSheet } from './components/ChequeSheet'
+import { DebtSheet } from './components/DebtSheet'
+import { DongCreateSheet } from './components/DongCreateSheet'
 import { PendingTransactionsPage } from './pages/PendingTransactionsPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { ExtrasProvider } from './store/Extras'
@@ -51,6 +54,9 @@ export type Sheet =
   | { type: 'all-tx'; search?: string }
   | { type: 'settings' }
   | { type: 'voice' }
+  | { type: 'cheque'; chequeId?: string }
+  | { type: 'debt'; debtId?: string }
+  | { type: 'dong-create' }
   | { type: 'sync' }
   | { type: 'share'; accountId: string }
   | { type: 'confirm'; title: string; message: string; confirmLabel?: string; run: () => Promise<void>; returnToAll?: string }
@@ -116,6 +122,12 @@ function Shell() {
         return { icon: '📒', title: 'دفتر کل تمام تراکنش‌ها' }
       case 'voice':
         return { icon: '🎙️', title: 'دستیار صوتی' }
+      case 'cheque':
+        return { icon: '🧾', title: 'چک صیادی جدید' }
+      case 'debt':
+        return { icon: '🤝', title: 'بدهی / طلب جدید' }
+      case 'dong-create':
+        return { icon: '👥', title: 'رویداد دونگ جدید' }
       case 'sync':
         return { icon: '☁️', title: 'همگام‌سازی ابری' }
       case 'settings':
@@ -153,10 +165,18 @@ function Shell() {
     }
     const onOpenVoice = () => setSheet({ type: 'voice' })
     const onOpenInstallment = () => setSheet({ type: 'installment-plan' })
+    const onOpenCheque = () => setSheet({ type: 'cheque' })
+    const onOpenDebt = () => setSheet({ type: 'debt' })
+    const onOpenDong = () => setSheet({ type: 'dong-create' })
 
     window.addEventListener('hy-new-account', onNewAccount)
     window.addEventListener('hy:open-voice-sheet', onOpenVoice)
     window.addEventListener('hy:open-installment-sheet', onOpenInstallment)
+    window.addEventListener('hy:open-cheque-sheet', onOpenCheque)
+    window.addEventListener('hy-open-cheque-sheet', onOpenCheque)
+    window.addEventListener('hy:open-debt-sheet', onOpenDebt)
+    window.addEventListener('hy-open-debt-sheet', onOpenDebt)
+    window.addEventListener('hy:open-create-dong', onOpenDong)
 
     // Handle launcher/widget URL query parameters like ?action=voice or ?action=quick-entry
     try {
@@ -166,6 +186,14 @@ function Shell() {
         setSheet({ type: 'voice' })
       } else if (action === 'quick-entry') {
         setSheet({ type: 'quick', kind: 'expense' })
+      } else if (action === 'cheque') {
+        setSheet({ type: 'cheque' })
+      } else if (action === 'debt') {
+        setSheet({ type: 'debt' })
+      } else if (action === 'dong') {
+        setSheet({ type: 'dong-create' })
+      } else if (action === 'installment') {
+        setSheet({ type: 'installment-plan' })
       }
     } catch {}
 
@@ -173,6 +201,11 @@ function Shell() {
       window.removeEventListener('hy-new-account', onNewAccount)
       window.removeEventListener('hy:open-voice-sheet', onOpenVoice)
       window.removeEventListener('hy:open-installment-sheet', onOpenInstallment)
+      window.removeEventListener('hy:open-cheque-sheet', onOpenCheque)
+      window.removeEventListener('hy-open-cheque-sheet', onOpenCheque)
+      window.removeEventListener('hy:open-debt-sheet', onOpenDebt)
+      window.removeEventListener('hy-open-debt-sheet', onOpenDebt)
+      window.removeEventListener('hy:open-create-dong', onOpenDong)
     }
   }, [])
 
@@ -352,6 +385,9 @@ function Shell() {
             onQuickEntry={() => setSheet({ type: 'quick', kind: 'expense' })}
             onVoiceEntry={() => setSheet({ type: 'voice' })}
             onInstallmentEntry={() => setSheet({ type: 'installment-plan' })}
+            onChequeEntry={() => setSheet({ type: 'cheque' })}
+            onDebtEntry={() => setSheet({ type: 'debt' })}
+            onDongEntry={() => setSheet({ type: 'dong-create' })}
           />
         ) : null}
       </div>
@@ -444,6 +480,27 @@ function Shell() {
 
       {sheet?.type === 'voice' ? (
         <VoiceSheet
+          onClose={() => closeSheet(sheet)}
+          onMinimize={minimizeCurrentSheet}
+        />
+      ) : null}
+
+      {sheet?.type === 'cheque' ? (
+        <ChequeSheet
+          onClose={() => closeSheet(sheet)}
+          onMinimize={minimizeCurrentSheet}
+        />
+      ) : null}
+
+      {sheet?.type === 'debt' ? (
+        <DebtSheet
+          onClose={() => closeSheet(sheet)}
+          onMinimize={minimizeCurrentSheet}
+        />
+      ) : null}
+
+      {sheet?.type === 'dong-create' ? (
+        <DongCreateSheet
           onClose={() => closeSheet(sheet)}
           onMinimize={minimizeCurrentSheet}
         />

@@ -1818,3 +1818,155 @@ html:not([data-theme='glass']) .corner-menu button {
   pointer-events: auto;
 }
 
+/* ─────────────────────────────────────────────────────────────
+   Action Menu & Voice Assistant Light Theme High-Contrast Rules
+   ───────────────────────────────────────────────────────────── */
+html[data-theme='minimal-paper'] .action-menu-sheet,
+html[data-theme='glass'] .action-menu-sheet,
+html[data-theme='neobrutal'] .action-menu-sheet {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1.5px solid #cbd5e1 !important;
+  box-shadow: 0 -12px 40px rgba(15, 23, 42, 0.16) !important;
+}
+
+html[data-theme='minimal-paper'] .action-menu-card,
+html[data-theme='glass'] .action-menu-card,
+html[data-theme='neobrutal'] .action-menu-card {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #0f172a !important;
+}
+
+html[data-theme='minimal-paper'] .action-menu-card:hover,
+html[data-theme='glass'] .action-menu-card:hover,
+html[data-theme='neobrutal'] .action-menu-card:hover {
+  background: #f1f5f9 !important;
+  border-color: #0f766e !important;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08) !important;
+}
+
+html[data-theme='minimal-paper'] .action-menu-title,
+html[data-theme='glass'] .action-menu-title,
+html[data-theme='neobrutal'] .action-menu-title,
+html[data-theme='minimal-paper'] .action-menu-card-title,
+html[data-theme='glass'] .action-menu-card-title,
+html[data-theme='neobrutal'] .action-menu-card-title {
+  color: #0f172a !important;
+}
+
+html[data-theme='minimal-paper'] .action-menu-sub,
+html[data-theme='glass'] .action-menu-sub,
+html[data-theme='neobrutal'] .action-menu-sub,
+html[data-theme='minimal-paper'] .action-menu-card-desc,
+html[data-theme='glass'] .action-menu-card-desc,
+html[data-theme='neobrutal'] .action-menu-card-desc,
+html[data-theme='minimal-paper'] .action-menu-chevron,
+html[data-theme='glass'] .action-menu-chevron,
+html[data-theme='neobrutal'] .action-menu-chevron {
+  color: #475569 !important;
+}
+
+html[data-theme='minimal-paper'] .action-menu-close,
+html[data-theme='glass'] .action-menu-close,
+html[data-theme='neobrutal'] .action-menu-close {
+  background: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+html[data-theme='minimal-paper'] .action-menu-handle,
+html[data-theme='glass'] .action-menu-handle,
+html[data-theme='neobrutal'] .action-menu-handle {
+  background: #94a3b8 !important;
+}
+
+/* Voice Assistant Light Themes */
+html[data-theme='minimal-paper'] .voice-assistant-modal,
+html[data-theme='glass'] .voice-assistant-modal,
+html[data-theme='neobrutal'] .voice-assistant-modal {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border: 1.5px solid #cbd5e1 !important;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18) !important;
+}
+
+html[data-theme='minimal-paper'] .voice-modal-title,
+html[data-theme='glass'] .voice-modal-title,
+html[data-theme='neobrutal'] .voice-modal-title {
+  color: #0f172a !important;
+}
+
+html[data-theme='minimal-paper'] .voice-modal-subtitle,
+html[data-theme='glass'] .voice-modal-subtitle,
+html[data-theme='neobrutal'] .voice-modal-subtitle,
+html[data-theme='minimal-paper'] .voice-tap-hint,
+html[data-theme='glass'] .voice-tap-hint,
+html[data-theme='neobrutal'] .voice-tap-hint {
+  color: #475569 !important;
+}
+
+html[data-theme='minimal-paper'] .voice-modal-close,
+html[data-theme='glass'] .voice-modal-close,
+html[data-theme='neobrutal'] .voice-modal-close {
+  background: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+html[data-theme='minimal-paper'] .voice-transcript-card,
+html[data-theme='glass'] .voice-transcript-card,
+html[data-theme='neobrutal'] .voice-transcript-card {
+  background: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
+}
+
+html[data-theme='minimal-paper'] .voice-text-highlight,
+html[data-theme='glass'] .voice-text-highlight,
+html[data-theme='neobrutal'] .voice-text-highlight {
+  color: #0f172a !important;
+}
+
+html[data-theme='minimal-paper'] .voice-text-placeholder,
+html[data-theme='glass'] .voice-text-placeholder,
+html[data-theme='neobrutal'] .voice-text-placeholder {
+  color: #64748b !important;
+}
+
+html[data-theme='minimal-paper'] .voice-chip-btn,
+html[data-theme='glass'] .voice-chip-btn,
+html[data-theme='neobrutal'] .voice-chip-btn {
+  background: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+html[data-theme='minimal-paper'] .voice-chip-btn:hover,
+html[data-theme='glass'] .voice-chip-btn:hover,
+html[data-theme='neobrutal'] .voice-chip-btn:hover {
+  background: #e0e7ff !important;
+  border-color: #6366f1 !important;
+  color: #4338ca !important;
+}
+
+html[data-theme='minimal-paper'] .voice-listen-toggle-btn,
+html[data-theme='glass'] .voice-listen-toggle-btn,
+html[data-theme='neobrutal'] .voice-listen-toggle-btn {
+  background: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+html[data-theme='minimal-paper'] .voice-draft-amount,
+html[data-theme='glass'] .voice-draft-amount,
+html[data-theme='neobrutal'] .voice-draft-amount {
+  color: #0f172a !important;
+}
+
+html[data-theme='minimal-paper'] .voice-draft-note,
+html[data-theme='glass'] .voice-draft-note,
+html[data-theme='neobrutal'] .voice-draft-note {
+  color: #475569 !important;
+}
+
+

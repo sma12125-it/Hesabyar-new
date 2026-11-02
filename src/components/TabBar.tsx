@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { getCurrentTheme, applyTheme, THEMES, type ThemeId } from '../lib/theme'
 import { ActionMenuModal, type ActionMenuItem } from './ActionMenuModal'
 
@@ -8,11 +8,20 @@ interface TabBarProps {
   onQuickEntry: () => void
   onVoiceEntry?: () => void
   onInstallmentEntry?: () => void
+  onChequeEntry?: () => void
+  onDebtEntry?: () => void
+  onDongEntry?: () => void
 }
 
-export function TabBar({ onQuickEntry, onVoiceEntry, onInstallmentEntry }: TabBarProps) {
+export function TabBar({
+  onQuickEntry,
+  onVoiceEntry,
+  onInstallmentEntry,
+  onChequeEntry,
+  onDebtEntry,
+  onDongEntry,
+}: TabBarProps) {
   const { pathname } = useLocation()
-  const navigate = useNavigate()
   const [isActionMenuOpen, setIsActionMenuOpen] = useState(false)
   const accountsActive = pathname.startsWith('/accounts')
   const installmentsActive = pathname.startsWith('/installments')
@@ -79,10 +88,11 @@ export function TabBar({ onQuickEntry, onVoiceEntry, onInstallmentEntry }: TabBa
       icon: '🤝',
       color: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
       onClick: () => {
-        navigate('/installments?tab=debts')
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('hy-open-debt-sheet', { detail: {} }))
-        }, 80)
+        if (onDebtEntry) {
+          onDebtEntry()
+        } else {
+          window.dispatchEvent(new CustomEvent('hy:open-debt-sheet'))
+        }
       },
     },
     {
@@ -92,10 +102,11 @@ export function TabBar({ onQuickEntry, onVoiceEntry, onInstallmentEntry }: TabBa
       icon: '🧾',
       color: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)',
       onClick: () => {
-        navigate('/installments?tab=cheques')
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('hy-open-cheque-sheet', { detail: {} }))
-        }, 80)
+        if (onChequeEntry) {
+          onChequeEntry()
+        } else {
+          window.dispatchEvent(new CustomEvent('hy:open-cheque-sheet'))
+        }
       },
     },
     {
@@ -105,10 +116,11 @@ export function TabBar({ onQuickEntry, onVoiceEntry, onInstallmentEntry }: TabBa
       icon: '👥',
       color: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
       onClick: () => {
-        navigate('/dong')
-        setTimeout(() => {
+        if (onDongEntry) {
+          onDongEntry()
+        } else {
           window.dispatchEvent(new CustomEvent('hy:open-create-dong'))
-        }, 80)
+        }
       },
     },
   ]
