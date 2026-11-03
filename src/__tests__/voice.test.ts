@@ -24,6 +24,8 @@ describe('voice and reports', () => {
     const sampleAccounts = [
       { id: 'acc-mellat', name: 'بانک ملت' },
       { id: 'acc-blu', name: 'بلوبانک' },
+      { id: 'acc-saman', name: 'سامان' },
+      { id: 'acc-cash', name: 'پول نقد' },
     ]
     expect(parseVoiceCommand('۵۰ هزار تومن کرایه تاکسی بانک ملت', sampleAccounts)).toMatchObject({
       kind: 'expense',
@@ -37,6 +39,16 @@ describe('voice and reports', () => {
       amount: 500_000,
       note: 'کرایه تاکسی',
       matchedAccountId: 'acc-mellat',
+    })
+    expect(parseVoiceCommand('واریز ۲۰ میلیون تومان حقوق به بلوبانک', sampleAccounts)).toMatchObject({
+      kind: 'income',
+      amount: 200_000_000,
+      matchedAccountId: 'acc-blu',
+    })
+    expect(parseVoiceCommand('۳۵ هزار تومان ناهار پول نقد', sampleAccounts)).toMatchObject({
+      kind: 'expense',
+      amount: 350_000,
+      matchedAccountId: 'acc-cash',
     })
   })
 

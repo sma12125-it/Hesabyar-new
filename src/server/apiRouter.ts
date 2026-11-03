@@ -2017,4 +2017,32 @@ apiRouter.post('/sync/snapshot', async (req: Request, res: Response): Promise<vo
   }
 })
 
+/**
+ * POST /api/v1/voice/transcribe
+ * Transcribe Persian voice audio with state-of-the-art accuracy using Gemini
+ * and extract financial transaction parameters (kind, amount, note, bank account).
+ */
+apiRouter.post('/voice/transcribe', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { audioBase64, mimeType, accounts } = req.body || {}
+    if (!audioBase64 || typeof audioBase64 !== 'string') {
+      res.status(400).json({ success: false, error: 'فایل صوتی یافت نشد' })
+      return
+    }
+
+    const { transcribeAndParsePersianAudio } = await import('./voiceAi')
+    const result = await transcribeAndParsePersianAudio(
+      audioBase64,
+      mimeType || 'audio/webm',
+      Array.isArray(accounts) ? accounts : [],
+    )
+
+    res.json(result)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    res.status(500).json({ success: false, error: msg })
+  }
+})
+
+
 

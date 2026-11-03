@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useScrollFocusedIntoView } from '../lib/keyboardInset'
-import { parseVoiceCommand } from '../lib/voice'
+import { parseVoiceCommand, type VoiceDraft } from '../lib/voice'
 import { formatRial } from '../lib/money'
 import { notifyUser } from '../lib/sync'
 import { categoriesFor } from '../lib/categories'
 import { suggestCategory } from '../lib/sms/categorize'
 import { useStore } from '../store/Store'
 import { useExtras } from '../store/Extras'
+import { startAudioRecording, isAudioRecordingSupported, type RecorderHandle } from '../lib/audioRecorder'
 
 type SpeechRecognitionResultItem = { transcript: string }
 type SpeechRecognitionResultList = ArrayLike<SpeechRecognitionResultItem> & { isFinal?: boolean }
@@ -58,9 +59,13 @@ export function VoiceSheet({
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [listening, setListening] = useState(false)
+  const [processing, setProcessing] = useState(false)
+  const [audioLevel, setAudioLevel] = useState(0)
   const [accountId, setAccountId] = useState(() => activeAccounts[0]?.id ?? '')
   const [categoryId, setCategoryId] = useState('')
+  const [aiDraft, setAiDraft] = useState<VoiceDraft | null>(null)
 
+  const recorderRef = useRef<RecorderHandle | null>(null)
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const isSessionActiveRef = useRef(false)
   const finalTranscriptRef = useRef('')
@@ -68,9 +73,12 @@ export function VoiceSheet({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
 
   useScrollFocusedIntoView()
-  const draft = parseVoiceCommand(text, activeAccounts)
 
-  const kind = draft?.kind ?? 'expense'
+  // Calculate local draft as fallback or live complement
+  const localDraft = useMemo(() => parseVoiceCommand(text, activeAccounts), [text, activeAccounts])
+  const effectiveDraft: VoiceDraft | null = aiDraft || localDraft
+
+  const kind = effectiveDraft?.kind ?? 'expense'
   const availableCategories = useMemo(
     () => categoriesFor(kind, customCategories),
     [kind, customCategories],
@@ -78,24 +86,27 @@ export function VoiceSheet({
 
   // Automatically select recognized bank account
   useEffect(() => {
-    if (draft?.matchedAccountId) {
-      setAccountId(draft.matchedAccountId)
+    if (effectiveDraft?.matchedAccountId) {
+      const exists = activeAccounts.some((a) => a.id === effectiveDraft.matchedAccountId)
+      if (exists) {
+        setAccountId(effectiveDraft.matchedAccountId)
+      }
     }
-  }, [draft?.matchedAccountId])
+  }, [effectiveDraft?.matchedAccountId, activeAccounts])
 
   // Suggest category automatically when voice recognition identifies note or amount
   useEffect(() => {
-    if (draft && text) {
-      const suggested = suggestCategory(text, draft.kind === 'income' ? 'INCOME' : 'EXPENSE')
+    if (effectiveDraft && text) {
+      const suggested = suggestCategory(effectiveDraft.note || text, effectiveDraft.kind === 'income' ? 'INCOME' : 'EXPENSE')
       if (suggested) {
         setCategoryId(suggested)
       } else if (!categoryId) {
-        setCategoryId(draft.kind === 'income' ? 'other-inc' : 'other-exp')
+        setCategoryId(effectiveDraft.kind === 'income' ? 'other-inc' : 'other-exp')
       }
     }
-  }, [text, draft?.kind])
+  }, [text, effectiveDraft, categoryId])
 
-  // Clean up speech recognition and timers on unmount
+  // Clean up recording, speech recognition and timers on unmount
   useEffect(() => {
     return () => {
       isSessionActiveRef.current = false
@@ -109,165 +120,197 @@ export function VoiceSheet({
         } catch {}
         recognitionRef.current = null
       }
+      if (recorderRef.current) {
+        try {
+          recorderRef.current.cancel()
+        } catch {}
+        recorderRef.current = null
+      }
     }
   }, [])
 
   async function startListening() {
     setError(null)
+    setAiDraft(null)
     finalTranscriptRef.current = text.trim()
 
-    const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent)
-
-    // On iOS Safari: grant microphone permission via getUserMedia and immediately release hardware track
-    if (isIOS && navigator.mediaDevices?.getUserMedia) {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        stream.getTracks().forEach((track) => track.stop())
-      } catch (mediaErr) {
-        const errName = mediaErr instanceof DOMException ? mediaErr.name : ''
-        if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
-          setError(
-            'مجوز دسترسی به میکروفن در آیفون مسدود است. لطفاً از نوار آدرس یا Settings > Safari > Microphone دسترسی را فعال کنید، یا از دکمه میکروفن روی کیبورد در کادر زیر استفاده نمایید.'
-          )
-          return
-        }
-      }
-    }
-
-    const SpeechCtor = speechCtor()
-    if (!SpeechCtor) {
-      setError(
-        'مرورگر شما از تبدیل گفتار پشتیبانی نمی‌کند. می‌توانید متن را در کادر زیر بنویسید یا از دکمه میکروفن کیبورد گوشی استفاده کنید.'
-      )
+    if (!isAudioRecordingSupported()) {
+      setError('مرورگر شما دسترسی به ضبط صدا را پشتیبانی نمی‌کند. لطفاً از مرورگر استاندارد (کروم یا سافاری) استفاده کنید.')
       return
     }
 
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.abort()
-      } catch {}
-      recognitionRef.current = null
-    }
-
     try {
-      const rec = new SpeechCtor()
-      recognitionRef.current = rec
-      rec.lang = 'fa-IR'
-
-      const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-      rec.continuous = !isMobile
-      rec.interimResults = true
-
-      rec.onstart = () => {
-        isSessionActiveRef.current = true
-        setListening(true)
-        setError(null)
-      }
-
-      rec.onresult = (event) => {
-        let interim = ''
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const res = event.results[i]
-          if (res && res[0]) {
-            const transcriptChunk = res[0].transcript.trim()
-            if (res.isFinal) {
-              finalTranscriptRef.current = (finalTranscriptRef.current + ' ' + transcriptChunk).trim()
-            } else {
-              interim += ' ' + transcriptChunk
-            }
-          }
-        }
-
-        const combinedText = (finalTranscriptRef.current + ' ' + interim).trim()
-        const clean = deduplicateWords(combinedText)
-        if (clean) {
-          setText(clean)
-          setError(null)
-        }
-
-        // Reset silence timer on incoming speech: wait for 3.2 seconds of silence before finishing
-        if (silenceTimerRef.current) {
-          clearTimeout(silenceTimerRef.current)
-        }
-        silenceTimerRef.current = setTimeout(() => {
-          if (isSessionActiveRef.current) {
-            stopListening()
-          }
-        }, 3200)
-      }
-
-      rec.onerror = (event) => {
-        const err = event?.error || ''
-        if (err === 'no-speech' || err === 'aborted') {
-          return
-        }
-        if (err === 'not-allowed' || err === 'service-not-allowed') {
-          if (isIOS) {
-            setError(
-              'دسترسی به گفتار در آیفون مسدود است. مطمئن شوید گزینه Dictation در مسیر Settings > General > Keyboard فعال است، یا از دکمه میکروفن روی کیبورد در کادر زیر استفاده نمایید.'
-            )
-          } else {
-            setError('مجوز دسترسی به میکروفن فعال نیست. لطفاً از نوار آدرس مرورگر به حساب‌یار دسترسی میکروفن دهید.')
-          }
-        } else if (err === 'audio-capture') {
-          setError('میکروفن دستگاه در دسترس نیست یا توسط برنامه دیگری اشغال شده است.')
-        } else if (err === 'network') {
-          setError('خطای اتصال به سرور تبدیل گفتار. وضعیت اینترنت را بررسی کنید.')
-        } else {
-          setError(`خطا در دریافت صدا (${err}). لطفاً مجدداً امتحان کنید.`)
-        }
-        stopListening()
-      }
-
-      rec.onend = () => {
-        if (isSessionActiveRef.current) {
-          // If session is still active and user did not stop it, restart to avoid cutting off natural speech pauses
-          try {
-            rec.start()
-          } catch {
-            stopListening()
-          }
-        } else {
-          setListening(false)
-        }
-      }
-
-      rec.start()
+      // 1. Start audio recording via getUserMedia (works reliably on iOS 11+ and Android)
+      const handle = await startAudioRecording((level) => {
+        setAudioLevel(level)
+      })
+      recorderRef.current = handle
       isSessionActiveRef.current = true
       setListening(true)
+      setProcessing(false)
+      setError(null)
+
+      // 2. Concurrently run SpeechRecognition if available (Chrome/Android) for progressive live text preview
+      // Silently swallow any recognition errors on iOS/WebKit without breaking audio recording
+      const SpeechCtor = speechCtor()
+      if (SpeechCtor) {
+        try {
+          const rec = new SpeechCtor()
+          recognitionRef.current = rec
+          rec.lang = 'fa-IR'
+          rec.continuous = true
+          rec.interimResults = true
+
+          rec.onresult = (event) => {
+            let interim = ''
+            for (let i = event.resultIndex; i < event.results.length; i++) {
+              const res = event.results[i]
+              if (res && res[0]) {
+                const chunk = res[0].transcript.trim()
+                if (res.isFinal) {
+                  finalTranscriptRef.current = (finalTranscriptRef.current + ' ' + chunk).trim()
+                } else {
+                  interim += ' ' + chunk
+                }
+              }
+            }
+            const combined = (finalTranscriptRef.current + ' ' + interim).trim()
+            const clean = deduplicateWords(combined)
+            if (clean) {
+              setText(clean)
+            }
+
+            // Generous silence timeout (4.5s) to avoid rushing or cutting off natural speech
+            if (silenceTimerRef.current) {
+              clearTimeout(silenceTimerRef.current)
+            }
+            silenceTimerRef.current = setTimeout(() => {
+              if (isSessionActiveRef.current) {
+                void stopListening()
+              }
+            }, 4500)
+          }
+
+          rec.onerror = () => {
+            // Swallow speech recognition error: server Gemini audio transcription will process the audio recording!
+          }
+
+          rec.onend = () => {
+            if (isSessionActiveRef.current) {
+              try {
+                rec.start()
+              } catch {}
+            }
+          }
+
+          rec.start()
+        } catch {
+          // If Web Speech fails to initialize, standard audio recording continues
+        }
+      }
     } catch (err) {
       isSessionActiveRef.current = false
       setListening(false)
-      const msg = err instanceof Error ? err.message : String(err)
-      setError('خطا در راه‌اندازی میکروفن: ' + msg)
+      const errName = err instanceof DOMException ? err.name : ''
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+        setError('مجوز دسترسی به میکروفن فعال نیست. لطفاً در تنظیمات مرورگر به حساب‌یار اجازه دسترسی دهید.')
+      } else {
+        const msg = err instanceof Error ? err.message : String(err)
+        setError('خطا در دسترسی به میکروفن: ' + msg)
+      }
     }
   }
 
-  function stopListening() {
+  async function stopListening() {
     isSessionActiveRef.current = false
     if (silenceTimerRef.current) {
       clearTimeout(silenceTimerRef.current)
       silenceTimerRef.current = null
     }
+
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop()
       } catch {}
       recognitionRef.current = null
     }
+
+    const recorder = recorderRef.current
+    if (!recorder) {
+      setListening(false)
+      return
+    }
+
     setListening(false)
+    setProcessing(true)
+    setError(null)
+
+    try {
+      const { base64, mimeType } = await recorder.stop()
+      recorderRef.current = null
+
+      // Send recorded audio to server for Gemini Persian transcription & parsing
+      const res = await fetch('/api/v1/voice/transcribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audioBase64: base64,
+          mimeType,
+          accounts: activeAccounts.map((a) => ({ id: a.id, name: a.name })),
+        }),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        if (data.success) {
+          const rawTranscript = (data.transcript || '').trim()
+          if (rawTranscript) {
+            setText(rawTranscript)
+            finalTranscriptRef.current = rawTranscript
+          }
+          if (data.draft) {
+            setAiDraft({
+              kind: data.draft.kind,
+              amount: data.draft.amount,
+              note: data.draft.note,
+              matchedAccountId: data.draft.matchedAccountId || undefined,
+              matchedAccountName: data.draft.matchedAccountName || undefined,
+            })
+            if (data.draft.matchedAccountId) {
+              setAccountId(data.draft.matchedAccountId)
+            }
+          }
+        } else {
+          // If AI server failed or had no voice, check if client captured any text
+          if (!text.trim()) {
+            setError('صدایی با وضوح کافی دریافت نشد. لطفاً دوباره صحبت کنید.')
+          }
+        }
+      } else {
+        if (!text.trim()) {
+          setError('خطا در ارتباط با سرور پردازش گفتار. لطفاً دوباره امتحان کنید.')
+        }
+      }
+    } catch {
+      if (!text.trim()) {
+        setError('خطا در ارسال فایل صوتی. وضعیت شبکه را بررسی کنید.')
+      }
+    } finally {
+      setProcessing(false)
+      setAudioLevel(0)
+    }
   }
 
   function toggleListening() {
     if (listening) {
-      stopListening()
+      void stopListening()
     } else {
       void startListening()
     }
   }
 
   async function handleConfirm() {
-    if (!draft) return
+    if (!effectiveDraft) return
     const account = activeAccounts.find((a) => a.id === accountId) || activeAccounts[0]
     if (!account) {
       setError('لطفاً ابتدا حداقل یک حساب بانکی یا نقدی ایجاد کنید.')
@@ -276,11 +319,11 @@ export function VoiceSheet({
     setSaving(true)
     try {
       await addQuickEntry({
-        kind: draft.kind,
-        amount: draft.amount,
+        kind: effectiveDraft.kind,
+        amount: effectiveDraft.amount,
         accountId: account.id,
-        categoryId: categoryId || (draft.kind === 'income' ? 'other-inc' : 'other-exp'),
-        note: draft.note || (draft.kind === 'income' ? 'درآمد صوتی' : 'هزینه صوتی'),
+        categoryId: categoryId || (effectiveDraft.kind === 'income' ? 'other-inc' : 'other-exp'),
+        note: effectiveDraft.note || (effectiveDraft.kind === 'income' ? 'درآمد صوتی' : 'هزینه صوتی'),
       })
       notifyUser('تراکنش صوتی با موفقیت ثبت شد ✨')
       onClose()
@@ -302,7 +345,7 @@ export function VoiceSheet({
             <span className="voice-modal-sparkle">✨</span>
             <div>
               <h2 className="voice-modal-title">دستیار صوتی هوشمند حساب‌یار</h2>
-              <p className="voice-modal-subtitle">با گفتار طبیعی یا تایپ، تراکنش خود را آنی ثبت کنید</p>
+              <p className="voice-modal-subtitle">با گفتار طبیعی به زبان فارسی، تراکنش خود را ثبت کنید</p>
             </div>
           </div>
           <button type="button" className="voice-modal-close" onClick={onClose} aria-label="بستن">
@@ -313,27 +356,46 @@ export function VoiceSheet({
         {/* Central Orb / Microphone Visualizer */}
         <div className="voice-orb-container">
           <div
-            className={`voice-glow-orb${listening ? ' is-listening' : ''}`}
-            onClick={toggleListening}
+            className={`voice-glow-orb${listening ? ' is-listening' : ''}${processing ? ' is-processing' : ''}`}
+            onClick={processing ? undefined : toggleListening}
             role="button"
             tabIndex={0}
-            title={listening ? 'توقف و ثبت صحبت' : 'شروع ضبط صدا'}
+            style={{
+              transform: listening && audioLevel > 5 ? `scale(${1 + Math.min(0.2, (audioLevel / 100) * 0.2)})` : undefined,
+            }}
+            title={listening ? 'توقف و ثبت صحبت' : processing ? 'در حال پردازش گفتار…' : 'شروع ضبط صدا'}
           >
             <div className="voice-orb-inner">
-              <span className="voice-orb-icon">{listening ? '🎙️' : '🎤'}</span>
+              <span className="voice-orb-icon">
+                {processing ? '⏳' : listening ? '🎙️' : '🎤'}
+              </span>
             </div>
           </div>
 
           {/* Sound waves animation bars */}
           {listening ? (
             <div className="voice-bars-row">
-              {[0, 1, 2, 3, 4, 5, 6].map((idx) => (
-                <span key={idx} className="voice-bar-item" />
-              ))}
+              {[0, 1, 2, 3, 4, 5, 6].map((idx) => {
+                const height = Math.max(8, Math.min(38, 8 + (audioLevel / 100) * 30 * (1 + (idx % 3) * 0.2)))
+                return (
+                  <span
+                    key={idx}
+                    className="voice-bar-item"
+                    style={{
+                      height: `${height}px`,
+                      animationPlayState: audioLevel > 5 ? 'running' : 'paused',
+                    }}
+                  />
+                )
+              })}
+            </div>
+          ) : processing ? (
+            <div className="voice-tap-hint" style={{ color: 'var(--hy-teal)' }}>
+              ✨ در حال تحلیل هوشمند گفتار، استخراج مبلغ و حساب بانکی…
             </div>
           ) : (
             <div className="voice-tap-hint">
-              {text ? 'برای ویرایش یا ضبط مجدد لمس کنید' : 'برای شروع صحبت، روی میکروفن لمس کنید'}
+              {text ? 'برای ضبط مجدد یا صحبت روی میکروفن لمس کنید' : 'برای شروع صحبت، روی میکروفن لمس کنید'}
             </div>
           )}
         </div>
@@ -342,15 +404,20 @@ export function VoiceSheet({
         <div className="voice-transcript-card">
           <div className="voice-transcript-header">
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--hy-text-secondary)' }}>
-              {listening ? '🔴 در حال شنیدن گفتار شما (بدون عجله صحبت کنید)…' : 'متن فرمان صوتی (دقیق و قابل ویرایش):'}
+              {listening
+                ? '🔴 در حال شنیدن گفتار شما (بدون عجله صحبت کنید)…'
+                : processing
+                ? '⏳ در حال تبدیل گفتار به متن فارسی…'
+                : 'متن فرمان صوتی (دقیق و قابل ویرایش):'}
             </span>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              {text && (
+              {text && !listening && !processing && (
                 <button
                   type="button"
                   className="voice-clear-btn"
                   onClick={() => {
                     setText('')
+                    setAiDraft(null)
                     finalTranscriptRef.current = ''
                   }}
                 >
@@ -364,13 +431,17 @@ export function VoiceSheet({
               ref={textareaRef}
               className="voice-text-highlight"
               value={text}
+              disabled={listening || processing}
               onChange={(e) => {
                 setText(e.target.value)
+                setAiDraft(null)
                 finalTranscriptRef.current = e.target.value
               }}
               placeholder={
                 listening
                   ? 'در حال گوش دادن... بگویید مثلاً: پنجاه هزار تومان کرایه تاکسی بانک ملت'
+                  : processing
+                  ? 'در حال پردازش هوشمند صدا...'
                   : 'روی میکروفن لمس کرده و صحبت کنید، یا متن را اینجا بنویسید...'
               }
               rows={2}
@@ -393,7 +464,7 @@ export function VoiceSheet({
           </div>
         </div>
 
-        {/* Quick Example Chips & iOS Helper */}
+        {/* Quick Example Chips */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div className="voice-chips-scroll">
             <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)', alignSelf: 'center', flexShrink: 0 }}>
@@ -411,26 +482,13 @@ export function VoiceSheet({
                 className="voice-chip-btn"
                 onClick={() => {
                   setText(sample)
+                  setAiDraft(null)
                   finalTranscriptRef.current = sample
                 }}
               >
                 {sample}
               </button>
             ))}
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-            <button
-              type="button"
-              className="cat-mini"
-              style={{ fontSize: 11, padding: '3px 10px', opacity: 0.85 }}
-              onClick={() => {
-                textareaRef.current?.focus()
-                notifyUser('کادر متن فعال شد؛ می‌توانید از دکمه میکروفن 🎙️ روی کیبورد گوشی صحبت کنید')
-              }}
-            >
-              ⌨️ فعال‌سازی کیبورد صوتی (iOS و اندروید)
-            </button>
           </div>
         </div>
 
@@ -442,28 +500,28 @@ export function VoiceSheet({
         )}
 
         {/* Parsed Draft Result Preview Card */}
-        {draft && (
-          <div className={`voice-draft-card ${draft.kind === 'income' ? 'is-income' : 'is-expense'}`}>
+        {effectiveDraft && (
+          <div className={`voice-draft-card ${effectiveDraft.kind === 'income' ? 'is-income' : 'is-expense'}`}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
                 <span className="voice-draft-badge">
-                  {draft.kind === 'income' ? '🟢 واریز / درآمد شناسایی شد' : '🔴 برداشت / هزینه شناسایی شد'}
+                  {effectiveDraft.kind === 'income' ? '🟢 واریز / درآمد شناسایی شد' : '🔴 برداشت / هزینه شناسایی شد'}
                 </span>
                 <div className="voice-draft-amount">
-                  {currencyUnit === 'IRT' ? formatMoney(draft.amount) : `${formatRial(draft.amount)} ریال`}
+                  {currencyUnit === 'IRT' ? formatMoney(effectiveDraft.amount) : `${formatRial(effectiveDraft.amount)} ریال`}
                 </div>
-                {draft.note && (
+                {effectiveDraft.note && (
                   <div className="voice-draft-note">
-                    بابت: <strong>{draft.note}</strong>
+                    بابت: <strong>{effectiveDraft.note}</strong>
                   </div>
                 )}
-                {draft.matchedAccountName && (
+                {effectiveDraft.matchedAccountName && (
                   <div style={{ fontSize: 11, color: 'var(--hy-teal)', marginTop: 4, fontWeight: 700 }}>
-                    🏦 حساب شناسایی‌شده از گفتار: <b>{draft.matchedAccountName}</b>
+                    🏦 حساب شناسایی‌شده از گفتار: <b>{effectiveDraft.matchedAccountName}</b>
                   </div>
                 )}
               </div>
-              <div className="voice-draft-icon">{draft.kind === 'income' ? '💰' : '🛒'}</div>
+              <div className="voice-draft-icon">{effectiveDraft.kind === 'income' ? '💰' : '🛒'}</div>
             </div>
 
             {/* Account & Category Selectors */}
@@ -508,18 +566,19 @@ export function VoiceSheet({
           <button
             type="button"
             className={`voice-listen-toggle-btn${listening ? ' active' : ''}`}
+            disabled={processing}
             onClick={toggleListening}
           >
-            {listening ? '⏹️ پایان صحبت و تکمیل' : '🎙️ شروع صحبت'}
+            {processing ? '⏳ در حال پردازش گفتار…' : listening ? '⏹️ پایان صحبت و پردازش' : '🎙️ شروع صحبت'}
           </button>
 
           <button
             type="button"
             className="cta-confirm voice-confirm-btn"
-            disabled={!draft || saving || activeAccounts.length === 0}
+            disabled={!effectiveDraft || saving || processing || activeAccounts.length === 0}
             onClick={() => void handleConfirm()}
           >
-            {saving ? 'در حال ثبت…' : '✨ تایید و ثبت تراکنش'}
+            {saving ? 'در حال ثبت…' : processing ? 'در حال پردازش گفتار…' : '✨ تایید و ثبت تراکنش'}
           </button>
         </div>
       </div>

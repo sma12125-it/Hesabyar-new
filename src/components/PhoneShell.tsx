@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 function useFullBleedClass() {
   useEffect(() => {
     const nav = navigator as Navigator & { standalone?: boolean }
-    const query = window.matchMedia('(max-width: 520px), (display-mode: standalone), (display-mode: fullscreen)')
+    const query = window.matchMedia('(max-width: 768px), (max-height: 560px), (orientation: landscape), (display-mode: standalone), (display-mode: fullscreen)')
     
     let isInputFocused = false
 
@@ -51,6 +51,8 @@ function useFullBleedClass() {
     apply()
     query.addEventListener('change', apply)
     window.addEventListener('resize', apply)
+    window.addEventListener('orientationchange', apply)
+    window.screen?.orientation?.addEventListener?.('change', apply)
     window.visualViewport?.addEventListener('resize', apply)
     window.visualViewport?.addEventListener('scroll', apply)
     document.addEventListener('focusin', handleFocusIn)
@@ -59,6 +61,8 @@ function useFullBleedClass() {
     return () => {
       query.removeEventListener('change', apply)
       window.removeEventListener('resize', apply)
+      window.removeEventListener('orientationchange', apply)
+      window.screen?.orientation?.removeEventListener?.('change', apply)
       window.visualViewport?.removeEventListener('resize', apply)
       window.visualViewport?.removeEventListener('scroll', apply)
       document.removeEventListener('focusin', handleFocusIn)

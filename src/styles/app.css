@@ -37,6 +37,80 @@ textarea {
   flex-direction: column;
 }
 
+/* ═════════════════════════════════════════════════════════════════
+   ORIENTATION ROTATION & FULLBLEED SCREEN SUPPORT (عمودی و افقی)
+   Allows seamless rotation between Portrait and Landscape
+   ═════════════════════════════════════════════════════════════════ */
+html.hy-fullbleed .page-stage,
+@media (max-width: 768px) {
+  .page-stage {
+    padding: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 100% !important;
+  }
+  .device {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  .device-screen {
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 0 !important;
+  }
+}
+
+@media (orientation: landscape) {
+  .page-stage {
+    padding: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 100% !important;
+  }
+  .device {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  .device-screen {
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 0 !important;
+  }
+}
+
+@media (orientation: landscape) and (max-height: 560px) {
+  .tab-bar {
+    height: 52px !important;
+    padding: 4px 8px calc(4px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+  .tab.tab-center-action {
+    flex: 0 0 54px !important;
+    width: 54px !important;
+  }
+  .tab.tab-center-action .center-action-circle {
+    width: 44px !important;
+    height: 44px !important;
+    min-width: 44px !important;
+    min-height: 44px !important;
+    transform: translateY(-10px) !important;
+  }
+  .app-scroll {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
 .app {
   flex: 1;
   min-height: 0;
@@ -3200,6 +3274,8 @@ button.cat-mini.active {
 .voice-assistant-modal {
   width: 100%;
   max-width: 480px;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
   background: var(--glass-chrome-sheet, var(--hy-card-bg, #151922));
   border: 1.5px solid var(--hy-border-color, rgba(139, 92, 246, 0.35));
   border-radius: 28px;
@@ -3209,6 +3285,34 @@ button.cat-mini.active {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+@media (orientation: landscape) and (max-height: 580px) {
+  .voice-assistant-modal {
+    max-height: 94vh;
+    padding: 12px 16px;
+    gap: 8px;
+    border-radius: 20px;
+  }
+  .voice-orb-container {
+    min-height: 80px;
+    padding: 4px 0;
+  }
+  .voice-glow-orb {
+    width: 60px;
+    height: 60px;
+  }
+  .voice-orb-inner {
+    width: 46px;
+    height: 46px;
+  }
+  .voice-orb-icon {
+    font-size: 20px;
+  }
+  .voice-bars-row {
+    height: 32px;
+    margin-top: 8px;
+  }
 }
 
 .voice-modal-header {
@@ -3309,6 +3413,11 @@ button.cat-mini.active {
 .voice-glow-orb.is-listening {
   background: radial-gradient(circle at 35% 35%, #10b981 0%, #047857 65%, #064e3b 100%);
   animation: voiceOrbPulseAnim 1.6s ease-in-out infinite;
+}
+
+.voice-glow-orb.is-processing {
+  background: radial-gradient(circle at 35% 35%, #06b6d4 0%, #0891b2 65%, #164e63 100%);
+  animation: voiceOrbPulseAnim 1s ease-in-out infinite;
 }
 
 .voice-orb-inner {
