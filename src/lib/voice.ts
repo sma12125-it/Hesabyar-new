@@ -65,9 +65,14 @@ export interface VoiceDraft {
   kind: 'expense' | 'income'
   amount: number
   note: string
+  matchedAccountId?: string
+  matchedAccountName?: string
 }
 
-export function parseVoiceCommand(raw: string): VoiceDraft | null {
+export function parseVoiceCommand(
+  raw: string,
+  accounts?: Array<{ id: string; name: string }>,
+): VoiceDraft | null {
   const text = raw.replace(/[۰-۹]/g, (d) => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d))).trim()
   if (!text) return null
   const kind: VoiceDraft['kind'] = /درآمد|واریز|حقوق|طلب|پاداش/.test(text) ? 'income' : 'expense'
@@ -106,15 +111,46 @@ export function parseVoiceCommand(raw: string): VoiceDraft | null {
     amount *= 10
   }
 
-  // Extract note by filtering out numbers and keywords
+  // Smart matching for bank or cash account from active accounts list
+  let matchedAccountId: string | undefined
+  let matchedAccountName: string | undefined
+  const bankFilterTokens = new Set<string>(['بانک', 'حساب', 'کارت'])
+
+  if (accounts && accounts.length > 0) {
+    const normText = text.replace(/[\s\u200c]+/g, ' ')
+    for (const acc of accounts) {
+      const cleanAccName = acc.name.trim()
+      const normAccName = cleanAccName.replace(/[\s\u200c]+/g, ' ')
+      // Direct substring match
+      if (normText.includes(normAccName)) {
+        matchedAccountId = acc.id
+        matchedAccountName = acc.name
+        normAccName.split(/\s+/).forEach((t) => bankFilterTokens.add(t))
+        break
+      }
+      // Bank name keywords matching (e.g., ملت, ملی, صادرات, سامان, بلو, پاسارگاد, سپه, تجارت, آینده, رسالت, کشاورزی, شهر, مسکن, رفاه, نقد)
+      const subWords = normAccName.replace(/بانک|حساب|کارت/g, '').trim().split(/\s+/)
+      const matchWord = subWords.find((w) => w.length >= 2 && normText.includes(w))
+      if (matchWord) {
+        matchedAccountId = acc.id
+        matchedAccountName = acc.name
+        normAccName.split(/\s+/).forEach((t) => bankFilterTokens.add(t))
+        bankFilterTokens.add(matchWord)
+        break
+      }
+    }
+  }
+
+  // Extract note by filtering out numbers, amounts, and bank keywords
   const tokens = text.split(/[\s،,]+/)
   const noteTokens = tokens.filter((token) => {
     if (!token) return false
     if (/^\d+$/.test(token.replace(/,/g, ''))) return false
     if (FILTER_KEYWORDS.has(token)) return false
+    if (bankFilterTokens.has(token)) return false
     return true
   })
   const note = noteTokens.join(' ').trim()
 
-  return { kind, amount, note }
+  return { kind, amount, note, matchedAccountId, matchedAccountName }
 }

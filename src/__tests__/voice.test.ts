@@ -20,6 +20,24 @@ describe('voice and reports', () => {
     expect(parseVoiceCommand('درآمد ۲ میلیون حقوق')?.kind).toBe('income')
     expect(parseVoiceCommand('۵۰ هزار تومان خرید میوه')).toMatchObject({ kind: 'expense', amount: 500_000, note: 'میوه' })
     expect(parseVoiceCommand('صد و پنجاه هزار تومن بنزین')).toMatchObject({ kind: 'expense', amount: 1_500_000, note: 'بنزین' })
+
+    const sampleAccounts = [
+      { id: 'acc-mellat', name: 'بانک ملت' },
+      { id: 'acc-blu', name: 'بلوبانک' },
+    ]
+    expect(parseVoiceCommand('۵۰ هزار تومن کرایه تاکسی بانک ملت', sampleAccounts)).toMatchObject({
+      kind: 'expense',
+      amount: 500_000,
+      note: 'کرایه تاکسی',
+      matchedAccountId: 'acc-mellat',
+      matchedAccountName: 'بانک ملت',
+    })
+    expect(parseVoiceCommand('بانک ملت ۵۰ هزار تومن کرایه تاکسی', sampleAccounts)).toMatchObject({
+      kind: 'expense',
+      amount: 500_000,
+      note: 'کرایه تاکسی',
+      matchedAccountId: 'acc-mellat',
+    })
   })
 
   it('sums expenses of the current Jalali month by category', () => {

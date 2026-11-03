@@ -6,7 +6,18 @@ import { apiRouter } from './src/server/apiRouter'
 import { createMcpRouter } from './mcp'
 
 const app = express()
-const PORT = Number(process.env.PORT) || 3000
+
+function getPort(): number {
+  const args = process.argv.slice(2)
+  const portIdx = args.indexOf('--port')
+  if (portIdx !== -1 && args[portIdx + 1]) {
+    const parsed = Number(args[portIdx + 1])
+    if (!isNaN(parsed) && parsed > 0) return parsed
+  }
+  return Number(process.env.PORT) || 3000
+}
+
+const PORT = getPort()
 const isProd = process.env.NODE_ENV === 'production'
 
 app.use(cors())

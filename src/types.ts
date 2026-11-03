@@ -311,6 +311,10 @@ export interface DongExpenseItem {
   date?: string
   /** Set when a shared دونگ edits this expense. Absent on older rows. */
   updatedAt?: number
+  /** Member / user handle or ID who created this expense */
+  createdById?: string
+  /** Member / user display name who created this expense */
+  createdByName?: string
 }
 
 /** A دونگ participant linked to another Hesabyar user by handle. */

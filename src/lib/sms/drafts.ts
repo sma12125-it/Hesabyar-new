@@ -231,6 +231,30 @@ export async function confirmDraft(
   await store.save(state)
 }
 
+export async function ingestMultipleBankSms(
+  text: string,
+  store: SmsStateStore = kvStore,
+): Promise<{ added: number; duplicates: number; errors: number }> {
+  const rawSegments = text.split(/(?:\r?\n\s*\r?\n|[-=_]{3,}|(?=(?:بانک|واریز|برداشت|خرید|انتقال)[\s\u200c]+))/g)
+  let added = 0
+  let duplicates = 0
+  let errors = 0
+
+  for (const seg of rawSegments) {
+    const trimmed = seg.trim()
+    if (!trimmed || trimmed.length < 8) continue
+    if (!/واریز|برداشت|خرید|انتقال|کارت|بانک|مانده|موجودی/.test(trimmed) || !/\d/.test(trimmed)) {
+      continue
+    }
+    const res = await ingestBankSms({ sender: 'بانک', body: trimmed, mode: 'manual-import' }, store)
+    if (res.status === 'created') added++
+    else if (res.status === 'duplicate') duplicates++
+    else if (res.status === 'error') errors++
+  }
+
+  return { added, duplicates, errors }
+}
+
 function remember(seen: SeenSms[], entry: SeenSms): SeenSms[] {
   const rest = seen.filter((row) => row.hash !== entry.hash)
   return [entry, ...rest].slice(0, 500)

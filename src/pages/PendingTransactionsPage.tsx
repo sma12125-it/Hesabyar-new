@@ -7,8 +7,7 @@ import { categoriesFor, getCategory } from '../lib/categories'
 import { formatPersianDate } from '../lib/dates'
 import { formatRial, toFaDigits } from '../lib/money'
 import { toRial } from '../lib/sms/normalize'
-import { confirmDraft, ingestBankSms, rejectDraft } from '../lib/sms/drafts'
-import { smsCapability } from '../lib/sms/reader'
+import { confirmDraft, ingestBankSms, ingestMultipleBankSms, rejectDraft } from '../lib/sms/drafts'
 import { useSmsDrafts } from '../lib/sms/useSmsDrafts'
 import type { DraftConfirmInput, SmsDirection, TransactionDraft } from '../lib/sms/types'
 import { notifyUser } from '../lib/sync'
@@ -19,7 +18,6 @@ export function PendingTransactionsPage({ onScroll }: { onScroll: (compact: bool
   const { pending, state } = useSmsDrafts()
   const [pasteOpen, setPasteOpen] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
-  const capability = smsCapability()
   const open = pending.find((draft) => draft.id === openId) ?? null
   const display = state?.settings.displayUnit ?? 'IRR'
 
@@ -31,7 +29,26 @@ export function PendingTransactionsPage({ onScroll }: { onScroll: (compact: bool
         </button>
         <h1>تراکنش‌های در انتظار تأیید</h1>
       </div>
-      <p className="sheet-sub sms-lead">{capability.detail}</p>
+
+      <div
+        style={{
+          padding: '12px 14px',
+          borderRadius: 14,
+          background: 'linear-gradient(135deg, rgba(37,99,235,0.12), rgba(15,118,110,0.12))',
+          border: '1px solid rgba(56, 189, 248, 0.25)',
+          marginBottom: 12,
+          fontSize: 12,
+          lineHeight: 1.8,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, color: 'var(--hy-teal)' }}>
+          <span>✨</span>
+          <span>شناسایی خودکار و هوشمند پیامک بانکی در اندروید و iOS</span>
+        </div>
+        <p style={{ margin: '4px 0 0', color: 'var(--hy-text-secondary)', fontSize: 11.5 }}>
+          در هر دو سیستم‌عامل اندروید و آیفون، به محض کپی (Copy) کردن هر پیامک بانکی و بازگشت به حساب‌یار، پیامک به صورت کاملاً خودکار شناسایی شده و در این لیست قرار می‌گیرد.
+        </p>
+      </div>
       <div className="sms-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button
           className="cta-confirm"
@@ -123,6 +140,15 @@ function SmsPasteSheet({ onClose }: { onClose: () => void }) {
     setBusy(true)
     setError(null)
     try {
+      if (body.includes('\n') && body.trim().length > 100) {
+        const batch = await ingestMultipleBankSms(body)
+        if (batch.added > 0) {
+          notifyUser(`${batch.added} پیامک بانکی با موفقیت به صف تأیید اضافه شد ✨`)
+          onClose()
+          return
+        }
+      }
+
       const result = await ingestBankSms({
         sender: sender.trim() || 'بانک',
         body,
