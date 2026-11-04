@@ -909,7 +909,19 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         notifyLocalChange()
       },
       exportLocal: async () => {
-        const [storedCheques, storedDebts, storedBudgets, storedGoals, storedReminders, storedUnit, storedVault, storedInvestments, storedDong] = await Promise.all([
+        const [
+          storedCheques,
+          storedDebts,
+          storedBudgets,
+          storedGoals,
+          storedReminders,
+          storedUnit,
+          storedVault,
+          storedInvestments,
+          storedDong,
+          storedProfile,
+          storedPlan,
+        ] = await Promise.all([
           db.getKv<Cheque[]>('cheques'),
           db.getKv<DebtLoan[]>('debts'),
           db.getKv<Budget[]>('budgets'),
@@ -919,6 +931,8 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
           db.getKv<VaultBlob>('cardVault'),
           db.getKv<InvestmentAsset[]>('investments'),
           db.getKv<DongEvent[]>('dongEvents'),
+          db.getKv<UserProfile>('userProfile'),
+          db.getKv<'free' | 'bronze' | 'vip'>('activePlanId'),
         ])
         return {
           budgets: storedBudgets ?? budgetsRef.current,
@@ -930,6 +944,8 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
           reminders: storedReminders ?? remindersRef.current,
           currencyUnit: storedUnit ?? currencyUnitRef.current,
           cardVault: storedVault ?? blobRef.current,
+          userProfile: storedProfile ?? userProfile,
+          activePlanId: storedPlan ?? activePlanId,
         }
       },
       importLocal: async (data) => {
@@ -973,6 +989,15 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
           remindersRef.current = data.reminders as ReminderSettings
           setReminderState(data.reminders as ReminderSettings)
           await db.setKv('reminders', data.reminders)
+        }
+        if (data.userProfile && typeof data.userProfile === 'object') {
+          setUserProfile(data.userProfile as UserProfile)
+          await db.setKv('userProfile', data.userProfile)
+          window.dispatchEvent(new Event('hy-profile-updated'))
+        }
+        if (data.activePlanId === 'free' || data.activePlanId === 'bronze' || data.activePlanId === 'vip') {
+          setActivePlanIdState(data.activePlanId)
+          await db.setKv('activePlanId', data.activePlanId)
         }
         if (data.cardVault && typeof data.cardVault === 'object') {
           const nextBlob = data.cardVault as VaultBlob

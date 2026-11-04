@@ -41,7 +41,30 @@ textarea {
    ORIENTATION ROTATION & FULLBLEED SCREEN SUPPORT (عمودی و افقی)
    Allows seamless rotation between Portrait and Landscape
    ═════════════════════════════════════════════════════════════════ */
-html.hy-fullbleed .page-stage,
+html.hy-fullbleed .page-stage {
+  padding: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 100% !important;
+}
+
+html.hy-fullbleed .device {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 100% !important;
+  max-height: 100% !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+html.hy-fullbleed .device-screen {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 0 !important;
+}
+
 @media (max-width: 768px) {
   .page-stage {
     padding: 0 !important;

@@ -9,7 +9,9 @@ import './styles/themes.css'
 
 applyTheme(getCurrentTheme())
 
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+import { warmOfflineCache } from './lib/offlineAssets'
+
+if ('serviceWorker' in navigator) {
   const hadController = Boolean(navigator.serviceWorker.controller)
   let refreshing = false
   navigator.serviceWorker.addEventListener('controllerchange', () => {
@@ -23,11 +25,16 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     sessionStorage.removeItem('hy-sw-reloaded')
     void navigator.serviceWorker
       .register(`${import.meta.env.BASE_URL}sw.js`, { updateViaCache: 'none' })
+      .then(() => {
+        // Pre-warm CacheStorage with all assets for native offline experience
+        void warmOfflineCache()
+      })
       .catch(() => {
         // Ignore service worker registration errors in embedded environments
       })
   })
 }
+
 
 function getBasename(): string {
   const base = import.meta.env.BASE_URL.replace(/\/$/, '')

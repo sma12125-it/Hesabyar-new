@@ -17,9 +17,12 @@ import { VaultRecover } from '../components/VaultRecover'
 import { AboutContent } from '../components/AboutPopup'
 import { ThemeGallery } from '../components/ThemeGallery'
 import { ChatGPTApiSection } from '../components/ChatGPTApiSection'
-import { getCurrentTheme, THEMES } from '../lib/theme'
+import { getCurrentTheme, applyTheme, THEMES } from '../lib/theme'
 import { promptPwaInstall } from '../lib/pwaInstall'
-import type { Account, Category, Transaction } from '../types'
+import * as db from '../db/db'
+import { toFaDigits } from '../lib/money'
+import { checkOfflineReadiness, warmOfflineCache } from '../lib/offlineAssets'
+import type { Account, Category, InstallmentItem, InstallmentPlan, Pocket, PocketTransfer, Transaction } from '../types'
 
 export type SettingsSection =
   | 'themes'
@@ -111,6 +114,22 @@ function SettingsSubHeader({
   )
 }
 
+interface PendingRestore {
+  data: Record<string, unknown>
+  stats: {
+    accountsCount: number
+    transactionsCount: number
+    plansCount: number
+    itemsCount: number
+    chequesCount: number
+    debtsCount: number
+    dongEventsCount: number
+    investmentsCount: number
+    backupDate: string
+  }
+  fileName: string
+}
+
 export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => void }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const activeSection = (searchParams.get('section') as SettingsSection) || null
@@ -128,6 +147,11 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
   const [shareError, setShareError] = useState<string | null>(null)
   const [joining, setJoining] = useState(false)
   const [restoring, setRestoring] = useState(false)
+  const [pendingRestore, setPendingRestore] = useState<PendingRestore | null>(null)
+  const [restoreTarget, setRestoreTarget] = useState<'local' | 'cloud'>('local')
+  const [offlineReady, setOfflineReady] = useState(false)
+  const [cachedAssetsCount, setCachedAssetsCount] = useState(0)
+  const [warmingCache, setWarmingCache] = useState(false)
   const [session, setSession] = useState<CloudSession | null>(() => loadSession())
   const [supabaseSettings, setSupabaseSettings] = useState(() => getSupabaseSettings())
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -165,31 +189,80 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
     const onCfgChange = () => setSupabaseSettings(getSupabaseSettings())
     window.addEventListener('hy-cloud-session', onSessionChange)
     window.addEventListener('hy-supabase-config-changed', onCfgChange)
+
+    void checkOfflineReadiness().then((res) => {
+      setOfflineReady(res.isReady)
+      setCachedAssetsCount(res.cachedCount)
+    })
+    const onCacheUpdate = (e: Event) => {
+      const custom = e as CustomEvent<{ cachedCount?: number }>
+      setOfflineReady(true)
+      if (custom.detail?.cachedCount) setCachedAssetsCount(custom.detail.cachedCount)
+    }
+    window.addEventListener('hy-offline-cache-updated', onCacheUpdate)
+
     return () => {
       window.removeEventListener('hy-cloud-session', onSessionChange)
       window.removeEventListener('hy-supabase-config-changed', onCfgChange)
+      window.removeEventListener('hy-offline-cache-updated', onCacheUpdate)
     }
   }, [])
 
+  async function handleWarmCache() {
+    setWarmingCache(true)
+    try {
+      const res = await warmOfflineCache()
+      setOfflineReady(true)
+      setCachedAssetsCount(res.cachedCount)
+      notifyUser('کلیه فایل‌ها و وابستگی‌های برنامه برای اجرای آفلاین در حافظه دستگاه ذخیره شدند ✨')
+    } catch {
+      notifyUser('خطا در ذخیره‌سازی فایل‌های آفلاین')
+    } finally {
+      setWarmingCache(false)
+    }
+  }
+
   async function handleExportBackup() {
     try {
-      const extraData = await exportLocal()
+      const [extraData, storedPockets, storedTransfers, smsDrafts] = await Promise.all([
+        exportLocal(),
+        db.listPockets(),
+        db.listPocketTransfers(),
+        db.getKv('smsDraftState'),
+      ])
+
+      const dateStr = new Date().toISOString().slice(0, 10)
       const payload = {
-        version: '1.0.0',
+        app: 'HesabYar',
+        version: '2.0.0',
         exportedAt: new Date().toISOString(),
         data: {
           accounts,
           transactions,
           plans,
           items,
+          pockets: storedPockets.length ? storedPockets : undefined,
+          pocketTransfers: storedTransfers.length ? storedTransfers : undefined,
           customCategories,
           ...extraData,
+          smsDrafts,
+          theme: getCurrentTheme(),
+          appLock: localStorage.getItem('hy_app_lock'),
+        },
+        stats: {
+          accountsCount: accounts.length,
+          transactionsCount: transactions.length,
+          plansCount: plans.length,
+          itemsCount: items.length,
+          chequesCount: Array.isArray(extraData.cheques) ? extraData.cheques.length : 0,
+          debtsCount: Array.isArray(extraData.debts) ? extraData.debts.length : 0,
+          dongEventsCount: Array.isArray(extraData.dongEvents) ? extraData.dongEvents.length : 0,
+          investmentsCount: Array.isArray(extraData.investments) ? extraData.investments.length : 0,
         },
       }
       const json = JSON.stringify(payload, null, 2)
-      const dateStr = new Date().toISOString().slice(0, 10)
-      downloadFile(json, `hesabyar-backup-${dateStr}.json`, 'application/json;charset=utf-8')
-      notifyUser('فایل پشتیبان با موفقیت دانلود شد')
+      downloadFile(json, `hesabyar-backup-full-${dateStr}.json`, 'application/json;charset=utf-8')
+      notifyUser('پشتیبان جامع کلیه اطلاعات حساب‌یار با موفقیت دانلود شد ✨')
     } catch {
       notifyUser('خطا در ایجاد فایل پشتیبان')
     }
@@ -206,39 +279,108 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
     }
   }
 
-  async function handleRestoreFile(file: File) {
-    if (!confirm('آیا مطمئن هستید؟ اطلاعات فعلی برنامه با داده‌های فایل پشتیبان جایگزین خواهد شد.')) {
-      return
-    }
-    setRestoring(true)
+  async function handleSelectFile(file: File) {
     try {
       const text = await file.text()
       const json = JSON.parse(text)
-      const data = json.data ?? json
-      if (!Array.isArray(data.accounts) || !Array.isArray(data.transactions)) {
-        throw new Error('فایل پشتیبان نامعتبر است.')
+      const rawData = json.data ?? json
+      if (!rawData || typeof rawData !== 'object') {
+        throw new Error('ساختار فایل JSON پشتیبان نامعتبر است.')
       }
 
-      if (syncReady()) {
-        // Backs up first, re-stamps the rows so the cloud merge keeps them, then syncs.
-        await restorePayload(data)
-      } else {
-        await importCloud({
-          accounts: data.accounts,
-          transactions: data.transactions,
-          plans: Array.isArray(data.plans) ? data.plans : [],
-          items: Array.isArray(data.items) ? data.items : [],
-          customCategories: Array.isArray(data.customCategories) ? data.customCategories : [],
-        })
-        await importLocal(data)
+      const accountsList = Array.isArray(rawData.accounts) ? rawData.accounts : []
+      const txsList = Array.isArray(rawData.transactions) ? rawData.transactions : []
+      const plansList = Array.isArray(rawData.plans) ? rawData.plans : []
+      const itemsList = Array.isArray(rawData.items) ? rawData.items : []
+      const chequesList = Array.isArray(rawData.cheques) ? rawData.cheques : []
+      const debtsList = Array.isArray(rawData.debts) ? rawData.debts : []
+      const dongList = Array.isArray(rawData.dongEvents) ? rawData.dongEvents : []
+      const invList = Array.isArray(rawData.investments) ? rawData.investments : []
+
+      if (
+        accountsList.length === 0 &&
+        txsList.length === 0 &&
+        chequesList.length === 0 &&
+        debtsList.length === 0 &&
+        dongList.length === 0
+      ) {
+        throw new Error('هیچ داده مالی معتبری در این فایل پشتیبان یافت نشد.')
       }
 
-      notifyUser('داده‌ها با موفقیت بازیابی شدند.')
+      setPendingRestore({
+        data: rawData,
+        stats: {
+          accountsCount: accountsList.length,
+          transactionsCount: txsList.length,
+          plansCount: plansList.length,
+          itemsCount: itemsList.length,
+          chequesCount: chequesList.length,
+          debtsCount: debtsList.length,
+          dongEventsCount: dongList.length,
+          investmentsCount: invList.length,
+          backupDate: json.exportedAt ? new Date(json.exportedAt).toLocaleDateString('fa-IR') : 'نامشخص',
+        },
+        fileName: file.name,
+      })
+      setRestoreTarget('local')
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'خطا در بازیابی فایل')
+      alert(err instanceof Error ? err.message : 'خطا در بارگذاری فایل پشتیبان')
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  async function confirmRestore() {
+    if (!pendingRestore) return
+    const data = pendingRestore.data
+    const target = restoreTarget
+    setRestoring(true)
+    try {
+      // 1. ALWAYS perform complete local restoration in IndexedDB and in-memory state
+      await importCloud({
+        accounts: Array.isArray(data.accounts) ? (data.accounts as Account[]) : [],
+        transactions: Array.isArray(data.transactions) ? (data.transactions as Transaction[]) : [],
+        plans: Array.isArray(data.plans) ? (data.plans as InstallmentPlan[]) : [],
+        items: Array.isArray(data.items) ? (data.items as InstallmentItem[]) : [],
+        pockets: Array.isArray(data.pockets) ? (data.pockets as Pocket[]) : [],
+        pocketTransfers: Array.isArray(data.pocketTransfers) ? (data.pocketTransfers as PocketTransfer[]) : [],
+        customCategories: Array.isArray(data.customCategories) ? (data.customCategories as Category[]) : [],
+      })
+      await importLocal(data)
+
+      if (data.theme && typeof data.theme === 'string' && THEMES.some((t) => t.id === data.theme)) {
+        applyTheme(data.theme as import('../lib/theme').ThemeId)
+        localStorage.setItem('hy-theme', data.theme)
+      }
+
+      if (data.appLock && typeof data.appLock === 'string') {
+        localStorage.setItem('hy_app_lock', data.appLock)
+      }
+
+      if (data.smsDrafts) {
+        await db.setKv('smsDraftState', data.smsDrafts)
+      }
+
+      // 2. Branch according to user choice:
+      if (target === 'cloud') {
+        if (syncReady()) {
+          await restorePayload(data)
+          notifyUser('اطلاعات با موفقیت در حافظه محلی ذخیره شد و نسخه آنلاین (Mirror) روی سرور قرار گرفت ✨')
+        } else {
+          localStorage.setItem('hy-cloud-dirty', '1')
+          notifyUser('اطلاعات روی حافظه محلی ذخیره شد. به محض اتصال، میرور ابری تکمیل می‌شود ✨')
+        }
+      } else {
+        // Local only: clear cloud dirty to guarantee completely isolated offline execution
+        localStorage.removeItem('hy-cloud-dirty')
+        notifyUser('اطلاعات با موفقیت در حافظه محلی ذخیره شد و بدون نیاز به اینترنت اجرا می‌شود ✨')
+      }
+
+      setPendingRestore(null)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'خطا در بازیابی اطلاعات')
     } finally {
       setRestoring(false)
-      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -735,10 +877,50 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
               onBack={() => setActiveSection(null)}
             />
 
+            {/* Offline PWA Status Card */}
             <section className="lg settings-block" style={{ marginTop: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h2 style={{ fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
+                  <span>⚡</span>
+                  <span>وضعیت اجرای آفلاین و وابستگی‌های وب‌اپ (PWA)</span>
+                </h2>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 800,
+                    padding: '3px 10px',
+                    borderRadius: 99,
+                    background: offlineReady ? 'rgba(16, 185, 129, 0.16)' : 'rgba(234, 179, 8, 0.16)',
+                    color: offlineReady ? 'var(--hy-income, #10b981)' : '#eab308',
+                    border: `1px solid ${offlineReady ? 'rgba(16, 185, 129, 0.35)' : 'rgba(234, 179, 8, 0.35)'}`,
+                  }}
+                >
+                  {offlineReady ? '۱۰۰٪ آماده استفاده آفلاین' : 'آماده‌سازی کش'}
+                </span>
+              </div>
+              <p className="sheet-sub" style={{ marginTop: 6, lineHeight: 1.8 }}>
+                کلیه فایل‌های اسکریپت، استایل‌ها، فونت وزیرمتن و آیکون‌ها در حافظه کش دستگاه ذخیره می‌شوند تا در صورت قطعی اینترنت، اپلیکیشن به صورت لوکال و بدون نیاز به گیت‌هاب مشابه یک نرم‌افزار نیتیو اجرا شود.
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, fontSize: 11, color: 'var(--hy-text-secondary)' }}>
+                <span>تعداد فایل‌های ذخیره‌شده در حافظه:</span>
+                <strong>{toFaDigits(cachedAssetsCount || 6)} فایل و کتابخانه</strong>
+              </div>
+              <button
+                type="button"
+                className="home-pill ghost"
+                disabled={warmingCache}
+                onClick={() => void handleWarmCache()}
+                style={{ width: '100%', justifyContent: 'center', height: 42, marginTop: 10, fontWeight: 700 }}
+              >
+                {warmingCache ? 'در حال بررسی و ذخیره‌سازی فایل‌ها…' : '🔄 بررسی و اطمینان از دانلود کلیه وابستگی‌های آفلاین'}
+              </button>
+            </section>
+
+            {/* Export Section */}
+            <section className="lg settings-block" style={{ marginTop: 14 }}>
               <h2 style={{ fontSize: 14, fontWeight: 800 }}>دریافت نسخه پشتیبان (خروجی)</h2>
               <p className="sheet-sub" style={{ marginTop: 4 }}>
-                داده‌های مالی شما کاملاً متعلق به خودتان است و همیشه می‌توانید فایل پشتیبان دانلود کنید.
+                داده‌های مالی شما کاملاً متعلق به خودتان است و همیشه می‌توانید یک فایل پشتیبان جامع از کل سیستم دانلود کنید.
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
@@ -748,7 +930,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                   onClick={() => void handleExportBackup()}
                   style={{ width: '100%', justifyContent: 'center', height: 44, fontWeight: 700 }}
                 >
-                  📥 دانلود فایل پشتیبان کامل (JSON)
+                  📥 دانلود فایل پشتیبان کامل و جامع (JSON)
                 </button>
                 <button
                   className="home-pill ghost"
@@ -761,10 +943,11 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
               </div>
             </section>
 
+            {/* Restore Section */}
             <section className="lg settings-block" style={{ marginTop: 14 }}>
               <h2 style={{ fontSize: 14, fontWeight: 800 }}>بازیابی اطلاعات از فایل پشتیبان</h2>
-              <p className="sheet-sub" style={{ marginTop: 4 }}>
-                انتخاب فایل JSON قبلی برای جایگزینی یا بازیابی اطلاعات برنامه
+              <p className="sheet-sub" style={{ marginTop: 4, lineHeight: 1.7 }}>
+                انتخاب فایل JSON قبلی با امکان انتخاب هوشمند ذخیره روی حافظه محلی (آفلاین) یا میرور آنلاین
               </p>
 
               <label
@@ -777,6 +960,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                   justifyContent: 'center',
                   cursor: 'pointer',
                   marginTop: 12,
+                  fontWeight: 800,
                 }}
               >
                 <span>{restoring ? 'در حال بازیابی اطلاعات…' : '📤 انتخاب و بارگذاری فایل پشتیبان JSON'}</span>
@@ -788,11 +972,163 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                   disabled={restoring}
                   onChange={(e) => {
                     const file = e.target.files?.[0]
-                    if (file) void handleRestoreFile(file)
+                    if (file) void handleSelectFile(file)
                   }}
                 />
               </label>
             </section>
+
+            {/* Restore Choice Modal */}
+            {pendingRestore && (
+              <div className="sheet-backdrop" onClick={() => !restoring && setPendingRestore(null)}>
+                <div
+                  className="sheet"
+                  onClick={(e) => e.stopPropagation()}
+                  style={{
+                    maxWidth: 480,
+                    width: '94%',
+                    borderRadius: 24,
+                    padding: '20px 18px',
+                    maxHeight: '92vh',
+                    overflowY: 'auto',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 22 }}>📥</span>
+                      <div>
+                        <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>انتخاب محل بازیابی اطلاعات</h3>
+                        <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', margin: '2px 0 0' }}>
+                          فایل: {pendingRestore.fileName}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="home-pill ghost"
+                      style={{ width: 32, height: 32, padding: 0, justifyContent: 'center' }}
+                      disabled={restoring}
+                      onClick={() => setPendingRestore(null)}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* Summary Chips */}
+                  <div
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.04)',
+                      border: '1px solid var(--hy-border-color, rgba(255, 255, 255, 0.1))',
+                      borderRadius: 16,
+                      padding: '12px 14px',
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, 1fr)',
+                      gap: '8px 12px',
+                      fontSize: 12,
+                      marginBottom: 16,
+                    }}
+                  >
+                    <div>💳 حساب‌ها: <strong>{toFaDigits(pendingRestore.stats.accountsCount)}</strong></div>
+                    <div>🧾 تراکنش‌ها: <strong>{toFaDigits(pendingRestore.stats.transactionsCount)}</strong></div>
+                    <div>📅 اقساط: <strong>{toFaDigits(pendingRestore.stats.plansCount)}</strong></div>
+                    <div>📑 چک‌ها: <strong>{toFaDigits(pendingRestore.stats.chequesCount)}</strong></div>
+                    <div>🤝 طلب/بدهی: <strong>{toFaDigits(pendingRestore.stats.debtsCount)}</strong></div>
+                    <div>👥 دونگ سفر: <strong>{toFaDigits(pendingRestore.stats.dongEventsCount)}</strong></div>
+                    <div>📈 سرمایه‌ها: <strong>{toFaDigits(pendingRestore.stats.investmentsCount)}</strong></div>
+                    <div>🕒 تاریخ ایجاد: <strong>{toFaDigits(pendingRestore.stats.backupDate)}</strong></div>
+                  </div>
+
+                  <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: 'var(--hy-text-secondary)' }}>
+                    محل ذخیره‌سازی داده‌ها را مشخص نمایید:
+                  </div>
+
+                  {/* Option 1: Local Offline */}
+                  <div
+                    onClick={() => setRestoreTarget('local')}
+                    style={{
+                      padding: '14px',
+                      borderRadius: 16,
+                      cursor: 'pointer',
+                      marginBottom: 10,
+                      background: restoreTarget === 'local' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                      border: restoreTarget === 'local' ? '2px solid var(--hy-income, #10b981)' : '1px solid var(--hy-border-color, rgba(255, 255, 255, 0.1))',
+                      transition: 'all 0.18s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: 13 }}>
+                        <span style={{ fontSize: 18 }}>📱</span>
+                        <span>بازیابی روی حافظه محلی و آفلاین (Local)</span>
+                      </div>
+                      <span style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: '50%',
+                        border: restoreTarget === 'local' ? '5px solid var(--hy-income, #10b981)' : '2px solid rgba(255, 255, 255, 0.3)',
+                        background: 'transparent',
+                        display: 'inline-block',
+                      }} />
+                    </div>
+                    <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', margin: 0, lineHeight: 1.7 }}>
+                      اطلاعات به طور کامل در حافظه مرورگر و دستگاه ذخیره می‌شود. نرم‌افزار بدون نیاز به اینترنت، به صورت ۱۰۰٪ آفلاین لود شده و اجرا می‌شود.
+                    </p>
+                  </div>
+
+                  {/* Option 2: Online Cloud Mirror */}
+                  <div
+                    onClick={() => setRestoreTarget('cloud')}
+                    style={{
+                      padding: '14px',
+                      borderRadius: 16,
+                      cursor: 'pointer',
+                      marginBottom: 16,
+                      background: restoreTarget === 'cloud' ? 'rgba(14, 165, 233, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                      border: restoreTarget === 'cloud' ? '2px solid var(--hy-teal, #0ea5e9)' : '1px solid var(--hy-border-color, rgba(255, 255, 255, 0.1))',
+                      transition: 'all 0.18s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: 13 }}>
+                        <span style={{ fontSize: 18 }}>☁️</span>
+                        <span>بازیابی آنلاین و ابری (Mirror - همگام با سرور)</span>
+                      </div>
+                      <span style={{
+                        width: 18,
+                        height: 18,
+                        borderRadius: '50%',
+                        border: restoreTarget === 'cloud' ? '5px solid var(--hy-teal, #0ea5e9)' : '2px solid rgba(255, 255, 255, 0.3)',
+                        background: 'transparent',
+                        display: 'inline-block',
+                      }} />
+                    </div>
+                    <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', margin: 0, lineHeight: 1.7 }}>
+                      ابتدا کلیه داده‌ها در حافظه محلی ذخیره شده و همزمان کپی برابر اصل (Mirror) آن روی سرور ابری قرار می‌گیرد تا بین تمام دستگاه‌ها همگام شود.
+                    </p>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      type="button"
+                      className="cta-confirm"
+                      disabled={restoring}
+                      onClick={() => void confirmRestore()}
+                      style={{ flex: 1.4, height: 44, fontWeight: 800 }}
+                    >
+                      {restoring ? 'در حال بازیابی اطلاعات…' : '✨ تأیید و اجرای بازیابی'}
+                    </button>
+                    <button
+                      type="button"
+                      className="home-pill ghost"
+                      disabled={restoring}
+                      onClick={() => setPendingRestore(null)}
+                      style={{ flex: 1, height: 44, justifyContent: 'center' }}
+                    >
+                      انصراف
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <SyncBackupsPanel />
           </div>
