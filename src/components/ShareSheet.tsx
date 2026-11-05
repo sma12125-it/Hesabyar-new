@@ -104,25 +104,25 @@ export function ShareSheet({ account, onClose }: { account: Account; onClose: ()
               <div style={{ background: 'rgba(15, 118, 110, 0.08)', borderRadius: 12, padding: '10px 12px', margin: '10px 0', border: '1px solid rgba(15, 118, 110, 0.2)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, fontWeight: 600, fontSize: '13px', color: 'var(--hy-teal)' }}>
                   <span>🔒</span>
-                  <span>امنیت اختصاصی ایمیل</span>
+                  <span>اشتراک مستقیم با شناسه کاربر (بدون نیاز به رمز)</span>
                 </div>
                 <p style={{ fontSize: '11px', margin: 0, color: 'var(--hy-subtext)', lineHeight: 1.6 }}>
-                  تنها کاربرانی که ایمیل آن‌ها را در زیر اضافه کنید می‌توانند با این کد به حساب متصل شوند. دسترسی سایر ایمیل‌ها به طور خودکار مسدود می‌شود.
+                  تنها کاربرانی که شناسه کاربری (User ID) یا ایمیل آن‌ها را در زیر اضافه کنید می‌توانند به این کارت متصل شوند.
                 </p>
               </div>
 
               <p className="sheet-sub" style={{ marginTop: 12, fontWeight: 500 }}>
-                دعوت ایمیل کاربر هدف:
+                شناسه کاربر (User ID) یا ایمیل فرد مورد نظر:
               </p>
               <div className="field-stack">
                 <input
                   className="field-input"
-                  type="email"
-                  inputMode="email"
-                  placeholder="مثال: colleague@example.com"
+                  dir="ltr"
+                  type="text"
+                  placeholder="شناسه کاربر یا ایمیل (مثال: colleague@example.com)"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  aria-label="ایمیل کاربر دیگر"
+                  aria-label="شناسه کاربر دیگر"
                 />
               </div>
               {members.length > 0 ? (
@@ -153,13 +153,13 @@ export function ShareSheet({ account, onClose }: { account: Account; onClose: ()
               ) : null}
             </>
           ) : (
-            <p className="sheet-sub">با ایجاد اشتراک، یک کد امن ساخته شده و دسترسی فقط برای ایمیل‌هایی که مشخص می‌کنید فعال خواهد شد.</p>
+            <p className="sheet-sub">با ایجاد اشتراک، یک کد امن ساخته شده و دسترسی برای شناسه یا ایمیل مشخص شده بدون نیاز به رمز فعال خواهد شد.</p>
           )}
         </div>
         <div className="sheet-footer">
           {code && ledgerId ? (
             <button className="cta-confirm" type="button" disabled={busy || !email.trim()} onClick={() => void invite()}>
-              {busy ? 'در حال دعوت…' : 'دعوت با ایمیل'}
+              {busy ? 'در حال ثبت…' : '🤝 ثبت دسترسی کاربر (بدون رمز)'}
             </button>
           ) : (
             <button className="cta-confirm" type="button" disabled={busy} onClick={() => void create()}>

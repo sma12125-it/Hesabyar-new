@@ -7,6 +7,7 @@ export interface AppLockRecord {
   patternSalt?: string
   patternHash?: string
   credentialId?: string
+  biometricEnabled?: boolean
 }
 
 export function loadLock(): AppLockRecord {
@@ -21,8 +22,22 @@ export function saveLock(record: AppLockRecord) {
   localStorage.setItem(KEY, JSON.stringify(record))
 }
 
+export function isBiometricActive(record = loadLock()): boolean {
+  if (record.biometricEnabled === false) return false
+  return Boolean(record.biometricEnabled || record.credentialId)
+}
+
+export function setBiometricActive(enabled: boolean) {
+  const current = loadLock()
+  saveLock({
+    ...current,
+    biometricEnabled: enabled,
+    ...(enabled ? {} : { credentialId: undefined }),
+  })
+}
+
 export function lockEnabled(record = loadLock()): boolean {
-  return Boolean(record.pinHash || record.patternHash || record.credentialId)
+  return Boolean(record.pinHash || record.patternHash || record.credentialId || record.biometricEnabled)
 }
 
 export function isSessionOpen(): boolean {
@@ -137,7 +152,7 @@ export async function registerBiometric(): Promise<void> {
   })) as PublicKeyCredential | null
   if (!credential) throw new Error('ثبت بیومتریک لغو شد')
   const b64 = bufferToBase64(credential.rawId)
-  saveLock({ ...loadLock(), credentialId: b64 })
+  saveLock({ ...loadLock(), credentialId: b64, biometricEnabled: true })
 }
 
 export async function authenticateWithBiometrics(options?: {
@@ -210,7 +225,7 @@ export async function authenticateWithBiometrics(options?: {
     }
 
     const b64 = bufferToBase64(credential.rawId)
-    saveLock({ ...loadLock(), credentialId: b64 })
+    saveLock({ ...loadLock(), credentialId: b64, biometricEnabled: true })
     return { ok: true, registered: true }
   } catch (err: unknown) {
     const e = err as { name?: string; message?: string }

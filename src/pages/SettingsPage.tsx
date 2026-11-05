@@ -1,14 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { PatternLock } from '../components/PatternLock'
 import { SyncSheet } from '../components/SyncSheet'
 import { SyncBackupsPanel } from '../components/SyncBackupsPanel'
 import { restorePayload, syncReady } from '../lib/cloudSync'
 import { SupabaseConfigSheet } from '../components/SupabaseConfigSheet'
-import { loadLock, registerBiometric, setPattern, type AppLockRecord } from '../lib/applock'
-import { rememberedAccountPassword } from '../lib/account'
+import { loadLock, registerBiometric, isBiometricActive, setBiometricActive, type AppLockRecord } from '../lib/applock'
+import { rememberedAccountPassword, savePasswordVerifier } from '../lib/account'
 import { joinSharedCode } from '../lib/share'
-import { notifyUser, loadSession, type CloudSession } from '../lib/sync'
+import { notifyUser, loadSession, updatePassword, type CloudSession } from '../lib/sync'
 import { getSupabaseSettings } from '../lib/supabaseClient'
 import { useExtras } from '../store/Extras'
 import { useStore } from '../store/Store'
@@ -157,9 +156,11 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Security Section States
-  const [pattern, setPatternValue] = useState<number[]>([])
   const [lock, setLock] = useState<AppLockRecord>(() => loadLock())
   const [securityInfo, setSecurityInfo] = useState<string | null>(null)
+  const [accountNewPass, setAccountNewPass] = useState('')
+  const [accountAgainPass, setAccountAgainPass] = useState('')
+  const [passUpdating, setPassUpdating] = useState(false)
 
   // Vault Section States
   const [vaultCurrent, setVaultCurrent] = useState('')
@@ -170,6 +171,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
   const [vaultForgot, setVaultForgot] = useState(false)
   const [vaultInfo, setVaultInfo] = useState<string | null>(null)
   const [vaultError, setVaultError] = useState<string | null>(null)
+  const [showVaultChangeForm, setShowVaultChangeForm] = useState(false)
 
   const [showThemeGallery, setShowThemeGallery] = useState(false)
   const [securityTab, setSecurityTab] = useState<'lock' | 'vault' | 'share'>('lock')
@@ -384,6 +386,38 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
     }
   }
 
+  async function handleChangeAccountPassword() {
+    setSecurityInfo(null)
+    if (accountNewPass.length < 6) {
+      setSecurityInfo('رمز جدید باید حداقل ۶ کاراکتر باشد')
+      return
+    }
+    if (accountNewPass !== accountAgainPass) {
+      setSecurityInfo('تکرار رمز عبور یکسان نیست')
+      return
+    }
+    setPassUpdating(true)
+    try {
+      const email = session?.email || 'user@hesabyar'
+      await savePasswordVerifier(email, accountNewPass)
+      if (session?.accessToken) {
+        try {
+          await updatePassword(session.accessToken, accountNewPass)
+        } catch {
+          // local verifier updated
+        }
+      }
+      setAccountNewPass('')
+      setAccountAgainPass('')
+      setSecurityInfo('رمز عبور حساب با موفقیت تغییر یافت ✨')
+      notifyUser('رمز عبور تغییر یافت')
+    } catch (err) {
+      setSecurityInfo(err instanceof Error ? err.message : 'خطا در تغییر رمز عبور')
+    } finally {
+      setPassUpdating(false)
+    }
+  }
+
   async function handleSaveVault() {
     setVaultError(null)
     setVaultInfo(null)
@@ -406,6 +440,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
       setVaultCurrent('')
       setVaultNext('')
       setVaultAgain('')
+      setShowVaultChangeForm(false)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'رمز ذخیره نشد'
       setVaultError(message)
@@ -585,7 +620,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
             <SettingsSubHeader
               icon="🛡️"
               title="امنیت"
-              subtitle="الگوی ورود و بیومتریک، گاوصندوق کارت‌ها، کارت مشترک و دسترسی‌ها"
+              subtitle="رمز و بیومتریک، گاوصندوق کارت‌ها و اشتراک با شناسه کاربر"
               onBack={() => setActiveSection(null)}
             />
 
@@ -596,7 +631,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                 type="button"
                 onClick={() => setSecurityTab('lock')}
               >
-                🛡️ الگو و بیومتریک
+                🛡️ رمز و بیومتریک
               </button>
               <button
                 className={`seg-btn${securityTab === 'vault' ? ' active' : ''}`}
@@ -616,76 +651,128 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
 
             {securityTab === 'lock' && (
               <>
+                {/* 1. Biometric Unlock Toggle */}
                 <section className="lg settings-block" style={{ marginTop: 12 }}>
-                  <h2 style={{ fontSize: 14, fontWeight: 800 }}>الگوی ترسیمی ورود (Pattern Lock)</h2>
-                  <p className="sheet-sub" style={{ marginTop: 4 }}>
-                    الگو را با کشیدن انگشت روی نقطه‌ها تعیین کنید (حداقل ۴ نقطه).
-                  </p>
-                  <div style={{ margin: '14px 0' }}>
-                    <PatternLock value={pattern} onChange={setPatternValue} />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div
+                        style={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: 14,
+                          background: isBiometricActive(lock) ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.08)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 22,
+                        }}
+                      >
+                        👆
+                      </div>
+                      <div>
+                        <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>ورود با بیومتریک (WebAuthn)</h2>
+                        <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
+                          {isBiometricActive(lock) ? 'قفل اثر انگشت و تشخیص چهره فعال است' : 'ورود با حسگر بیومتریک غیرفعال است'}
+                        </div>
+                      </div>
+                    </div>
+                    <span className={`badge ${isBiometricActive(lock) ? 'ok' : 'pending'}`}>
+                      {isBiometricActive(lock) ? '● فعال' : '○ غیرفعال'}
+                    </span>
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      className="cta-confirm"
-                      type="button"
-                      style={{ flex: 1, height: 42 }}
-                      onClick={() => {
-                        if (pattern.length < 4) {
-                          setSecurityInfo('حداقل ۴ نقطه را به هم وصل کنید')
-                          return
-                        }
-                        void setPattern(pattern.join('-')).then(() => {
-                          setLock(loadLock())
-                          setPatternValue([])
-                          setSecurityInfo('الگوی ورود با موفقیت ذخیره شد')
-                          notifyUser('الگوی ورود ثبت شد')
-                        })
-                      }}
-                    >
-                      ثبت الگوی جدید
-                    </button>
-                    {lock.patternHash ? (
+
+                  <p className="sheet-sub" style={{ marginTop: 10, fontSize: 11, lineHeight: 1.6 }}>
+                    با فعال‌سازی، هنگام بازگشایی برنامه حسگر اثر انگشت، تشخیص چهره یا قفل امنیتی مرورگر فراخوانی می‌شود.
+                  </p>
+
+                  <div style={{ marginTop: 12 }}>
+                    {isBiometricActive(lock) ? (
                       <button
                         className="home-pill ghost"
                         type="button"
-                        style={{ height: 42 }}
+                        style={{ width: '100%', height: 42, justifyContent: 'center', color: '#f87171' }}
                         onClick={() => {
-                          void setPattern('').then(() => {
-                            setLock(loadLock())
-                            setSecurityInfo('الگوی ورود حذف شد')
-                            notifyUser('الگوی ورود غیرفعال شد')
-                          })
+                          setBiometricActive(false)
+                          setLock(loadLock())
+                          setSecurityInfo('ورود بیومتریک غیرفعال شد')
+                          notifyUser('ورود بیومتریک غیرفعال شد')
                         }}
                       >
-                        حذف الگو
+                        ✕ غیرفعال‌سازی ورود با بیومتریک
                       </button>
-                    ) : null}
+                    ) : (
+                      <button
+                        className="cta-confirm"
+                        type="button"
+                        style={{ width: '100%', height: 42, justifyContent: 'center' }}
+                        onClick={() => {
+                          void registerBiometric()
+                            .then(() => {
+                              setLock(loadLock())
+                              setSecurityInfo('ورود با قفل بیومتریک گوشی با موفقیت فعال شد ✨')
+                              notifyUser('قفل بیومتریک فعال شد')
+                            })
+                            .catch((err) =>
+                              setSecurityInfo(err instanceof Error ? err.message : 'قفل گوشی در دسترس نیست')
+                            )
+                        }}
+                      >
+                        🔐 فعال‌سازی ورود با اثر انگشت یا چهره
+                      </button>
+                    )}
                   </div>
                 </section>
 
+                {/* 2. Change Account Password */}
                 <section className="lg settings-block" style={{ marginTop: 14 }}>
-                  <h2 style={{ fontSize: 14, fontWeight: 800 }}>ورود بیومتریک (اثر انگشت / تشخیص چهره)</h2>
-                  <p className="sheet-sub" style={{ marginTop: 4 }}>
-                    قفل گوشی از طریق حسگر دستگاه فراخوانی می‌شود و اطلاعات حساس در سرور ذخیره نمی‌گردد.
-                  </p>
-                  <button
-                    className="cta-confirm"
-                    type="button"
-                    style={{ width: '100%', height: 42, marginTop: 10 }}
-                    onClick={() =>
-                      void registerBiometric()
-                        .then(() => {
-                          setLock(loadLock())
-                          setSecurityInfo('ورود با قفل بیومتریک گوشی فعال شد')
-                          notifyUser('قفل بیومتریک فعال شد')
-                        })
-                        .catch((err) =>
-                          setSecurityInfo(err instanceof Error ? err.message : 'قفل گوشی در دسترس نیست')
-                        )
-                    }
-                  >
-                    🔐 فعال‌سازی ورود با اثر انگشت یا چهره
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                    <div
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 14,
+                        background: 'rgba(37, 99, 235, 0.15)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 22,
+                      }}
+                    >
+                      🔑
+                    </div>
+                    <div>
+                      <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>تغییر رمز عبور حساب</h2>
+                      <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
+                        تعیین رمز تازه جهت ورود به نرم‌افزار
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="field-stack" style={{ marginTop: 12 }}>
+                    <input
+                      className="field-input"
+                      type="password"
+                      placeholder="رمز عبور جدید (حداقل ۶ نویسه)"
+                      value={accountNewPass}
+                      onChange={(e) => setAccountNewPass(e.target.value)}
+                    />
+                    <input
+                      className="field-input"
+                      type="password"
+                      placeholder="تکرار رمز عبور جدید"
+                      value={accountAgainPass}
+                      onChange={(e) => setAccountAgainPass(e.target.value)}
+                    />
+                    <button
+                      className="cta-confirm"
+                      type="button"
+                      disabled={passUpdating || accountNewPass.length < 6 || accountNewPass !== accountAgainPass}
+                      style={{ height: 44, marginTop: 4 }}
+                      onClick={() => void handleChangeAccountPassword()}
+                    >
+                      {passUpdating ? 'در حال ثبت…' : 'ثبت رمز عبور تازه'}
+                    </button>
+                  </div>
                 </section>
 
                 {securityInfo ? (
@@ -698,58 +785,107 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
 
             {securityTab === 'vault' && (
               <section className="lg settings-block" style={{ marginTop: 12 }}>
-                <h2 style={{ fontSize: 14, fontWeight: 800 }}>
-                  {vaultConfigured ? 'تغییر رمز گاوصندوق کارت‌ها' : 'تعیین رمز برای گاوصندوق کارت‌ها'}
-                </h2>
-                <p className="sheet-sub" style={{ marginTop: 4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 14,
+                        background: 'rgba(124, 58, 237, 0.18)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 22,
+                      }}
+                    >
+                      🔐
+                    </div>
+                    <div>
+                      <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>
+                        {vaultConfigured ? 'گاوصندوق کارت‌ها فعال است' : 'گاوصندوق کارت‌های بانکی'}
+                      </h2>
+                      <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
+                        {vaultConfigured
+                          ? 'اطلاعات حساس (CVV2، تاریخ انقضا و رمز دوم) رمزگذاری شده‌اند'
+                          : 'تعیین رمز اختصاصی جهت محافظت از کارت‌های بانکی'}
+                      </div>
+                    </div>
+                  </div>
+                  <span className={`badge ${vaultConfigured ? 'ok' : 'pending'}`}>
+                    {vaultConfigured ? '● فعال' : '○ بدون رمز'}
+                  </span>
+                </div>
+
+                <p className="sheet-sub" style={{ marginTop: 4, lineHeight: 1.6 }}>
                   {vaultConfigured
-                    ? 'رمز فعلی و رمز تازه را وارد کنید. کارت‌ها با رمز تازه مجدداً رمزگذاری می‌شوند.'
-                    : 'یک رمز اختصاصی برای گاوصندوق کارت‌ها تنظیم کنید تا مشخصات حساس کارت‌ها قفل شوند.'}
+                    ? 'مشخصات محرمانه کارت‌ها با کلید اختصاصی در حافظه محلی دستگاه رمزنگاری شده و بدون رمز گاوصندوق قابل مشاهده نیستند.'
+                    : 'با تعیین رمز گاوصندوق، مشخصات محرمانه کارت‌ها به صورت امن قفل و رمزگذاری می‌شوند.'}
                 </p>
 
-                <div className="field-stack" style={{ marginTop: 12 }}>
-                  {vaultConfigured ? (
-                    <input
-                      className="field-input"
-                      type="password"
-                      placeholder="رمز فعلی گاوصندوق"
-                      value={vaultCurrent}
-                      onChange={(e) => setVaultCurrent(e.target.value)}
-                    />
-                  ) : null}
-                  <input
-                    className="field-input"
-                    type="password"
-                    placeholder="رمز جدید گاوصندوق (حداقل ۴ نویسه)"
-                    value={vaultNext}
-                    onChange={(e) => setVaultNext(e.target.value)}
-                  />
-                  <input
-                    className="field-input"
-                    type="password"
-                    placeholder="تکرار رمز جدید گاوصندوق"
-                    value={vaultAgain}
-                    onChange={(e) => setVaultAgain(e.target.value)}
-                  />
-                  {rememberedAccountPassword() ? null : (
-                    <input
-                      className="field-input"
-                      type="password"
-                      placeholder="رمز حساب برای بازیابی بعدی"
-                      value={vaultAccountPassword}
-                      onChange={(e) => setVaultAccountPassword(e.target.value)}
-                    />
-                  )}
+                {/* Button to toggle Change Password Form when vault is configured */}
+                {vaultConfigured ? (
+                  <div style={{ marginTop: 14 }}>
+                    <button
+                      className="home-pill ghost"
+                      type="button"
+                      style={{ width: '100%', height: 42, justifyContent: 'center', fontWeight: 700 }}
+                      onClick={() => setShowVaultChangeForm((v) => !v)}
+                    >
+                      {showVaultChangeForm ? '✕ انصراف از تغییر رمز' : '🔑 تغییر رمز گاوصندوق کارت‌ها'}
+                    </button>
+                  </div>
+                ) : null}
 
-                  <button
-                    className="cta-confirm"
-                    type="button"
-                    style={{ height: 44, marginTop: 4 }}
-                    onClick={() => void handleSaveVault()}
-                  >
-                    ثبت و ذخیره رمز گاوصندوق
-                  </button>
-                </div>
+                {/* Password Form: Shown if NOT configured (initial setup) OR if user clicked change password */}
+                {(!vaultConfigured || showVaultChangeForm) && (
+                  <div className="field-stack" style={{ marginTop: 14, padding: 12, borderRadius: 14, background: 'rgba(0, 0, 0, 0.2)', border: '1px solid var(--glass-border)' }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--hy-text)', marginBottom: 4 }}>
+                      {vaultConfigured ? 'فرم تغییر رمز گاوصندوق:' : 'فرم تعیین رمز اولیه گاوصندوق:'}
+                    </div>
+                    {vaultConfigured ? (
+                      <input
+                        className="field-input"
+                        type="password"
+                        placeholder="رمز فعلی گاوصندوق"
+                        value={vaultCurrent}
+                        onChange={(e) => setVaultCurrent(e.target.value)}
+                      />
+                    ) : null}
+                    <input
+                      className="field-input"
+                      type="password"
+                      placeholder="رمز جدید گاوصندوق (حداقل ۴ نویسه)"
+                      value={vaultNext}
+                      onChange={(e) => setVaultNext(e.target.value)}
+                    />
+                    <input
+                      className="field-input"
+                      type="password"
+                      placeholder="تکرار رمز جدید گاوصندوق"
+                      value={vaultAgain}
+                      onChange={(e) => setVaultAgain(e.target.value)}
+                    />
+                    {rememberedAccountPassword() ? null : (
+                      <input
+                        className="field-input"
+                        type="password"
+                        placeholder="رمز حساب برای بازیابی بعدی"
+                        value={vaultAccountPassword}
+                        onChange={(e) => setVaultAccountPassword(e.target.value)}
+                      />
+                    )}
+
+                    <button
+                      className="cta-confirm"
+                      type="button"
+                      style={{ height: 44, marginTop: 4 }}
+                      onClick={() => void handleSaveVault()}
+                    >
+                      {vaultConfigured ? 'ثبت و اعمال رمز جدید' : 'تعیین و فعال‌سازی رمز گاوصندوق'}
+                    </button>
+                  </div>
+                )}
 
                 {vaultRecoveryCode ? (
                   <div style={{ marginTop: 14, padding: 12, borderRadius: 12, background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
@@ -802,9 +938,76 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
 
             {securityTab === 'share' && (
               <section className="lg settings-block" style={{ marginTop: 12 }}>
-                <h2 style={{ fontSize: 14, fontWeight: 800 }}>پیوستن به کارت مشترک</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 14,
+                      background: 'rgba(15, 118, 110, 0.18)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: 22,
+                    }}
+                  >
+                    🤝
+                  </div>
+                  <div>
+                    <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>اشتراک کارت بانکی با شناسه کاربر (ID)</h2>
+                    <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
+                      اشتراک‌گذاری مستقیم و سریع بدون نیاز به رمز عبور
+                    </div>
+                  </div>
+                </div>
+
+                {/* User's Own ID Card for receiving shared cards */}
+                <div
+                  style={{
+                    background: 'rgba(37, 99, 235, 0.08)',
+                    border: '1px solid rgba(37, 99, 235, 0.22)',
+                    borderRadius: 14,
+                    padding: '12px 14px',
+                    margin: '10px 0 14px',
+                  }}
+                >
+                  <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginBottom: 6 }}>
+                    شناسه کاربری (User ID) شما جهت دریافت کارت مشترک:
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <code
+                      style={{
+                        fontFamily: 'monospace',
+                        fontWeight: 800,
+                        fontSize: 14,
+                        letterSpacing: 1,
+                        color: 'var(--hy-accent)',
+                      }}
+                    >
+                      {session?.userId ? session.userId.slice(0, 12) : (session?.email || 'کاربر حساب‌یار')}
+                    </code>
+                    <button
+                      type="button"
+                      className="home-pill ghost"
+                      style={{ padding: '4px 10px', fontSize: 11, height: 28 }}
+                      onClick={() => {
+                        const idToCopy = session?.userId ? session.userId.slice(0, 12) : (session?.email || '')
+                        if (idToCopy && navigator.clipboard) {
+                          navigator.clipboard.writeText(idToCopy)
+                          notifyUser('شناسه کاربری شما کپی شد')
+                        }
+                      }}
+                    >
+                      📋 کپی شناسه
+                    </button>
+                  </div>
+                  <p style={{ fontSize: 10, color: 'var(--hy-text-tertiary)', marginTop: 6, margin: 0, lineHeight: 1.5 }}>
+                    این شناسه را به دارنده کارت بدهید تا کارت خود را مستقیماً با شما به اشتراک بگذارد. هیچ رمزی نیاز نیست.
+                  </p>
+                </div>
+
                 <p className="sheet-sub" style={{ marginTop: 4, lineHeight: 1.7 }}>
-                  کد اشتراکی که مالک حساب به شما داده را وارد کنید. دسترسی تنها در صورتی تایید می‌شود که ایمیل شما در لیست افراد مجاز ثبت شده باشد.
+                  جهت اتصال به یک کارت مشترک، شناسه کاربر یا شناسه اشتراک را در کادر زیر وارد کنید:
                 </p>
 
                 {shareError ? (
@@ -817,16 +1020,16 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                   <input
                     className="field-input"
                     dir="ltr"
-                    placeholder="مثال: AB12-CD34"
+                    placeholder="شناسه کاربر یا کد اشتراک (مثال: AB12-CD34)"
                     value={shareCode}
                     onChange={(e) => setShareCode(e.target.value.toUpperCase())}
-                    aria-label="کد اشتراک"
-                    style={{ textAlign: 'center', letterSpacing: 2, fontFamily: 'monospace', fontWeight: 800 }}
+                    aria-label="شناسه کاربر یا کد اشتراک"
+                    style={{ textAlign: 'center', letterSpacing: 1.5, fontFamily: 'monospace', fontWeight: 800 }}
                   />
                   <button
                     className="cta-confirm"
                     type="button"
-                    disabled={joining || shareCode.trim().length < 4}
+                    disabled={joining || shareCode.trim().length < 3}
                     style={{ height: 44 }}
                     onClick={() => {
                       setJoining(true)
@@ -834,16 +1037,16 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                       void joinSharedCode(shareCode)
                         .then(() => {
                           setShareCode('')
-                          notifyUser('با موفقیت به حساب مشترک متصل شدید!')
+                          notifyUser('کارت مشترک با موفقیت با شناسه کاربر متصل شد ✨')
                           window.dispatchEvent(new Event('hy-share-refresh'))
                         })
                         .catch((err: unknown) => {
-                          setShareError(err instanceof Error ? err.message : 'پیوستن انجام نشد')
+                          setShareError(err instanceof Error ? err.message : 'اتصال به کارت مشترک انجام نشد')
                         })
                         .finally(() => setJoining(false))
                     }}
                   >
-                    {joining ? 'در حال بررسی مجوز دسترسی…' : 'پیوستن امن به کارت'}
+                    {joining ? 'در حال اتصال…' : '🤝 اتصال به کارت مشترک (بدون نیاز به رمز)'}
                   </button>
                 </div>
               </section>
@@ -1425,6 +1628,9 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
   // MAIN SETTINGS HUB (Clean, categorized list of settings categories)
   // ══════════════════════════════════════════════════════════════════════════
 
+  // Set to true whenever developer access to cloud/supabase settings is requested by user
+  const SHOW_DEV_CLOUD_SETTINGS = false
+
   const SETTINGS_GROUPS = [
     {
       groupTitle: 'ظاهری و شخصی‌سازی',
@@ -1446,23 +1652,27 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           id: 'security' as const,
           icon: '🛡️',
           title: 'امنیت',
-          subtitle: 'الگو و بیومتریک، گاوصندوق کارت‌ها، کارت مشترک و دسترسی‌ها',
-          badge: lock.patternHash || lock.credentialId || vaultConfigured ? 'فعال' : 'خاموش',
-          badgeClass: lock.patternHash || lock.credentialId || vaultConfigured ? 'ok' : 'pending',
+          subtitle: 'رمز و بیومتریک، گاوصندوق کارت‌ها و اشتراک با شناسه کاربر',
+          badge: isBiometricActive(lock) || vaultConfigured ? 'فعال' : 'خاموش',
+          badgeClass: isBiometricActive(lock) || vaultConfigured ? 'ok' : 'pending',
         },
       ],
     },
     {
       groupTitle: 'اتصال، پیامک و هوش مصنوعی',
       items: [
-        {
-          id: 'cloud' as const,
-          icon: '☁️',
-          title: 'اتصال ابری و همگام‌سازی (Supabase)',
-          subtitle: session ? `متصل به کاربر: ${session.email}` : 'همگام‌سازی بین دستگاه‌ها و پایگاه‌داده اختصاصی',
-          badge: session ? 'متصل' : 'آفلاین',
-          badgeClass: session ? 'ok' : 'pending',
-        },
+        ...(SHOW_DEV_CLOUD_SETTINGS
+          ? [
+              {
+                id: 'cloud' as const,
+                icon: '☁️',
+                title: 'اتصال ابری و همگام‌سازی (Supabase)',
+                subtitle: session ? `متصل به کاربر: ${session.email}` : 'همگام‌سازی بین دستگاه‌ها و پایگاه‌داده اختصاصی',
+                badge: session ? 'متصل' : 'آفلاین',
+                badgeClass: session ? 'ok' : 'pending',
+              },
+            ]
+          : []),
         {
           id: 'sms' as const,
           icon: '📩',

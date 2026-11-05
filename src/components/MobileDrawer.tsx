@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useExtras } from '../store/Extras'
 import { displayNameOf } from '../lib/profile'
+import { logoutCompletely } from '../lib/account'
 
 export function MobileDrawer() {
   const [isOpen, setIsOpen] = useState(false)
@@ -182,8 +183,40 @@ export function MobileDrawer() {
           </NavLink>
         </nav>
 
+        {/* Logout Button */}
+        <div style={{ padding: '12px 0 8px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm('آیا می‌خواهید از حساب کاربری خود خارج شوید؟')) {
+                setIsOpen(false)
+                void logoutCompletely()
+              }
+            }}
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              borderRadius: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              fontWeight: 800,
+              fontSize: 13,
+              cursor: 'pointer',
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              color: '#f87171',
+              transition: 'background 0.2s',
+            }}
+          >
+            <span style={{ fontSize: 16 }}>🚪</span>
+            <span>خروج از حساب کاربری</span>
+          </button>
+        </div>
+
         {/* Footer info */}
-        <div style={{ paddingTop: 14, borderTop: '1px solid rgba(255, 255, 255, 0.1)', textAlign: 'center' }}>
+        <div style={{ paddingTop: 10, textAlign: 'center' }}>
           <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
             حساب‌یار · مدیریت هوشمند مالی
           </div>

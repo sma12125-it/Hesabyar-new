@@ -5,6 +5,7 @@ import {
   checkPattern,
   loadLock,
   lockEnabled,
+  isBiometricActive,
   isWebAuthnSupported,
   isPlatformAuthenticatorAvailable,
   authenticateWithBiometrics,
@@ -85,7 +86,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
       }
       const platformAvail = await isPlatformAuthenticatorAvailable()
       if (active) {
-        const canUse = platformAvail || Boolean(lock.credentialId)
+        const canUse = (platformAvail || Boolean(lock.credentialId)) && isBiometricActive(lock)
         setBiometricAvailable(canUse)
         if (!canUse) {
           setActiveTab(lock.patternHash ? 'pattern' : 'password')
