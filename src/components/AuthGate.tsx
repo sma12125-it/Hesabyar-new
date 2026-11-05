@@ -1,7 +1,14 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { PatternLock } from './PatternLock'
 import { checkPasswordVerifier, logoutCompletely, savePasswordVerifier, generateRecoveryCode } from '../lib/account'
-import { checkPattern, loadLock, verifyBiometric } from '../lib/applock'
+import {
+  checkPattern,
+  loadLock,
+  lockEnabled,
+  isWebAuthnSupported,
+  isPlatformAuthenticatorAvailable,
+  authenticateWithBiometrics,
+} from '../lib/applock'
 import {
   clearCloudDirty,
   loadSession,
@@ -43,7 +50,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
   const extras = useExtras()
   const existing = loadSession()
   const [recovery] = useState(() => takeRecoveryFromUrl())
-  const [mode, setMode] = useState<Mode>(recovery?.accessToken ? 'renew' : existing ? 'unlock' : 'in')
+  const [mode, setMode] = useState<Mode>(recovery?.accessToken ? 'renew' : (existing || lockEnabled()) ? 'unlock' : 'in')
   const [recoveryToken] = useState(recovery?.accessToken ?? '')
 
   useEffect(() => {
@@ -58,6 +65,45 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
   const [info, setInfo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const lock = loadLock()
+
+  const [biometricAvailable, setBiometricAvailable] = useState<boolean>(false)
+  const [biometricStatus, setBiometricStatus] = useState<'idle' | 'prompting' | 'success' | 'error'>('idle')
+  const [biometricMsg, setBiometricMsg] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'biometric' | 'password' | 'pattern'>('biometric')
+  const autoPromptRef = useRef(false)
+
+  useEffect(() => {
+    let active = true
+    async function checkBio() {
+      const supported = isWebAuthnSupported()
+      if (!supported) {
+        if (active) {
+          setBiometricAvailable(false)
+          setActiveTab(lock.patternHash ? 'pattern' : 'password')
+        }
+        return
+      }
+      const platformAvail = await isPlatformAuthenticatorAvailable()
+      if (active) {
+        const canUse = platformAvail || Boolean(lock.credentialId)
+        setBiometricAvailable(canUse)
+        if (!canUse) {
+          setActiveTab(lock.patternHash ? 'pattern' : 'password')
+        }
+      }
+    }
+    void checkBio()
+    return () => {
+      active = false
+    }
+  }, [lock.credentialId, lock.patternHash])
+
+  useEffect(() => {
+    if (mode === 'unlock' && store.ready && biometricAvailable && !autoPromptRef.current) {
+      autoPromptRef.current = true
+      void triggerBiometricPrompt(true)
+    }
+  }, [mode, store.ready, biometricAvailable])
 
   async function adopt(session: CloudSession, _kind: 'in' | 'up') {
     const remote = await pullSnapshot<Payload>(session)
@@ -183,16 +229,38 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
     setPattern([])
   }
 
-  async function useBiometric() {
+  async function triggerBiometricPrompt(isAuto = false) {
     if (!store.ready) return
+    setBiometricStatus('prompting')
+    setBiometricMsg('در حال فراخوانی حسگر اثر انگشت یا چهره...')
     setError(null)
     try {
-      if (await verifyBiometric()) await enterApp()
-      else setError('قفل گوشی تأیید نشد')
+      const result = await authenticateWithBiometrics({ allowRegistration: true })
+      if (result.ok) {
+        setBiometricStatus('success')
+        setBiometricMsg(result.registered ? 'قفل بیومتریک با موفقیت ثبت و تأیید شد ✨' : 'هویت بیومتریک تأیید شد ✨')
+        notifyUser('ورود با موفقیت انجام شد')
+        await enterApp()
+        return
+      }
+      if (isAuto) {
+        setBiometricStatus('idle')
+        setBiometricMsg('برای اسکن اثر انگشت یا چهره دکمه زیر را لمس کنید')
+      } else {
+        setBiometricStatus('error')
+        setBiometricMsg(result.error || 'احراز هویت بیومتریک انجام نشد')
+      }
     } catch {
-      setError('قفل گوشی تأیید نشد')
+      if (isAuto) {
+        setBiometricStatus('idle')
+        setBiometricMsg('برای اسکن اثر انگشت یا چهره دکمه زیر را لمس کنید')
+      } else {
+        setBiometricStatus('error')
+        setBiometricMsg('حسگر بیومتریک با خطا روبرو شد')
+      }
     }
   }
+
 
   async function sendReset() {
     setError(null)
@@ -258,40 +326,183 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
       {info ? <p className="sheet-sub">{info}</p> : null}
 
       {mode === 'unlock' ? (
-        <>
-          <p className="sheet-sub">{existing ? `حساب ${existing.email}` : 'برای دیدن اطلاعات وارد شوید.'}</p>
-          <div className="field-stack">
-            <input className="field-input" type="password" placeholder="رمز حساب" value={password} onChange={(e) => setPassword(e.target.value)} />
-            <button className="cta-confirm" type="button" disabled={busy || booting} onClick={() => void unlockWithPassword()}>ورود با رمز</button>
-          </div>
-          {typeof window !== 'undefined' && (window.PublicKeyCredential || lock.credentialId) ? (
+        <div className="field-stack" style={{ width: '100%' }}>
+          <p className="sheet-sub" style={{ textAlign: 'center', marginBottom: 2 }}>
+            {existing ? `حساب: ${existing.email}` : 'برای ورود به حساب‌یار قفل را باز کنید.'}
+          </p>
+
+          {/* Method Selection Tabs */}
+          <div className="unlock-method-tabs" role="tablist">
+            {biometricAvailable ? (
+              <button
+                type="button"
+                className={`unlock-tab-btn ${activeTab === 'biometric' ? 'active' : ''}`}
+                onClick={() => {
+                  setActiveTab('biometric')
+                  setError(null)
+                  if (biometricStatus === 'error' || biometricStatus === 'idle') {
+                    void triggerBiometricPrompt(false)
+                  }
+                }}
+              >
+                <span>👆</span>
+                <span>بیومتریک (WebAuthn)</span>
+              </button>
+            ) : null}
+
             <button
-              className="cat-mini"
               type="button"
-              style={{
-                width: '100%',
-                padding: '12px 14px',
-                borderRadius: 12,
-                background: 'linear-gradient(135deg, rgba(37,99,235,0.18), rgba(15,118,110,0.18))',
-                border: '1px solid rgba(255,255,255,0.15)',
-                fontWeight: 800,
-                fontSize: 13,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                color: 'var(--hy-text)',
+              className={`unlock-tab-btn ${activeTab === 'password' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('password')
+                setError(null)
               }}
-              onClick={() => void useBiometric()}
             >
-              <span style={{ fontSize: 20 }}>👆</span>
-              <span>ورود با اثر انگشت / تشخیص چهره / قفل گوشی</span>
+              <span>🔑</span>
+              <span>رمز حساب</span>
             </button>
+
+            {lock.patternHash ? (
+              <button
+                type="button"
+                className={`unlock-tab-btn ${activeTab === 'pattern' ? 'active' : ''}`}
+                onClick={() => {
+                  setActiveTab('pattern')
+                  setError(null)
+                }}
+              >
+                <span>💠</span>
+                <span>الگو</span>
+              </button>
+            ) : null}
+          </div>
+
+          {/* 1. Biometric (WebAuthn) View */}
+          {activeTab === 'biometric' && biometricAvailable ? (
+            <div className="biometric-prompt-card">
+              <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--hy-text)', marginBottom: 2 }}>
+                احراز هویت بیومتریک (WebAuthn)
+              </div>
+              <p className="sheet-sub" style={{ fontSize: 11, margin: '2px 0 10px', lineHeight: 1.5 }}>
+                اسکن اثر انگشت، تشخیص چهره یا قفل امنیتی مرورگر
+              </p>
+
+              {/* Scanner with Animated Ripple */}
+              <div className={`biometric-scanner-wrap ${biometricStatus}`}>
+                <div className="biometric-pulse-ring" />
+                <button
+                  type="button"
+                  className="biometric-scanner-btn"
+                  disabled={busy || booting || biometricStatus === 'prompting' || biometricStatus === 'success'}
+                  onClick={() => void triggerBiometricPrompt(false)}
+                  aria-label="احراز هویت بیومتریک WebAuthn"
+                  title="لمس حسگر بیومتریک"
+                >
+                  {biometricStatus === 'success' ? (
+                    <span style={{ fontSize: 36 }}>✅</span>
+                  ) : biometricStatus === 'error' ? (
+                    <span style={{ fontSize: 34 }}>⚠️</span>
+                  ) : biometricStatus === 'prompting' ? (
+                    <span style={{ fontSize: 34, filter: 'drop-shadow(0 0 8px #38bdf8)' }}>🔍</span>
+                  ) : (
+                    <span style={{ fontSize: 36, filter: 'drop-shadow(0 0 8px var(--hy-accent))' }}>👆</span>
+                  )}
+                </button>
+              </div>
+
+              {/* Status Pill */}
+              <div className={`biometric-status-pill ${biometricStatus}`}>
+                {biometricStatus === 'prompting' ? (
+                  <>
+                    <span className="live-dot" style={{ background: '#38bdf8' }} />
+                    <span>{biometricMsg || 'در حال ارتباط با حسگر بیومتریک...'}</span>
+                  </>
+                ) : biometricStatus === 'success' ? (
+                  <>
+                    <span>✨</span>
+                    <span>{biometricMsg || 'تأیید شد، در حال بازگشایی...'}</span>
+                  </>
+                ) : biometricStatus === 'error' ? (
+                  <>
+                    <span>⚠️</span>
+                    <span>{biometricMsg || 'احراز هویت انجام نشد'}</span>
+                  </>
+                ) : (
+                  <>
+                    <span>🔒</span>
+                    <span>{biometricMsg || 'حسگر دستگاه آماده اسکن است'}</span>
+                  </>
+                )}
+              </div>
+
+              {/* Action Button */}
+              <button
+                className="cta-confirm"
+                type="button"
+                style={{ width: '100%', height: 44, borderRadius: 14 }}
+                disabled={busy || booting || biometricStatus === 'prompting' || biometricStatus === 'success'}
+                onClick={() => void triggerBiometricPrompt(false)}
+              >
+                {biometricStatus === 'error'
+                  ? '🔄 تلاش مجدد احراز هویت بیومتریک'
+                  : '🔐 اسکن اثر انگشت / تشخیص چهره'}
+              </button>
+            </div>
           ) : null}
-          {lock.patternHash ? <PatternLock value={pattern} onChange={setPattern} onRelease={(next) => void finishPattern(next)} /> : null}
-          <button className="link" type="button" onClick={() => { setError(null); setMode('code') }}>رمز را فراموش کرده‌ام</button>
-          <button className="cat-mini danger" type="button" onClick={() => void logoutCompletely()}>خروج کامل</button>
-        </>
+
+          {/* 2. Password View */}
+          {activeTab === 'password' || (!biometricAvailable && activeTab !== 'pattern') ? (
+            <div className="field-stack" style={{ width: '100%' }}>
+              <input
+                className="field-input"
+                type="password"
+                placeholder="رمز حساب"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void unlockWithPassword()
+                }}
+              />
+              <button
+                className="cta-confirm"
+                type="button"
+                disabled={busy || booting}
+                onClick={() => void unlockWithPassword()}
+              >
+                ورود با رمز
+              </button>
+            </div>
+          ) : null}
+
+          {/* 3. Pattern View */}
+          {activeTab === 'pattern' && lock.patternHash ? (
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <PatternLock value={pattern} onChange={setPattern} onRelease={(next) => void finishPattern(next)} />
+            </div>
+          ) : null}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+            <button
+              className="link"
+              type="button"
+              style={{ fontSize: 12 }}
+              onClick={() => {
+                setError(null)
+                setMode('code')
+              }}
+            >
+              رمز را فراموش کرده‌ام
+            </button>
+            <button
+              className="cat-mini danger"
+              type="button"
+              style={{ padding: '6px 12px', fontSize: 12, borderRadius: 10 }}
+              onClick={() => void logoutCompletely()}
+            >
+              خروج کامل
+            </button>
+          </div>
+        </div>
       ) : null}
 
       {mode === 'in' || mode === 'up' ? (

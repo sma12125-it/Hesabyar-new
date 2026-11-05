@@ -4,7 +4,7 @@
  * so the web application runs completely offline without network connectivity.
  */
 
-const CACHE = 'hesabyar-v5-offline-native'
+const CACHE = 'hesabyar-v6-offline-native'
 
 const PRECACHE_ASSETS = [
   '/',
@@ -39,6 +39,26 @@ self.addEventListener('activate', (event) => {
           keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)),
         ),
       )
+      .then(async () => {
+        try {
+          const current = await caches.open(CACHE)
+          const requests = await current.keys()
+          for (const req of requests) {
+            const u = new URL(req.url)
+            if (
+              u.pathname.includes('/node_modules/') ||
+              u.pathname.startsWith('/@') ||
+              u.pathname.includes('/src/') ||
+              u.searchParams.has('v') ||
+              u.searchParams.has('t')
+            ) {
+              await current.delete(req)
+            }
+          }
+        } catch {
+          // ignore
+        }
+      })
       .then(() => self.clients.claim()),
   )
 })
@@ -132,13 +152,25 @@ self.addEventListener('fetch', (event) => {
   // Allow same-origin requests only for application shell
   if (url.origin !== self.location.origin) return
 
-  // 2. Navigation / Document requests -> Network first with cached index fallback
+  // 2. CRITICAL: Never intercept or cache Vite development modules or dependency chunks
+  const isViteDev =
+    url.pathname.startsWith('/@') ||
+    url.pathname.includes('/node_modules/') ||
+    url.pathname.includes('/src/') ||
+    url.searchParams.has('v') ||
+    url.searchParams.has('t')
+
+  if (isViteDev) {
+    return // Let browser fetch directly from Vite dev server without caching
+  }
+
+  // 3. Navigation / Document requests -> Network first with cached index fallback
   if (isDocumentRequest(request)) {
     event.respondWith(networkFirstDocument(request))
     return
   }
 
-  // 3. Static Assets: JS, CSS, fonts, images -> Cache first with revalidation
+  // 4. Static Production Assets: JS, CSS, fonts, images -> Cache first with revalidation
   const isStaticAsset =
     url.pathname.includes('/assets/') ||
     url.pathname.endsWith('.js') ||

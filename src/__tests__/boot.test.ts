@@ -28,7 +28,7 @@ describe('boot resilience', () => {
 
   it('serves navigations network-first and retires old caches', () => {
     const source = readFileSync('public/sw.js', 'utf8')
-    expect(source).toContain("const CACHE = 'hesabyar-v5-offline-native'")
+    expect(source).toContain("const CACHE = 'hesabyar-v6-offline-native'")
     expect(source).toContain('skipWaiting')
     expect(source).toContain('clients.claim')
     expect(source).toContain('caches.delete')

@@ -4,7 +4,7 @@
  * and stored locally in CacheStorage for completely offline, native-like execution.
  */
 
-export const CACHE_NAME = 'hesabyar-v5-offline-native'
+export const CACHE_NAME = 'hesabyar-v6-offline-native'
 
 export const ESSENTIAL_OFFLINE_URLS = [
   '/',
@@ -28,9 +28,17 @@ export async function warmOfflineCache(): Promise<{ cachedCount: number; success
     const cache = await caches.open(CACHE_NAME)
     const urlsToCache = new Set<string>(ESSENTIAL_OFFLINE_URLS)
 
-    // Collect all script tags on page
+    // Collect only production script tags (never cache dev server or node_modules chunks)
     document.querySelectorAll<HTMLScriptElement>('script[src]').forEach((el) => {
-      if (el.src && !el.src.startsWith('chrome-extension:')) {
+      if (
+        el.src &&
+        !el.src.startsWith('chrome-extension:') &&
+        !el.src.includes('/@vite/') &&
+        !el.src.includes('/node_modules/') &&
+        !el.src.includes('/src/') &&
+        !el.src.includes('?v=') &&
+        !el.src.includes('?t=')
+      ) {
         urlsToCache.add(el.src)
       }
     })

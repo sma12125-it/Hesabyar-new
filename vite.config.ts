@@ -20,6 +20,12 @@ function getBase(): string {
 
 export default defineConfig({
   base: getBase(),
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+  },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react/jsx-runtime', 'react/jsx-dev-runtime', 'react-router-dom'],
+  },
   server: {
     host: '0.0.0.0',
     port: 3000,
