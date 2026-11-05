@@ -180,7 +180,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
   const [apkProgress, setApkProgress] = useState(0)
   const [showRestartConfirm, setShowRestartConfirm] = useState(false)
 
-  const { currencyUnit, setCurrencyUnit, exportLocal, importLocal, vaultConfigured, setVaultPassword, changeVaultPassword } = useExtras()
+  const { userProfile, currencyUnit, setCurrencyUnit, exportLocal, importLocal, vaultConfigured, setVaultPassword, changeVaultPassword } = useExtras()
   const { accounts, transactions, plans, items, customCategories, importCloud } = useStore()
 
   const currentThemeId = getCurrentTheme()
@@ -961,7 +961,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                   </div>
                 </div>
 
-                {/* User's Own ID Card for receiving shared cards */}
+                {/* User's Own ID & Handle Card for receiving shared cards */}
                 <div
                   style={{
                     background: 'rgba(37, 99, 235, 0.08)',
@@ -971,38 +971,88 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                     margin: '10px 0 14px',
                   }}
                 >
-                  <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginBottom: 6 }}>
-                    شناسه کاربری (User ID) شما جهت دریافت کارت مشترک:
+                  <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginBottom: 8, fontWeight: 700 }}>
+                    شناسه‌های شما جهت دریافت حساب یا کارت مشترک:
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                    <code
-                      style={{
-                        fontFamily: 'monospace',
-                        fontWeight: 800,
-                        fontSize: 14,
-                        letterSpacing: 1,
-                        color: 'var(--hy-accent)',
-                      }}
-                    >
-                      {session?.userId ? session.userId.slice(0, 12) : (session?.email || 'کاربر حساب‌یار')}
-                    </code>
+
+                  {/* 1. User ID (System) */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--hy-text)' }}>۱. User ID سیستمی:</span>
+                      <code
+                        style={{
+                          fontFamily: 'monospace',
+                          fontWeight: 800,
+                          fontSize: 13,
+                          letterSpacing: 1,
+                          color: 'var(--hy-accent)',
+                        }}
+                      >
+                        {session?.userId ? session.userId.slice(0, 12) : 'usr_9a2f1c84'}
+                      </code>
+                    </div>
                     <button
                       type="button"
                       className="home-pill ghost"
-                      style={{ padding: '4px 10px', fontSize: 11, height: 28 }}
+                      style={{ padding: '3px 8px', fontSize: 10, height: 26 }}
                       onClick={() => {
-                        const idToCopy = session?.userId ? session.userId.slice(0, 12) : (session?.email || '')
+                        const idToCopy = session?.userId ? session.userId.slice(0, 12) : 'usr_9a2f1c84'
                         if (idToCopy && navigator.clipboard) {
                           navigator.clipboard.writeText(idToCopy)
-                          notifyUser('شناسه کاربری شما کپی شد')
+                          notifyUser('User ID سیستمی کپی شد')
                         }
                       }}
                     >
-                      📋 کپی شناسه
+                      📋 کپی ID
                     </button>
                   </div>
-                  <p style={{ fontSize: 10, color: 'var(--hy-text-tertiary)', marginTop: 6, margin: 0, lineHeight: 1.5 }}>
-                    این شناسه را به دارنده کارت بدهید تا کارت خود را مستقیماً با شما به اشتراک بگذارد. هیچ رمزی نیاز نیست.
+
+                  {/* 2. Manual Profile Handle */}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--hy-text)' }}>۲. شناسه دستی پروفایل:</span>
+                      <code
+                        style={{
+                          fontFamily: 'monospace',
+                          fontWeight: 800,
+                          fontSize: 13,
+                          color: 'var(--hy-teal)',
+                        }}
+                      >
+                        {userProfile?.handle ? `@${userProfile.handle}` : 'تنظیم نشده (در پروفایل)'}
+                      </code>
+                    </div>
+                    {userProfile?.handle ? (
+                      <button
+                        type="button"
+                        className="home-pill ghost"
+                        style={{ padding: '3px 8px', fontSize: 10, height: 26 }}
+                        onClick={() => {
+                          if (userProfile.handle && navigator.clipboard) {
+                            navigator.clipboard.writeText(`@${userProfile.handle}`)
+                            notifyUser('شناسه کاربری دستی کپی شد')
+                          }
+                        }}
+                      >
+                        📋 کپی آیدی
+                      </button>
+                    ) : (
+                      <Link
+                        to="/profile"
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 700,
+                          color: 'var(--hy-accent)',
+                          textDecoration: 'none',
+                        }}
+                      >
+                        تنظیم شناسه ›
+                      </Link>
+                    )}
+                  </div>
+
+                  <p style={{ fontSize: 10, color: 'var(--hy-text-tertiary)', marginTop: 8, margin: 0, lineHeight: 1.5 }}>
+                    می‌توانید هر یک از دو مورد فوق (User ID یا شناسه کاربری پروفایل) را در اختیار دیگران قرار دهید تا حساب یا کارت خود را مستقیماً با شما به اشتراک بگذارند.
                   </p>
                 </div>
 

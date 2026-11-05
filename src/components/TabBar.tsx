@@ -294,13 +294,13 @@ export function TabBar({
           <span className="lbl">حساب‌ها</span>
         </NavLink>
 
-        {/* ۳. دکمه گرد ثبت وسط */}
+        {/* ۳. دکمه گرد مثبت (+) وسط */}
         <button
           className="tab tab-center-action"
           type="button"
           onClick={() => setIsActionMenuOpen(true)}
-          title="منوی ثبت جدید (+)"
-          aria-label="منوی ثبت جدید"
+          title="منوی افزودن (+)"
+          aria-label="منوی افزودن"
         >
           <span className="center-action-circle" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
@@ -308,7 +308,6 @@ export function TabBar({
               <line x1="5" y1="12" x2="19" y2="12" />
             </svg>
           </span>
-          <span className="lbl">ثبت</span>
         </button>
 
         {/* ۴. اقساط */}

@@ -171,8 +171,8 @@ html.hy-fullbleed .device-screen {
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
-  justify-content: flex-end !important;
-  padding: 0 0 4px !important;
+  justify-content: center !important;
+  padding: 0 !important;
   background: transparent !important;
   border: none !important;
   cursor: pointer !important;

@@ -33,7 +33,7 @@ import { todayIso } from './lib/iso'
 import { LiveSync } from './components/LiveSync'
 import { SharedSync } from './components/SharedSync'
 import { ProfileSync } from './components/ProfileSync'
-import { ShareSheet } from './components/ShareSheet'
+import { UnifiedShareSheet } from './components/UnifiedShareSheet'
 import { SmsBridge } from './components/SmsBridge'
 import { ChequeSheet } from './components/ChequeSheet'
 import { DebtSheet } from './components/DebtSheet'
@@ -493,8 +493,9 @@ function Shell() {
         />
       ) : null}
       {sheet?.type === 'share' && accounts.some((account) => account.id === sheet.accountId) ? (
-        <ShareSheet
-          account={accounts.find((account) => account.id === sheet.accountId)!}
+        <UnifiedShareSheet
+          kind="account"
+          item={accounts.find((account) => account.id === sheet.accountId)!}
           onClose={() => closeSheet(sheet)}
         />
       ) : null}
