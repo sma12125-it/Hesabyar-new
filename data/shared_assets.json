@@ -1,0 +1,355 @@
+[
+  {
+    "id": "share_account_acc_mellat_01_usr_recipient_01",
+    "assetKind": "account",
+    "assetId": "acc_mellat_01",
+    "assetName": "بانک ملت",
+    "ownerUserId": "usr_test_ali",
+    "ownerDisplayName": "علی رضایی",
+    "granteeUser": {
+      "userId": "usr_recipient_01",
+      "handle": "sara_t",
+      "displayName": "سارا تقوی",
+      "avatarUrl": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=240",
+      "sharedAt": "2026-11-05T11:26:47.476Z"
+    },
+    "sharedAt": "2026-11-05T11:26:47.476Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_1793877967917_brfn9pg8ep5_usr_grantee_11",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_1793877967917_brfn9pg8ep5",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "مالک حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_11",
+      "handle": "user_grantee_11",
+      "displayName": "عضو مجاز ۱۱",
+      "sharedAt": "2026-11-05T11:26:07.924Z"
+    },
+    "sharedAt": "2026-11-05T11:26:07.924Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_1793877967917_brfn9pg8ep5_usr_grantee_10",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_1793877967917_brfn9pg8ep5",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_10",
+      "handle": "user_grantee_10",
+      "displayName": "عضو مجاز 10",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:26:07.921Z"
+    },
+    "sharedAt": "2026-11-05T11:26:07.921Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_1793877967917_brfn9pg8ep5_usr_grantee_9",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_1793877967917_brfn9pg8ep5",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_9",
+      "handle": "user_grantee_9",
+      "displayName": "عضو مجاز 9",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:26:07.921Z"
+    },
+    "sharedAt": "2026-11-05T11:26:07.921Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_1793877967917_brfn9pg8ep5_usr_grantee_8",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_1793877967917_brfn9pg8ep5",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_8",
+      "handle": "user_grantee_8",
+      "displayName": "عضو مجاز 8",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:26:07.920Z"
+    },
+    "sharedAt": "2026-11-05T11:26:07.920Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_1793877967917_brfn9pg8ep5_usr_grantee_7",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_1793877967917_brfn9pg8ep5",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_7",
+      "handle": "user_grantee_7",
+      "displayName": "عضو مجاز 7",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:26:07.920Z"
+    },
+    "sharedAt": "2026-11-05T11:26:07.920Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_1793877967917_brfn9pg8ep5_usr_grantee_6",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_1793877967917_brfn9pg8ep5",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_6",
+      "handle": "user_grantee_6",
+      "displayName": "عضو مجاز 6",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:26:07.920Z"
+    },
+    "sharedAt": "2026-11-05T11:26:07.920Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_1793877967917_brfn9pg8ep5_usr_grantee_5",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_1793877967917_brfn9pg8ep5",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_5",
+      "handle": "user_grantee_5",
+      "displayName": "عضو مجاز 5",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:26:07.919Z"
+    },
+    "sharedAt": "2026-11-05T11:26:07.919Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_1793877967917_brfn9pg8ep5_usr_grantee_4",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_1793877967917_brfn9pg8ep5",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_4",
+      "handle": "user_grantee_4",
+      "displayName": "عضو مجاز 4",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:26:07.919Z"
+    },
+    "sharedAt": "2026-11-05T11:26:07.919Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_1793877967917_brfn9pg8ep5_usr_grantee_3",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_1793877967917_brfn9pg8ep5",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_3",
+      "handle": "user_grantee_3",
+      "displayName": "عضو مجاز 3",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:26:07.918Z"
+    },
+    "sharedAt": "2026-11-05T11:26:07.918Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_1793877967917_brfn9pg8ep5_usr_grantee_2",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_1793877967917_brfn9pg8ep5",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_2",
+      "handle": "user_grantee_2",
+      "displayName": "عضو مجاز 2",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:26:07.918Z"
+    },
+    "sharedAt": "2026-11-05T11:26:07.918Z"
+  },
+  {
+    "id": "share_card_card_test_incoming_789_usr_recipient_sara",
+    "assetKind": "card",
+    "assetId": "card_test_incoming_789",
+    "assetName": "کارت بانک ملت",
+    "assetDetails": {
+      "bankName": "بانک ملت",
+      "pan": "6104-3378-9999-1111"
+    },
+    "ownerUserId": "usr_owner_boss",
+    "ownerDisplayName": "امیر مدیر",
+    "granteeUser": {
+      "userId": "usr_recipient_sara",
+      "handle": "sara_recipient",
+      "displayName": "سارا تقوی",
+      "sharedAt": "2026-11-05T11:26:07.925Z"
+    },
+    "sharedAt": "2026-11-05T11:26:07.925Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_456_usr_grantee_11",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_456",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "مالک حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_11",
+      "handle": "user_grantee_11",
+      "displayName": "عضو مجاز ۱۱",
+      "sharedAt": "2026-11-05T11:23:20.820Z"
+    },
+    "sharedAt": "2026-11-05T11:23:20.820Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_456_usr_grantee_10",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_456",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_10",
+      "handle": "user_grantee_10",
+      "displayName": "عضو مجاز 10",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:23:20.818Z"
+    },
+    "sharedAt": "2026-11-05T11:23:20.818Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_456_usr_grantee_9",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_456",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_9",
+      "handle": "user_grantee_9",
+      "displayName": "عضو مجاز 9",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:23:20.818Z"
+    },
+    "sharedAt": "2026-11-05T11:23:20.818Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_456_usr_grantee_8",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_456",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_8",
+      "handle": "user_grantee_8",
+      "displayName": "عضو مجاز 8",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:23:20.817Z"
+    },
+    "sharedAt": "2026-11-05T11:23:20.817Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_456_usr_grantee_7",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_456",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_7",
+      "handle": "user_grantee_7",
+      "displayName": "عضو مجاز 7",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:23:20.817Z"
+    },
+    "sharedAt": "2026-11-05T11:23:20.817Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_456_usr_grantee_6",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_456",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_6",
+      "handle": "user_grantee_6",
+      "displayName": "عضو مجاز 6",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:23:20.817Z"
+    },
+    "sharedAt": "2026-11-05T11:23:20.817Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_456_usr_grantee_5",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_456",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_5",
+      "handle": "user_grantee_5",
+      "displayName": "عضو مجاز 5",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:23:20.816Z"
+    },
+    "sharedAt": "2026-11-05T11:23:20.816Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_456_usr_grantee_4",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_456",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_4",
+      "handle": "user_grantee_4",
+      "displayName": "عضو مجاز 4",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:23:20.816Z"
+    },
+    "sharedAt": "2026-11-05T11:23:20.816Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_456_usr_grantee_3",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_456",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_3",
+      "handle": "user_grantee_3",
+      "displayName": "عضو مجاز 3",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:23:20.816Z"
+    },
+    "sharedAt": "2026-11-05T11:23:20.816Z"
+  },
+  {
+    "id": "share_account_acc_test_unique_456_usr_grantee_2",
+    "assetKind": "account",
+    "assetId": "acc_test_unique_456",
+    "assetName": "حساب بانک صادرات",
+    "ownerUserId": "usr_owner_1",
+    "ownerDisplayName": "محمد صاحب‌حساب",
+    "granteeUser": {
+      "userId": "usr_grantee_2",
+      "handle": "user_grantee_2",
+      "displayName": "عضو مجاز 2",
+      "avatarUrl": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240",
+      "sharedAt": "2026-11-05T11:23:20.815Z"
+    },
+    "sharedAt": "2026-11-05T11:23:20.815Z"
+  }
+]

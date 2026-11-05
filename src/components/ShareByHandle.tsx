@@ -1,4 +1,4 @@
-import { useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { useExtras } from '../store/Extras'
 import { lookupHandle, revokeAssetShare, shareAssetWithHandle } from '../lib/profileApi'
 import { handleError, normalizeHandle, stripSecrets, type SharedAssetView } from '../lib/profile'
@@ -117,23 +117,105 @@ export function ShareByHandle({
   )
 }
 
+import { fetchIncomingShares, type IncomingSharedAsset } from '../lib/userShare'
+
 export function IncomingShares() {
   const assets = useSharedAssets()
   const { formatMoney } = useExtras()
+  const [serverShares, setServerShares] = useState<IncomingSharedAsset[]>([])
+
+  const loadServer = async () => {
+    try {
+      const list = await fetchIncomingShares()
+      setServerShares(list)
+    } catch {}
+  }
+
+  useEffect(() => {
+    void loadServer()
+    window.addEventListener('hy-share-assets-updated', loadServer)
+    return () => window.removeEventListener('hy-share-assets-updated', loadServer)
+  }, [])
+
   const incoming = assets.filter((item) => !item.mine)
-  if (incoming.length === 0) return null
+  if (incoming.length === 0 && serverShares.length === 0) return null
+
   return (
-    <section className="lg report-card share-incoming">
-      <h2>با شناسهٔ من به اشتراک گذاشته شده</h2>
-      <p className="sheet-sub">فقط مشاهده. صاحب هر مورد می‌تواند دسترسی را قطع کند.</p>
-      <div className="share-incoming-list">
+    <section className="lg report-card share-incoming" style={{ margin: '14px 0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0, color: 'var(--hy-text)' }}>
+          🤝 با شناسهٔ من به اشتراک گذاشته شده (حساب‌ها و کارت‌های مشترک)
+        </h2>
+        <span
+          style={{
+            fontSize: 11,
+            padding: '2px 8px',
+            borderRadius: 6,
+            background: 'rgba(16, 185, 129, 0.16)',
+            color: 'var(--hy-income, #10b981)',
+            fontWeight: 800,
+          }}
+        >
+          {toFaDigits(incoming.length + serverShares.length)} مورد مشترک
+        </span>
+      </div>
+      <p className="sheet-sub" style={{ margin: '0 0 12px', fontSize: 11 }}>
+        دسترسی به صورت مشترک توسط مالک برای شما فعال شده است.
+      </p>
+
+      <div className="share-incoming-list" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {/* Real server-synced shares */}
+        {serverShares.map((item) => (
+          <article
+            key={item.id}
+            className="share-incoming-card"
+            style={{
+              padding: '12px 14px',
+              borderRadius: 14,
+              background: 'rgba(255, 255, 255, 0.04)',
+              border: '1.5px solid rgba(16, 185, 129, 0.25)',
+            }}
+          >
+            <div
+              className="share-incoming-title"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: 8,
+                fontSize: 12,
+                fontWeight: 800,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span>{item.assetKind === 'card' ? '💳 کارت مشترک' : '🏦 حساب مشترک'}</span>
+                <span style={{ color: 'var(--hy-accent)' }}>· {item.assetName}</span>
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)', fontWeight: 600 }}>
+                از طرف: {item.ownerDisplayName || 'کاربر حسابیار'}
+              </span>
+            </div>
+
+            {item.assetKind === 'card' ? (
+              <CardFacts payload={item.assetDetails || {}} />
+            ) : (
+              <AccountFacts payload={item.assetDetails || {}} formatMoney={formatMoney} />
+            )}
+          </article>
+        ))}
+
+        {/* Local shares if any */}
         {incoming.map((item) => (
           <article key={`${item.kind}:${item.id}`} className="share-incoming-card">
             <div className="share-incoming-title">
               {item.kind === 'card' ? 'کارت' : 'حساب'} · از {item.displayName || item.handle}
               <span>@{item.handle}</span>
             </div>
-            {item.kind === 'card' ? <CardFacts payload={item.payload} /> : <AccountFacts payload={item.payload} formatMoney={formatMoney} />}
+            {item.kind === 'card' ? (
+              <CardFacts payload={item.payload} />
+            ) : (
+              <AccountFacts payload={item.payload} formatMoney={formatMoney} />
+            )}
           </article>
         ))}
       </div>

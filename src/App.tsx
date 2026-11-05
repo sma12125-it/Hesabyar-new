@@ -33,7 +33,8 @@ import { todayIso } from './lib/iso'
 import { LiveSync } from './components/LiveSync'
 import { SharedSync } from './components/SharedSync'
 import { ProfileSync } from './components/ProfileSync'
-import { UnifiedShareSheet } from './components/UnifiedShareSheet'
+import { UnifiedShareSheet, type ShareTargetItem } from './components/UnifiedShareSheet'
+import { autoRegisterCurrentProfile } from './lib/userShare'
 import { SmsBridge } from './components/SmsBridge'
 import { ChequeSheet } from './components/ChequeSheet'
 import { DebtSheet } from './components/DebtSheet'
@@ -58,7 +59,7 @@ export type Sheet =
   | { type: 'debt'; debtId?: string }
   | { type: 'dong-create' }
   | { type: 'sync' }
-  | { type: 'share'; accountId: string }
+  | { type: 'share'; kind: 'card' | 'account'; item: ShareTargetItem }
   | { type: 'confirm'; title: string; message: string; confirmLabel?: string; run: () => Promise<void>; returnToAll?: string }
 
 function Shell() {
@@ -141,13 +142,37 @@ function Shell() {
   const onScroll = useCallback((_next: boolean) => {}, [])
 
   useEffect(() => {
-    const onShare = (event: Event) => {
-      const accountId = (event as CustomEvent<string>).detail
-      if (accountId) setSheet({ type: 'share', accountId })
+    void autoRegisterCurrentProfile()
+
+    const onOpenShare = (event: Event) => {
+      const detail = (event as CustomEvent<{ kind: 'card' | 'account'; item: ShareTargetItem }>).detail
+      if (detail && detail.kind && detail.item) {
+        setSheet({ type: 'share', kind: detail.kind, item: detail.item })
+      }
     }
-    window.addEventListener('hy-share-account', onShare)
-    return () => window.removeEventListener('hy-share-account', onShare)
-  }, [])
+    const onShareAccount = (event: Event) => {
+      const accountId = (event as CustomEvent<string>).detail
+      const acc = accounts.find((a) => a.id === accountId)
+      if (acc) {
+        setSheet({
+          type: 'share',
+          kind: 'account',
+          item: {
+            id: acc.id,
+            name: acc.name,
+            balance: acc.balance,
+            accountNumber: acc.accountNumber,
+          },
+        })
+      }
+    }
+    window.addEventListener('hy-open-share', onOpenShare)
+    window.addEventListener('hy-share-account', onShareAccount)
+    return () => {
+      window.removeEventListener('hy-open-share', onOpenShare)
+      window.removeEventListener('hy-share-account', onShareAccount)
+    }
+  }, [accounts])
 
   useEffect(() => {
     const onNotice = (event: Event) => {
@@ -492,10 +517,10 @@ function Shell() {
           onMinimize={minimizeCurrentSheet}
         />
       ) : null}
-      {sheet?.type === 'share' && accounts.some((account) => account.id === sheet.accountId) ? (
+      {sheet?.type === 'share' && sheet.item ? (
         <UnifiedShareSheet
-          kind="account"
-          item={accounts.find((account) => account.id === sheet.accountId)!}
+          kind={sheet.kind}
+          item={sheet.item}
           onClose={() => closeSheet(sheet)}
         />
       ) : null}
@@ -620,7 +645,7 @@ function AccountDetailRoute({
       onQuickEntry={() => setSheet({ type: 'quick', kind: 'expense', accountId: id })}
       onTransfer={() => setSheet({ type: 'transfer', fromId: id })}
       onEdit={() => setSheet({ type: 'account', accountId: id })}
-      onShare={() => id && setSheet({ type: 'share', accountId: id })}
+      onShare={() => id && window.dispatchEvent(new CustomEvent('hy-share-account', { detail: id }))}
     />
   )
 }

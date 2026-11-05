@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addSharedUser,
   getSharedUsers,
@@ -8,23 +8,53 @@ import {
 } from '../lib/userShare'
 
 describe('userShare module', () => {
-  it('looks up a user by manual handle', async () => {
+  beforeEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it('looks up a real user profile from server', async () => {
+    const mockProfile = {
+      userId: 'usr_9a2f1c84',
+      handle: 'ali_reza',
+      displayName: 'علی رضایی',
+      firstName: 'علی',
+      lastName: 'رضایی',
+      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=240',
+      email: 'ali@example.com',
+    }
+
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ success: true, profile: mockProfile }),
+    } as any)
+
     const user = await lookupUserByIdOrHandle('@ali_reza')
     expect(user).not.toBeNull()
     expect(user?.handle).toBe('ali_reza')
     expect(user?.displayName).toBe('علی رضایی')
     expect(user?.userId).toBe('usr_9a2f1c84')
+    expect(user?.avatarUrl).toContain('images.unsplash.com')
   })
 
-  it('looks up a user by user ID', async () => {
-    const user = await lookupUserByIdOrHandle('usr_3b8e721a')
-    expect(user).not.toBeNull()
-    expect(user?.handle).toBe('sara_t')
-    expect(user?.displayName).toBe('سارا تقوی')
+  it('strictly returns null when user is not found on server (no sample mock generation)', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: false,
+      status: 404,
+      json: async () => ({ success: false, error: 'کاربری با این مشخصات یافت نشد' }),
+    } as any)
+
+    const user = await lookupUserByIdOrHandle('usr_unknown_fake_user_123')
+    expect(user).toBeNull()
   })
 
   it('enforces maximum 10 shared users limit', async () => {
     const cardId = 'test_card_limit_10'
+
+    // Mock fetch to succeed
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true }),
+    } as any)
 
     // Add 10 users
     for (let i = 1; i <= 10; i++) {

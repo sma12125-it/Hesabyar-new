@@ -4,6 +4,7 @@ import {
   getSharedUsers,
   lookupUserByIdOrHandle,
   removeSharedUser,
+  HUMAN_AVATARS,
   type SharedUserProfile,
 } from '../lib/userShare'
 import { notifyUser } from '../lib/sync'
@@ -37,6 +38,8 @@ export function UnifiedShareSheet({
   const [previewUser, setPreviewUser] = useState<SharedUserProfile | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [editedDisplayName, setEditedDisplayName] = useState('')
 
   const title = item.bankName || item.name || (kind === 'card' ? 'کارت بانکی' : 'حساب مالی')
 
@@ -62,16 +65,18 @@ export function UnifiedShareSheet({
     return () => window.removeEventListener('hy-share-assets-updated', onUpdate)
   }, [kind, item.id])
 
-  async function handleLookup() {
-    if (!searchInput.trim()) return
+  async function handleLookup(overrideInput?: string) {
+    const textToSearch = overrideInput ?? searchInput
+    if (!textToSearch.trim()) return
     setErrorMsg(null)
     setPreviewUser(null)
+    setIsEditingName(false)
     setLookingUp(true)
 
     try {
-      const found = await lookupUserByIdOrHandle(searchInput)
+      const found = await lookupUserByIdOrHandle(textToSearch)
       if (!found) {
-        setErrorMsg('کاربری با این شناسه یا نام کاربری یافت نشد. لطفاً شناسه را بررسی نمایید.')
+        setErrorMsg('کاربری با این مشخصات در سرور یافت نشد. لطفاً User ID یا شناسه کاربری را بررسی نمایید.')
         return
       }
 
@@ -82,6 +87,7 @@ export function UnifiedShareSheet({
       }
 
       setPreviewUser(found)
+      setEditedDisplayName(found.displayName)
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'خطا در استعلام مشخصات کاربر')
     } finally {
@@ -94,12 +100,24 @@ export function UnifiedShareSheet({
     setSubmitting(true)
     setErrorMsg(null)
 
+    const userToSave: SharedUserProfile = {
+      ...previewUser,
+      displayName: editedDisplayName.trim() || previewUser.displayName,
+    }
+
     try {
-      await addSharedUser(kind, item.id, previewUser)
-      notifyUser(`دسترسی با موفقیت برای ${previewUser.displayName} فعال شد ✨`)
+      await addSharedUser(kind, item.id, userToSave, {
+        name: item.name,
+        bankName: item.bankName,
+        pan: item.pan,
+        accountNumber: item.accountNumber,
+        balance: item.balance,
+      })
+      notifyUser(`دسترسی با موفقیت برای ${userToSave.displayName} فعال شد ✨`)
       setIsAdding(false)
       setSearchInput('')
       setPreviewUser(null)
+      setIsEditingName(false)
       await refreshList()
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : 'ثبت اشتراک با خطا مواجه شد')
@@ -257,32 +275,9 @@ export function UnifiedShareSheet({
                     fontWeight: 700,
                     textAlign: 'center',
                     letterSpacing: 1,
+                    marginBottom: 8,
                   }}
                 />
-
-                {/* Quick suggestions chips */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', margin: '4px 0 8px' }}>
-                  <span style={{ fontSize: 10, color: 'var(--hy-text-tertiary)' }}>پیشنهادات سریع:</span>
-                  {['ali_reza', 'sara_t', 'mohammad_k', 'zahra_rad'].map((chip) => (
-                    <button
-                      key={chip}
-                      type="button"
-                      onClick={() => setSearchInput(chip)}
-                      style={{
-                        background: 'rgba(255, 255, 255, 0.06)',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
-                        borderRadius: 8,
-                        padding: '2px 8px',
-                        fontSize: 10,
-                        color: 'var(--hy-text-secondary)',
-                        cursor: 'pointer',
-                        fontFamily: 'monospace',
-                      }}
-                    >
-                      @{chip}
-                    </button>
-                  ))}
-                </div>
 
                 <button
                   className="cta-confirm"
@@ -291,7 +286,7 @@ export function UnifiedShareSheet({
                   onClick={() => void handleLookup()}
                   style={{ height: 42, fontSize: 13, fontWeight: 800 }}
                 >
-                  {lookingUp ? 'در حال استعلام مشخصات…' : '🔍 استعلام و بررسی مشخصات کاربر'}
+                  {lookingUp ? 'در حال استعلام مشخصات از سرور…' : '🔍 استعلام و بررسی مشخصات کاربر'}
                 </button>
               </div>
 
@@ -305,19 +300,20 @@ export function UnifiedShareSheet({
               {previewUser && (
                 <div
                   style={{
-                    background: 'rgba(0, 0, 0, 0.25)',
+                    background: 'rgba(0, 0, 0, 0.3)',
                     border: '1.5px solid var(--hy-teal, #0ea5e9)',
-                    borderRadius: 16,
-                    padding: '14px',
+                    borderRadius: 18,
+                    padding: '16px',
                     marginTop: 14,
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 12,
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--hy-teal)' }}>
-                      ✨ مشخصات پروفایل کاربر یافت شد:
+                    <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--hy-teal)' }}>
+                      ✨ مشخصات کامل پروفایل کاربر:
                     </span>
                     <span
                       style={{
@@ -327,52 +323,140 @@ export function UnifiedShareSheet({
                         background: 'rgba(16, 185, 129, 0.16)',
                         color: 'var(--hy-income, #10b981)',
                         fontWeight: 800,
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
                       }}
                     >
-                      ✓ هویت تأیید شده
+                      ✓ هویت تأیید شد
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    {/* User Avatar */}
-                    <div
-                      style={{
-                        width: 52,
-                        height: 52,
-                        borderRadius: 16,
-                        overflow: 'hidden',
-                        background: 'linear-gradient(135deg, #0ea5e9, #6366f1)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontWeight: 900,
-                        fontSize: 22,
-                        color: '#fff',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {previewUser.avatarUrl ? (
-                        <img
-                          src={previewUser.avatarUrl}
-                          alt={previewUser.displayName}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                          onError={(e) => {
-                            ;(e.target as HTMLElement).style.display = 'none'
-                          }}
-                        />
-                      ) : (
-                        previewUser.displayName.charAt(0) || '👤'
-                      )}
-                    </div>
-
-                    {/* User Details */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--hy-text)' }}>
-                        {previewUser.displayName}
-                      </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    {/* Real Human Portrait Avatar with quick cycler */}
+                    <div style={{ position: 'relative', flexShrink: 0 }}>
                       <div
                         style={{
-                          fontSize: 11,
+                          width: 60,
+                          height: 60,
+                          borderRadius: 20,
+                          overflow: 'hidden',
+                          background: '#1e293b',
+                          border: '2px solid rgba(255, 255, 255, 0.25)',
+                          boxShadow: '0 4px 14px rgba(0, 0, 0, 0.3)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        {previewUser.avatarUrl ? (
+                          <img
+                            src={previewUser.avatarUrl}
+                            alt={previewUser.displayName}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e) => {
+                              ;(e.target as HTMLElement).style.display = 'none'
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontWeight: 900,
+                              fontSize: 22,
+                              color: '#fff',
+                              background: 'linear-gradient(135deg, #0ea5e9, #6366f1)',
+                            }}
+                          >
+                            {previewUser.displayName.charAt(0) || '👤'}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        title="تغییر عکس پرتره"
+                        onClick={() => {
+                          const curIdx = HUMAN_AVATARS.indexOf(previewUser.avatarUrl || '')
+                          const nextIdx = (curIdx + 1) % HUMAN_AVATARS.length
+                          setPreviewUser({ ...previewUser, avatarUrl: HUMAN_AVATARS[nextIdx] })
+                        }}
+                        style={{
+                          position: 'absolute',
+                          bottom: -4,
+                          right: -4,
+                          width: 22,
+                          height: 22,
+                          borderRadius: '50%',
+                          background: 'var(--hy-teal, #0ea5e9)',
+                          color: '#fff',
+                          border: '1.5px solid #fff',
+                          fontSize: 10,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        🔄
+                      </button>
+                    </div>
+
+                    {/* User Details & Name Editor */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {isEditingName ? (
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 4 }}>
+                          <input
+                            className="field-input"
+                            value={editedDisplayName}
+                            onChange={(e) => setEditedDisplayName(e.target.value)}
+                            placeholder="نام و نام خانوادگی کاربر"
+                            style={{ height: 32, fontSize: 12, fontWeight: 700, padding: '2px 8px' }}
+                          />
+                          <button
+                            type="button"
+                            className="cat-mini"
+                            style={{ height: 32, padding: '0 8px' }}
+                            onClick={() => {
+                              if (editedDisplayName.trim()) {
+                                setPreviewUser({ ...previewUser, displayName: editedDisplayName.trim() })
+                              }
+                              setIsEditingName(false)
+                            }}
+                          >
+                            ✓
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <div style={{ fontSize: 15, fontWeight: 900, color: 'var(--hy-text)' }}>
+                            {editedDisplayName || previewUser.displayName}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditedDisplayName(previewUser.displayName)
+                              setIsEditingName(true)
+                            }}
+                            title="ویرایش نام نمایشی"
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--hy-teal)',
+                              cursor: 'pointer',
+                              fontSize: 11,
+                              padding: 0,
+                            }}
+                          >
+                            ✏️
+                          </button>
+                        </div>
+                      )}
+
+                      <div
+                        style={{
+                          fontSize: 12,
                           color: 'var(--hy-accent, #818cf8)',
                           fontFamily: 'monospace',
                           fontWeight: 700,
@@ -381,8 +465,8 @@ export function UnifiedShareSheet({
                       >
                         @{previewUser.handle}
                       </div>
-                      <div style={{ fontSize: 10, color: 'var(--hy-text-tertiary)', marginTop: 2, fontFamily: 'monospace' }}>
-                        ID: {previewUser.userId}
+                      <div style={{ fontSize: 11, color: 'var(--hy-text-tertiary)', marginTop: 2, fontFamily: 'monospace' }}>
+                        شناسه کاربر (ID): {previewUser.userId}
                       </div>
                     </div>
                   </div>

@@ -6,7 +6,6 @@ import { useExtras } from '../store/Extras'
 import { CardFormSheet } from '../components/CardFormSheet'
 import { AccountRow } from '../components/TxRow'
 import { IncomingShares } from '../components/ShareByHandle'
-import { UnifiedShareSheet, type ShareTargetItem } from '../components/UnifiedShareSheet'
 import { BankCardFace } from '../components/BankCardFace'
 import { VaultRecover } from '../components/VaultRecover'
 import type { AccountClassification } from '../types'
@@ -19,7 +18,6 @@ export function AccountsPage({
   const { accounts, activeAccounts, transactions } = useStore()
   const { cards, formatMoney, unlocked, vaultConfigured, unlockVault, lockVault, deleteCard } = useExtras()
   const [cardId, setCardId] = useState<string | null | undefined>(undefined)
-  const [shareTarget, setShareTarget] = useState<{ kind: 'card' | 'account'; item: ShareTargetItem } | null>(null)
   const [activeTab, setActiveTab] = useState<AccountClassification>('cash')
   const [subTab, setSubTab] = useState<'accounts' | 'cards'>('accounts')
   const navigate = useNavigate()
@@ -55,28 +53,11 @@ export function AccountsPage({
 
   useEffect(() => {
     const open = () => setCardId(null)
-    const onShareAccount = (e: Event) => {
-      const accountId = (e as CustomEvent<string>).detail
-      const acc = accounts.find((a) => a.id === accountId)
-      if (acc) {
-        setShareTarget({
-          kind: 'account',
-          item: {
-            id: acc.id,
-            name: acc.name,
-            balance: acc.balance,
-            accountNumber: acc.accountNumber,
-          },
-        })
-      }
-    }
     window.addEventListener('hy-new-card', open)
-    window.addEventListener('hy-share-account', onShareAccount)
     return () => {
       window.removeEventListener('hy-new-card', open)
-      window.removeEventListener('hy-share-account', onShareAccount)
     }
-  }, [accounts])
+  }, [])
 
   // Segregation of accounts by classification
   const cashAccounts = useMemo(
@@ -706,10 +687,19 @@ export function AccountsPage({
                     style={{ flexShrink: 0, padding: '6px 12px', fontSize: 12, fontWeight: 700 }}
                     onClick={(e) => {
                       e.stopPropagation()
-                      setShareTarget({
-                        kind: 'account',
-                        item: { id: account.id, name: account.name, balance: account.balance, accountNumber: account.accountNumber },
-                      })
+                      window.dispatchEvent(
+                        new CustomEvent('hy-open-share', {
+                          detail: {
+                            kind: 'account',
+                            item: {
+                              id: account.id,
+                              name: account.name,
+                              balance: account.balance,
+                              accountNumber: account.accountNumber,
+                            },
+                          },
+                        }),
+                      )
                     }}
                   >
                     🤝 اشتراک
@@ -901,16 +891,20 @@ export function AccountsPage({
                           className="cat-mini"
                           type="button"
                           onClick={() =>
-                            setShareTarget({
-                              kind: 'card',
-                              item: {
-                                id: card.id,
-                                name: card.bankName || 'کارت بانکی',
-                                bankName: card.bankName,
-                                pan: card.pan,
-                                accountNumber: card.accountNumber,
-                              },
-                            })
+                            window.dispatchEvent(
+                              new CustomEvent('hy-open-share', {
+                                detail: {
+                                  kind: 'card',
+                                  item: {
+                                    id: card.id,
+                                    name: card.bankName || 'کارت بانکی',
+                                    bankName: card.bankName,
+                                    pan: card.pan,
+                                    accountNumber: card.accountNumber,
+                                  },
+                                },
+                              }),
+                            )
                           }
                         >
                           🤝 اشتراک
@@ -943,14 +937,6 @@ export function AccountsPage({
         <CardFormSheet
           card={cards.find((card) => card.id === cardId)}
           onClose={() => setCardId(undefined)}
-        />
-      ) : null}
-
-      {shareTarget ? (
-        <UnifiedShareSheet
-          kind={shareTarget.kind}
-          item={shareTarget.item}
-          onClose={() => setShareTarget(null)}
         />
       ) : null}
     </div>

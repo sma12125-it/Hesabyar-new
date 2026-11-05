@@ -72,15 +72,28 @@ export function CardVaultSection({
                   {card.accountId ? <div className="plan-meta">متصل به حساب</div> : null}
                   <div className="cat-actions">
                     <button className="cat-mini" type="button" onClick={() => setRevealed(revealed === card.id ? null : card.id)}>نمایش</button>
-                    {card.accountId ? (
-                      <button
-                        className="cat-mini"
-                        type="button"
-                        onClick={() => window.dispatchEvent(new CustomEvent('hy-share-account', { detail: card.accountId }))}
-                      >
-                        اشتراک
-                      </button>
-                    ) : null}
+                    <button
+                      className="cat-mini"
+                      type="button"
+                      onClick={() =>
+                        window.dispatchEvent(
+                          new CustomEvent('hy-open-share', {
+                            detail: {
+                              kind: 'card',
+                              item: {
+                                id: card.id,
+                                name: card.bankName || 'کارت بانکی',
+                                bankName: card.bankName,
+                                pan: card.pan,
+                                accountNumber: card.accountNumber,
+                              },
+                            },
+                          }),
+                        )
+                      }
+                    >
+                      🤝 اشتراک
+                    </button>
                     <button className="cat-mini" type="button" onClick={() => onEdit(card.id)}>ویرایش</button>
                     <button className="cat-mini danger" type="button" onClick={() => void deleteCard(card.id, phrase)}>حذف</button>
                   </div>

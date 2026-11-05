@@ -13,6 +13,7 @@ import {
   type UserProfile,
 } from '../lib/profile'
 import { loadSession, notifyUser } from '../lib/sync'
+import { autoRegisterCurrentProfile } from '../lib/userShare'
 import { useExtras } from '../store/Extras'
 
 export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void }) {
@@ -119,6 +120,7 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
       await db.setKv('userProfile', next)
       localStorage.setItem(PROFILE_DIRTY_KEY, '1')
       setProfile(next)
+      void autoRegisterCurrentProfile()
       const result = await syncProfile({ force: 'push', forceNotify: true, profile: next })
       if (result.profile) setProfile({ ...emptyProfile(), ...result.profile })
       if (result.cloud === 'pushed') {

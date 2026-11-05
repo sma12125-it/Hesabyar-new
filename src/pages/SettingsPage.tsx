@@ -7,6 +7,7 @@ import { SupabaseConfigSheet } from '../components/SupabaseConfigSheet'
 import { loadLock, registerBiometric, isBiometricActive, setBiometricActive, type AppLockRecord } from '../lib/applock'
 import { rememberedAccountPassword, savePasswordVerifier } from '../lib/account'
 import { joinSharedCode } from '../lib/share'
+import { getStableUserId } from '../lib/userShare'
 import { notifyUser, loadSession, updatePassword, type CloudSession } from '../lib/sync'
 import { getSupabaseSettings } from '../lib/supabaseClient'
 import { useExtras } from '../store/Extras'
@@ -988,7 +989,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                           color: 'var(--hy-accent)',
                         }}
                       >
-                        {session?.userId ? session.userId.slice(0, 12) : 'usr_9a2f1c84'}
+                        {session?.userId ? (session.userId.length > 16 ? session.userId.slice(0, 12) : session.userId) : getStableUserId()}
                       </code>
                     </div>
                     <button
@@ -996,7 +997,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                       className="home-pill ghost"
                       style={{ padding: '3px 8px', fontSize: 10, height: 26 }}
                       onClick={() => {
-                        const idToCopy = session?.userId ? session.userId.slice(0, 12) : 'usr_9a2f1c84'
+                        const idToCopy = session?.userId ? (session.userId.length > 16 ? session.userId.slice(0, 12) : session.userId) : getStableUserId()
                         if (idToCopy && navigator.clipboard) {
                           navigator.clipboard.writeText(idToCopy)
                           notifyUser('User ID سیستمی کپی شد')

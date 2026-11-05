@@ -2044,5 +2044,176 @@ apiRouter.post('/voice/transcribe', async (req: Request, res: Response): Promise
   }
 })
 
+// ============================================================================
+// REAL PROFILE REGISTRY & CROSS-USER ASSET SHARING ENDPOINTS
+// ============================================================================
+import {
+  registerUserProfile,
+  lookupUserProfile,
+  getAssetShares,
+  shareAssetWithUser,
+  revokeAssetShare,
+  getIncomingSharesForUser,
+} from './shareService'
+
+/**
+ * POST /api/v1/profiles/register
+ * Registers or updates a real user profile in persistent server storage.
+ */
+apiRouter.post('/profiles/register', (req: Request, res: Response): void => {
+  try {
+    const body = req.body || {}
+    if (!body.userId) {
+      res.status(400).json({ success: false, error: 'شناسه کاربری (userId) الزامی است' })
+      return
+    }
+    const profile = registerUserProfile(body)
+    res.json({ success: true, profile })
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      error: err instanceof Error ? err.message : 'خطا در ثبت مشخصات کاربر در سرور',
+    })
+  }
+})
+
+/**
+ * GET /api/v1/profiles/lookup
+ * Query a real registered user profile by User ID, Handle, or Email.
+ * Strictly returns 404 if not found (no fake sample user generation).
+ */
+apiRouter.get('/profiles/lookup', (req: Request, res: Response): void => {
+  try {
+    const q = String(req.query.q || '').trim()
+    if (!q) {
+      res.status(400).json({ success: false, error: 'عبارت جستجو (User ID یا شناسه کاربری) الزامی است' })
+      return
+    }
+
+    const profile = lookupUserProfile(q)
+    if (!profile) {
+      res.status(404).json({
+        success: false,
+        error: 'کاربری با این مشخصات یافت نشد. لطفاً شناسه یا نام کاربری را بررسی نمایید.',
+      })
+      return
+    }
+
+    res.json({ success: true, profile })
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err instanceof Error ? err.message : 'خطای سرور در استعلام پروفایل',
+    })
+  }
+})
+
+/**
+ * GET /api/v1/shares/asset
+ * Retrieve all users an asset is shared with.
+ */
+apiRouter.get('/shares/asset', (req: Request, res: Response): void => {
+  try {
+    const kind = req.query.kind === 'card' ? 'card' : 'account'
+    const id = String(req.query.id || '').trim()
+    if (!id) {
+      res.status(400).json({ success: false, error: 'شناسه دارایی الزامی است' })
+      return
+    }
+
+    const records = getAssetShares(kind, id)
+    const users = records.map((r) => r.granteeUser)
+    res.json({ success: true, count: users.length, users })
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err instanceof Error ? err.message : 'خطا در دریافت لیست کاربران مجاز',
+    })
+  }
+})
+
+/**
+ * POST /api/v1/shares/share
+ * Share an account or card with another user. Enforces maximum 10 users.
+ */
+apiRouter.post('/shares/share', (req: Request, res: Response): void => {
+  try {
+    const body = req.body || {}
+    if (!body.assetKind || !body.assetId || !body.ownerUserId || !body.granteeUser?.userId) {
+      res.status(400).json({
+        success: false,
+        error: 'فیلدهای الزامی: assetKind, assetId, ownerUserId, granteeUser.userId',
+      })
+      return
+    }
+
+    const result = shareAssetWithUser({
+      assetKind: body.assetKind === 'card' ? 'card' : 'account',
+      assetId: String(body.assetId),
+      assetName: String(body.assetName || 'دارایی مالی'),
+      assetDetails: body.assetDetails,
+      ownerUserId: String(body.ownerUserId),
+      ownerDisplayName: body.ownerDisplayName,
+      granteeUser: body.granteeUser,
+    })
+
+    res.json(result)
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      error: err instanceof Error ? err.message : 'خطا در ثبت اشتراک‌گذاری',
+    })
+  }
+})
+
+/**
+ * POST /api/v1/shares/revoke
+ * Revoke sharing of an asset from a user.
+ */
+apiRouter.post('/shares/revoke', (req: Request, res: Response): void => {
+  try {
+    const body = req.body || {}
+    if (!body.assetKind || !body.assetId || !body.granteeUserId) {
+      res.status(400).json({
+        success: false,
+        error: 'فیلدهای الزامی: assetKind, assetId, granteeUserId',
+      })
+      return
+    }
+
+    const result = revokeAssetShare(
+      body.assetKind === 'card' ? 'card' : 'account',
+      String(body.assetId),
+      String(body.granteeUserId),
+    )
+
+    res.json(result)
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      error: err instanceof Error ? err.message : 'خطا در لغو دسترسی',
+    })
+  }
+})
+
+/**
+ * GET /api/v1/shares/incoming
+ * Retrieve all assets shared WITH the given user (incoming shared cards and accounts).
+ */
+apiRouter.get('/shares/incoming', (req: Request, res: Response): void => {
+  try {
+    const userId = req.query.userId ? String(req.query.userId) : undefined
+    const handle = req.query.handle ? String(req.query.handle) : undefined
+    const shares = getIncomingSharesForUser(userId, handle)
+    res.json({ success: true, count: shares.length, shares })
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err instanceof Error ? err.message : 'خطا در دریافت حساب‌های اشتراکی',
+    })
+  }
+})
+
+
 
 
