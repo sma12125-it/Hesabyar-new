@@ -2054,6 +2054,7 @@ import {
   shareAssetWithUser,
   revokeAssetShare,
   getIncomingSharesForUser,
+  respondToAssetShare,
 } from './shareService'
 
 /**
@@ -2210,6 +2211,28 @@ apiRouter.get('/shares/incoming', (req: Request, res: Response): void => {
     res.status(500).json({
       success: false,
       error: err instanceof Error ? err.message : 'خطا در دریافت حساب‌های اشتراکی',
+    })
+  }
+})
+
+/**
+ * POST /api/v1/shares/respond
+ * Respond to an incoming asset share invitation (accept or reject).
+ */
+apiRouter.post('/shares/respond', (req: Request, res: Response): void => {
+  try {
+    const { shareId, action } = req.body || {}
+    if (!shareId || !action) {
+      res.status(400).json({ success: false, error: 'shareId و action (accept یا reject) الزامی است' })
+      return
+    }
+
+    const result = respondToAssetShare(String(shareId), action === 'reject' ? 'reject' : 'accept')
+    res.json(result)
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      error: err instanceof Error ? err.message : 'خطا در پاسخ به اشتراک',
     })
   }
 })

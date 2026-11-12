@@ -97,6 +97,18 @@ interface StoreValue {
   renameCategory: (id: string, name: string) => Promise<void>
   deleteCategory: (id: string) => Promise<void>
   attachShare: (accountId: string, shareId: string) => Promise<void>
+  addSharedAccount: (input: {
+    id: string
+    name: string
+    type?: Account['type']
+    classification?: AccountClassification
+    balance: number
+    accountNumber?: string
+    shareId: string
+    ownerDisplayName?: string
+    ownerUserId?: string
+  }) => Promise<void>
+  removeSharedAccount: (shareIdOrAccountId: string) => Promise<void>
   applyShared: (ledgerId: string, payload: SharePayload) => Promise<void>
   importCloud: (data: {
     accounts: Account[]
@@ -278,6 +290,49 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const prev = dataRef.current
     await persistSnapshot(prev, { ...prev, accounts: [...prev.accounts, account] })
     return account
+  }, [persistSnapshot])
+
+  const addSharedAccount = useCallback(async (input: {
+    id: string
+    name: string
+    type?: Account['type']
+    classification?: AccountClassification
+    balance: number
+    accountNumber?: string
+    shareId: string
+    ownerDisplayName?: string
+    ownerUserId?: string
+  }) => {
+    const prev = dataRef.current
+    if (prev.accounts.some((a) => a.shareId === input.shareId || a.id === input.id)) {
+      return
+    }
+    const now = Date.now()
+    const acc: Account = {
+      id: input.id,
+      name: input.name,
+      type: input.type || 'bank',
+      classification: input.classification || 'cash',
+      archived: false,
+      openingBalance: input.balance,
+      balance: input.balance,
+      accountNumber: input.accountNumber,
+      createdAt: now,
+      updatedAt: now,
+      shareId: input.shareId,
+      isShared: true,
+      ownerDisplayName: input.ownerDisplayName,
+      ownerUserId: input.ownerUserId,
+    }
+    await persistSnapshot(prev, { ...prev, accounts: [...prev.accounts, acc] })
+  }, [persistSnapshot])
+
+  const removeSharedAccount = useCallback(async (shareIdOrAccountId: string) => {
+    const prev = dataRef.current
+    const nextAccounts = prev.accounts.filter(
+      (a) => a.id !== shareIdOrAccountId && a.shareId !== shareIdOrAccountId,
+    )
+    await persistSnapshot(prev, { ...prev, accounts: nextAccounts })
   }, [persistSnapshot])
 
   const updateAccount = useCallback(async (
@@ -915,6 +970,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       renameCategory,
       deleteCategory,
       attachShare,
+      addSharedAccount,
+      removeSharedAccount,
       applyShared,
       importCloud,
     }),
@@ -960,6 +1017,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       renameCategory,
       deleteCategory,
       attachShare,
+      addSharedAccount,
+      removeSharedAccount,
       applyShared,
       importCloud,
     ],

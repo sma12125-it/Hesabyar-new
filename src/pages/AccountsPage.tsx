@@ -5,19 +5,23 @@ import { useStore } from '../store/Store'
 import { useExtras } from '../store/Extras'
 import { CardFormSheet } from '../components/CardFormSheet'
 import { AccountRow } from '../components/TxRow'
-import { IncomingShares } from '../components/ShareByHandle'
 import { BankCardFace } from '../components/BankCardFace'
 import { VaultRecover } from '../components/VaultRecover'
-import type { AccountClassification } from '../types'
+import { fetchIncomingShares, respondIncomingShare, type IncomingSharedAsset } from '../lib/userShare'
+import { SharedAssetDetailSheet } from '../components/SharedAssetDetailSheet'
+import { notifyUser } from '../lib/sync'
+import type { Account, AccountClassification, BankCard } from '../types'
 
 export function AccountsPage({
   onScroll,
 }: {
   onScroll: (compact: boolean) => void
 }) {
-  const { accounts, activeAccounts, transactions } = useStore()
-  const { cards, formatMoney, unlocked, vaultConfigured, unlockVault, lockVault, deleteCard } = useExtras()
+  const { accounts, activeAccounts, transactions, addSharedAccount } = useStore()
+  const { cards, formatMoney, unlocked, vaultConfigured, unlockVault, lockVault, deleteCard, saveSharedCard } = useExtras()
   const [cardId, setCardId] = useState<string | null | undefined>(undefined)
+  const [selectedSharedAsset, setSelectedSharedAsset] = useState<{ kind: 'card' | 'account'; account?: Account; card?: BankCard } | null>(null)
+  const [incomingShares, setIncomingShares] = useState<IncomingSharedAsset[]>([])
   const [activeTab, setActiveTab] = useState<AccountClassification>('cash')
   const [subTab, setSubTab] = useState<'accounts' | 'cards'>('accounts')
   const navigate = useNavigate()
@@ -58,6 +62,33 @@ export function AccountsPage({
       window.removeEventListener('hy-new-card', open)
     }
   }, [])
+
+  const loadIncoming = async () => {
+    try {
+      const list = await fetchIncomingShares()
+      setIncomingShares(list)
+    } catch {}
+  }
+
+  useEffect(() => {
+    void loadIncoming()
+    window.addEventListener('hy-share-assets-updated', loadIncoming)
+    return () => window.removeEventListener('hy-share-assets-updated', loadIncoming)
+  }, [])
+
+  const pendingShares = useMemo(() => {
+    return incomingShares.filter((s) => {
+      if (s.status === 'rejected') return false
+      if (s.assetKind === 'account') {
+        const alreadyInAccounts = accounts.some((a) => a.shareId === s.id || a.id === s.assetId)
+        if (alreadyInAccounts) return false
+      } else {
+        const alreadyInCards = cards.some((c) => c.shareId === s.id || c.id === s.assetId)
+        if (alreadyInCards) return false
+      }
+      return true
+    })
+  }, [incomingShares, accounts, cards])
 
   // Segregation of accounts by classification
   const cashAccounts = useMemo(
@@ -277,7 +308,130 @@ export function AccountsPage({
         </div>
       </div>
 
-      <IncomingShares />
+      {pendingShares.length > 0 ? (
+        <div
+          style={{
+            margin: '14px 0',
+            padding: '12px 14px',
+            borderRadius: 16,
+            background: 'linear-gradient(135deg, rgba(15, 118, 110, 0.16) 0%, rgba(30, 27, 75, 0.25) 100%)',
+            border: '1.5px solid var(--hy-teal)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, fontSize: 13, color: 'var(--hy-teal)' }}>
+              <span>🔔</span>
+              <span>دعوتنامه اشتراک حساب یا کارت جدید</span>
+            </div>
+            <span
+              style={{
+                fontSize: 10,
+                padding: '2px 8px',
+                borderRadius: 6,
+                background: 'rgba(16, 185, 129, 0.2)',
+                color: 'var(--hy-income, #10b981)',
+                fontWeight: 800,
+              }}
+            >
+              {toFaDigits(pendingShares.length)} مورد
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {pendingShares.map((share) => (
+              <div
+                key={share.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  background: 'rgba(255, 255, 255, 0.05)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  gap: 10,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>
+                    {share.assetKind === 'card' ? '💳 کارت مشترک: ' : '🏦 حساب مشترک: '}
+                    {share.assetName}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
+                    از طرف: <strong>{share.ownerDisplayName || 'کاربر حسابیار'}</strong>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    type="button"
+                    className="cat-mini"
+                    style={{
+                      background: 'var(--hy-teal, #0ea5e9)',
+                      color: '#fff',
+                      border: 'none',
+                      fontWeight: 800,
+                      padding: '6px 12px',
+                    }}
+                    onClick={async () => {
+                      await respondIncomingShare(share.id, 'accept')
+                      if (share.assetKind === 'account') {
+                        await addSharedAccount({
+                          id: `shared_${share.id}`,
+                          name: `${share.assetName} (مشترک)`,
+                          balance: share.assetDetails?.balance ?? 0,
+                          accountNumber: share.assetDetails?.accountNumber,
+                          shareId: share.id,
+                          ownerDisplayName: share.ownerDisplayName,
+                          ownerUserId: share.ownerUserId,
+                        })
+                      } else {
+                        await saveSharedCard({
+                          id: `shared_card_${share.id}`,
+                          bankName: `${share.assetName || share.assetDetails?.bankName || 'کارت'} (مشترک)`,
+                          holder: share.ownerDisplayName || 'اشتراکی',
+                          pan: share.assetDetails?.pan || '',
+                          sheba: share.assetDetails?.sheba || '',
+                          expiry: share.assetDetails?.expiry || '1406/12',
+                          cvv: '***',
+                          note: `کارت مشترک از طرف ${share.ownerDisplayName || 'کاربر حسابیار'}`,
+                          createdAt: Date.now(),
+                          classification: 'cash',
+                          color: 'linear-gradient(135deg, #059669 0%, #0f172a 100%)',
+                          shareId: share.id,
+                          isShared: true,
+                          ownerDisplayName: share.ownerDisplayName,
+                          ownerUserId: share.ownerUserId,
+                        })
+                      }
+                      notifyUser(`«${share.assetName}» به لیست شما افزوده شد ✨`)
+                      void loadIncoming()
+                    }}
+                  >
+                    ✅ تأیید و افزودن
+                  </button>
+
+                  <button
+                    type="button"
+                    className="cat-mini danger"
+                    style={{ padding: '6px 10px' }}
+                    onClick={async () => {
+                      await respondIncomingShare(share.id, 'reject')
+                      notifyUser('دعوتنامه رد شد')
+                      void loadIncoming()
+                    }}
+                  >
+                    ✕ رد
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       {/* KPI Cards */}
       <div
@@ -681,29 +835,27 @@ export function AccountsPage({
                       onClick={() => navigate(`/accounts/${account.id}`)}
                     />
                   </div>
-                  <button
-                    type="button"
-                    className="cat-mini"
-                    style={{ flexShrink: 0, padding: '6px 12px', fontSize: 12, fontWeight: 700 }}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      window.dispatchEvent(
-                        new CustomEvent('hy-open-share', {
-                          detail: {
-                            kind: 'account',
-                            item: {
-                              id: account.id,
-                              name: account.name,
-                              balance: account.balance,
-                              accountNumber: account.accountNumber,
-                            },
-                          },
-                        }),
-                      )
-                    }}
-                  >
-                    🤝 اشتراک
-                  </button>
+                  {account.isShared || account.shareId ? (
+                    <button
+                      type="button"
+                      className="cat-mini"
+                      style={{
+                        flexShrink: 0,
+                        padding: '6px 10px',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        color: 'var(--hy-income, #10b981)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedSharedAsset({ kind: 'account', account })
+                      }}
+                    >
+                      ℹ️ مشخصات اشتراک
+                    </button>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -887,42 +1039,59 @@ export function AccountsPage({
                         >
                           {revealed === card.id ? 'پوشاندن' : 'نمایش اطلاعات'}
                         </button>
-                        <button
-                          className="cat-mini"
-                          type="button"
-                          onClick={() =>
-                            window.dispatchEvent(
-                              new CustomEvent('hy-open-share', {
-                                detail: {
-                                  kind: 'card',
-                                  item: {
-                                    id: card.id,
-                                    name: card.bankName || 'کارت بانکی',
-                                    bankName: card.bankName,
-                                    pan: card.pan,
-                                    accountNumber: card.accountNumber,
-                                  },
-                                },
-                              }),
-                            )
-                          }
-                        >
-                          🤝 اشتراک
-                        </button>
-                        <button className="cat-mini" type="button" onClick={() => setCardId(card.id)}>
-                          ویرایش
-                        </button>
-                        <button
-                          className="cat-mini danger"
-                          type="button"
-                          onClick={() => {
-                            if (confirm('آیا از حذف این کارت اطمینان دارید؟')) {
-                              void deleteCard(card.id, phrase)
-                            }
-                          }}
-                        >
-                          حذف
-                        </button>
+                        {card.isShared || card.shareId ? (
+                          <button
+                            className="cat-mini"
+                            type="button"
+                            style={{
+                              background: 'rgba(16, 185, 129, 0.15)',
+                              color: 'var(--hy-income, #10b981)',
+                              border: '1px solid rgba(16, 185, 129, 0.3)',
+                            }}
+                            onClick={() => setSelectedSharedAsset({ kind: 'card', card })}
+                          >
+                            ℹ️ مشخصات اشتراک
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              className="cat-mini"
+                              type="button"
+                              onClick={() =>
+                                window.dispatchEvent(
+                                  new CustomEvent('hy-open-share', {
+                                    detail: {
+                                      kind: 'card',
+                                      item: {
+                                        id: card.id,
+                                        name: card.bankName || 'کارت بانکی',
+                                        bankName: card.bankName,
+                                        pan: card.pan,
+                                        accountNumber: card.accountNumber,
+                                      },
+                                    },
+                                  }),
+                                )
+                              }
+                            >
+                              🤝 اشتراک
+                            </button>
+                            <button className="cat-mini" type="button" onClick={() => setCardId(card.id)}>
+                              ویرایش
+                            </button>
+                            <button
+                              className="cat-mini danger"
+                              type="button"
+                              onClick={() => {
+                                if (confirm('آیا از حذف این کارت اطمینان دارید؟')) {
+                                  void deleteCard(card.id, phrase)
+                                }
+                              }}
+                            >
+                              حذف
+                            </button>
+                          </>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -937,6 +1106,15 @@ export function AccountsPage({
         <CardFormSheet
           card={cards.find((card) => card.id === cardId)}
           onClose={() => setCardId(undefined)}
+        />
+      ) : null}
+
+      {selectedSharedAsset ? (
+        <SharedAssetDetailSheet
+          kind={selectedSharedAsset.kind}
+          account={selectedSharedAsset.account}
+          card={selectedSharedAsset.card}
+          onClose={() => setSelectedSharedAsset(null)}
         />
       ) : null}
     </div>

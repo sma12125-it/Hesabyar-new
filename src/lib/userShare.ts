@@ -25,9 +25,13 @@ export interface IncomingSharedAsset {
     pan?: string
     balance?: number
     currency?: string
+    sheba?: string
+    expiry?: string
+    holder?: string
   }
   ownerUserId: string
   ownerDisplayName?: string
+  status?: 'pending' | 'accepted' | 'rejected'
   sharedAt: string
 }
 
@@ -78,7 +82,7 @@ async function safeSetKv<T>(key: string, value: T): Promise<void> {
 }
 
 function shareKey(kind: 'card' | 'account', id: string): string {
-  return `hy_asset_shares:${kind}:${id}`
+  return `hy_asset_shares:${kind}:${String(id).trim()}`
 }
 
 /**
@@ -229,28 +233,36 @@ export async function lookupUserByIdOrHandle(rawInput: string): Promise<SharedUs
 
 /**
  * Gets the list of shared users for a specific account or bank card.
- * Fetches from the server so the sheet is never empty when reopened.
+ * Merges server and local storage so members are never lost when reopened.
  */
 export async function getSharedUsers(kind: 'card' | 'account', id: string): Promise<SharedUserProfile[]> {
+  const cleanId = String(id).trim()
+  const stored = (await safeGetKv<SharedUserProfile[]>(shareKey(kind, cleanId))) || []
+
   try {
-    // 1. Try server first
-    const res = await fetch(`/api/v1/shares/asset?kind=${kind}&id=${encodeURIComponent(id)}`)
+    const res = await fetch(`/api/v1/shares/asset?kind=${kind}&id=${encodeURIComponent(cleanId)}`)
     if (res.ok) {
       const json = await res.json()
       if (json.success && Array.isArray(json.users)) {
-        await safeSetKv(shareKey(kind, id), json.users)
-        return json.users
+        const merged = [...json.users]
+        for (const loc of stored) {
+          const already = merged.some(
+            (m) =>
+              (m.userId && loc.userId && m.userId.toLowerCase() === loc.userId.toLowerCase()) ||
+              (m.handle && loc.handle && m.handle.toLowerCase().replace(/^@+/, '') === loc.handle.toLowerCase().replace(/^@+/, '')),
+          )
+          if (!already) {
+            merged.push(loc)
+          }
+        }
+        const finalUsers = merged.slice(0, 10)
+        await safeSetKv(shareKey(kind, cleanId), finalUsers)
+        return finalUsers
       }
     }
   } catch {}
 
-  // 2. Fall back to local storage
-  try {
-    const stored = await safeGetKv<SharedUserProfile[]>(shareKey(kind, id))
-    return Array.isArray(stored) ? stored : []
-  } catch {
-    return []
-  }
+  return stored.slice(0, 10)
 }
 
 /**
@@ -268,9 +280,12 @@ export async function addSharedUser(
     pan?: string
     accountNumber?: string
     balance?: number
+    sheba?: string
+    expiry?: string
   },
 ): Promise<{ success: boolean; total: number; message?: string }> {
-  const current = await getSharedUsers(kind, id)
+  const cleanId = String(id).trim()
+  const current = await getSharedUsers(kind, cleanId)
 
   // Enforce maximum 10 users limit
   if (current.length >= 10 && !current.some((u) => u.userId === user.userId || u.handle === user.handle)) {
@@ -290,7 +305,7 @@ export async function addSharedUser(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         assetKind: kind,
-        assetId: id,
+        assetId: cleanId,
         assetName: assetInfo?.name || assetInfo?.bankName || (kind === 'card' ? 'کارت بانکی' : 'حساب مالی'),
         assetDetails: assetInfo,
         ownerUserId: getStableUserId(),
@@ -312,7 +327,11 @@ export async function addSharedUser(
   }
 
   // 2. Update local state
-  const filtered = current.filter((u) => u.userId !== user.userId && u.handle !== user.handle)
+  const filtered = current.filter(
+    (u) =>
+      u.userId.toLowerCase() !== user.userId.toLowerCase() &&
+      u.handle.toLowerCase().replace(/^@+/, '') !== user.handle.toLowerCase().replace(/^@+/, ''),
+  )
   const updated: SharedUserProfile[] = [
     {
       ...user,
@@ -321,7 +340,7 @@ export async function addSharedUser(
     ...filtered,
   ].slice(0, 10)
 
-  await safeSetKv(shareKey(kind, id), updated)
+  await safeSetKv(shareKey(kind, cleanId), updated)
 
   // Remember in known profiles cache
   try {
@@ -334,7 +353,7 @@ export async function addSharedUser(
   if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
     window.dispatchEvent(
       new CustomEvent('hy-share-assets-updated', {
-        detail: { kind, id, users: updated },
+        detail: { kind, id: cleanId, users: updated },
       }),
     )
   }
@@ -350,6 +369,9 @@ export async function removeSharedUser(
   id: string,
   targetUserIdOrHandle: string,
 ): Promise<number> {
+  const cleanId = String(id).trim()
+  const cleanTarget = String(targetUserIdOrHandle).trim().toLowerCase().replace(/^@+/, '')
+
   // 1. Revoke on server
   try {
     await fetch('/api/v1/shares/revoke', {
@@ -357,29 +379,54 @@ export async function removeSharedUser(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         assetKind: kind,
-        assetId: id,
+        assetId: cleanId,
         granteeUserId: targetUserIdOrHandle,
       }),
     })
   } catch {}
 
   // 2. Revoke locally
-  const current = await getSharedUsers(kind, id)
-  const updated = current.filter(
-    (u) => u.userId !== targetUserIdOrHandle && u.handle !== targetUserIdOrHandle,
-  )
+  const current = (await safeGetKv<SharedUserProfile[]>(shareKey(kind, cleanId))) || []
+  const updated = current.filter((u) => {
+    const uId = (u.userId || '').trim().toLowerCase()
+    const uHandle = (u.handle || '').trim().toLowerCase().replace(/^@+/, '')
+    return uId !== cleanTarget && uHandle !== cleanTarget
+  })
 
-  await safeSetKv(shareKey(kind, id), updated)
+  await safeSetKv(shareKey(kind, cleanId), updated)
 
   if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
     window.dispatchEvent(
       new CustomEvent('hy-share-assets-updated', {
-        detail: { kind, id, users: updated },
+        detail: { kind, id: cleanId, users: updated },
       }),
     )
   }
 
   return updated.length
+}
+
+/**
+ * Responds to an incoming asset share (accept or reject).
+ */
+export async function respondIncomingShare(
+  shareId: string,
+  action: 'accept' | 'reject',
+): Promise<boolean> {
+  try {
+    const res = await fetch('/api/v1/shares/respond', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ shareId, action }),
+    })
+    if (res.ok) {
+      if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+        window.dispatchEvent(new CustomEvent('hy-share-assets-updated'))
+      }
+      return true
+    }
+  } catch {}
+  return false
 }
 
 /**
@@ -405,6 +452,7 @@ export async function fetchIncomingShares(): Promise<IncomingSharedAsset[]> {
           assetDetails: s.assetDetails,
           ownerUserId: s.ownerUserId,
           ownerDisplayName: s.ownerDisplayName,
+          status: s.status || 'pending',
           sharedAt: s.sharedAt,
         }))
       }
@@ -412,3 +460,4 @@ export async function fetchIncomingShares(): Promise<IncomingSharedAsset[]> {
   } catch {}
   return []
 }
+

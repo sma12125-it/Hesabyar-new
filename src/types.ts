@@ -28,6 +28,9 @@ export interface Account {
   cardId?: string
   /** Cloud ledger shared with another signed-in user. */
   shareId?: string
+  isShared?: boolean
+  ownerDisplayName?: string
+  ownerUserId?: string
 }
 
 /** Absent on older rows, which stay manual entries. */
@@ -131,6 +134,10 @@ export interface CreateAccountInput {
   accountNumber?: string
   smsSenders?: string[]
   cardId?: string
+  shareId?: string
+  isShared?: boolean
+  ownerDisplayName?: string
+  ownerUserId?: string
 }
 
 export interface QuickEntryInput {
@@ -225,6 +232,10 @@ export interface BankCard {
   classification?: AccountClassification
   /** CSS gradient or solid color chosen from the palette. */
   color?: string
+  shareId?: string
+  isShared?: boolean
+  ownerDisplayName?: string
+  ownerUserId?: string
 }
 
 export interface Budget {

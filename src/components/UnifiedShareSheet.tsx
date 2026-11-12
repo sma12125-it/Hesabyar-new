@@ -127,13 +127,24 @@ export function UnifiedShareSheet({
   }
 
   async function handleRevoke(user: SharedUserProfile) {
-    if (confirm(`آیا از حذف دسترسی ${user.displayName} به این ${kind === 'card' ? 'کارت' : 'حساب'} اطمینان دارید؟`)) {
+    if (confirm(`آیا از حذف دسترسی «${user.displayName}» به این ${kind === 'card' ? 'کارت' : 'حساب'} اطمینان دارید؟`)) {
+      setSharedUsers((prev) =>
+        prev.filter(
+          (u) =>
+            u.userId.toLowerCase() !== user.userId.toLowerCase() &&
+            u.handle.toLowerCase().replace(/^@+/, '') !== user.handle.toLowerCase().replace(/^@+/, ''),
+        ),
+      )
       try {
         await removeSharedUser(kind, item.id, user.userId)
-        notifyUser(`دسترسی ${user.displayName} لغو شد`)
+        if (user.handle && user.handle !== user.userId) {
+          await removeSharedUser(kind, item.id, user.handle)
+        }
+        notifyUser(`دسترسی «${user.displayName}» لغو شد`)
         await refreshList()
       } catch (err) {
         notifyUser(err instanceof Error ? err.message : 'خطا در لغو دسترسی')
+        await refreshList()
       }
     }
   }

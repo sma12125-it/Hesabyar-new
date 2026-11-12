@@ -6,8 +6,6 @@ import { TxRow } from '../components/TxRow'
 import { useUiActions } from '../components/UiActions'
 import { useExtras } from '../store/Extras'
 import { notifyUser } from '../lib/sync'
-import { shareableAccount } from '../lib/profile'
-import { ShareByHandle } from '../components/ShareByHandle'
 import { toWesternDigits, toFaDigits } from '../lib/money'
 import { getCategory } from '../lib/categories'
 import { computePocketBalances } from '../lib/balance'
@@ -210,8 +208,6 @@ export function AccountDetailPage({
           </button>
         )}
       </div>
-
-      <ShareByHandle kind="account" localId={account.id} title={account.name} payload={shareableAccount(account)} />
 
       {/* Pockets Section (Prominently displayed above card) */}
       <div style={{ margin: '14px 0 16px' }}>

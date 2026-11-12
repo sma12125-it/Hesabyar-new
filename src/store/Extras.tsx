@@ -57,6 +57,8 @@ interface ExtrasValue {
   resetVault: (passphrase: string, accountPassword?: string) => Promise<string>
   clearLocal: () => Promise<void>
   saveCard: (input: Omit<BankCard, 'id' | 'createdAt'> & { id?: string }, passphrase?: string) => Promise<BankCard>
+  saveSharedCard: (card: BankCard) => Promise<void>
+  deleteSharedCard: (idOrShareId: string) => Promise<void>
   linkCard: (id: string, accountId: string) => Promise<void>
   deleteCard: (id: string, passphrase: string) => Promise<void>
   saveBudget: (budget: Budget) => Promise<void>
@@ -116,6 +118,15 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
   const cardsRef = useRef<BankCard[]>([])
   const [cards, setCards] = useState<BankCard[]>([])
   cardsRef.current = cards
+  const [sharedCards, setSharedCards] = useState<BankCard[]>([])
+
+  const allCards = useMemo(() => {
+    const map = new Map<string, BankCard>()
+    for (const c of cards) map.set(c.id, c)
+    for (const sc of sharedCards) map.set(sc.id, sc)
+    return Array.from(map.values())
+  }, [cards, sharedCards])
+
   const budgetsRef = useRef<Budget[]>([])
   const [budgets, setBudgets] = useState<Budget[]>([])
   budgetsRef.current = budgets
@@ -163,6 +174,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         savedUnit,
         nextInvestments,
         nextDongEvents,
+        savedSharedCards,
       ] = await Promise.all([
         db.getKv<VaultBlob>('cardVault'),
         db.getKv<Budget[]>('budgets'),
@@ -173,10 +185,12 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         db.getKv<CurrencyUnit>('currencyUnit'),
         db.getKv<InvestmentAsset[]>('investments'),
         db.getKv<DongEvent[]>('dongEvents'),
+        db.getKv<BankCard[]>('sharedCards'),
       ])
       if (cancelled) return
       setBlob(vault ?? null)
       blobRef.current = vault ?? null
+      setSharedCards(savedSharedCards ?? [])
       setBudgets(nextBudgets ?? [])
       budgetsRef.current = nextBudgets ?? []
       setGoals(nextGoals ?? [])
@@ -348,6 +362,17 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
     }
     window.addEventListener('hy-debts-updated', onDebtsUpdated)
     return () => window.removeEventListener('hy-debts-updated', onDebtsUpdated)
+  }, [])
+
+  useEffect(() => {
+    const onSharesUpdated = async () => {
+      try {
+        const nextShared = await db.getKv<BankCard[]>('sharedCards')
+        if (Array.isArray(nextShared)) setSharedCards(nextShared)
+      } catch {}
+    }
+    window.addEventListener('hy-share-assets-updated', onSharesUpdated)
+    return () => window.removeEventListener('hy-share-assets-updated', onSharesUpdated)
   }, [])
 
   useEffect(() => {
@@ -579,7 +604,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       activePlanId,
       setActivePlanId,
       userProfile,
-      cards,
+      cards: allCards,
       budgets,
       goals,
       investments,
@@ -691,6 +716,21 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         const next = existing ? current.map((row) => (row.id === card.id ? card : row)) : [...current, card]
         await persistCards(next, active)
         return card
+      },
+      saveSharedCard: async (card: BankCard) => {
+        const current = (await db.getKv<BankCard[]>('sharedCards')) || []
+        const filtered = current.filter((c) => c.id !== card.id && c.shareId !== card.shareId)
+        const next = [card, ...filtered]
+        setSharedCards(next)
+        await db.setKv('sharedCards', next)
+        window.dispatchEvent(new CustomEvent('hy-share-assets-updated'))
+      },
+      deleteSharedCard: async (idOrShareId: string) => {
+        const current = (await db.getKv<BankCard[]>('sharedCards')) || []
+        const next = current.filter((c) => c.id !== idOrShareId && c.shareId !== idOrShareId)
+        setSharedCards(next)
+        await db.setKv('sharedCards', next)
+        window.dispatchEvent(new CustomEvent('hy-share-assets-updated'))
       },
       linkCard: async (id, accountId) => {
         if (!passphrase || !blob) return
@@ -1024,7 +1064,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
     [
       blob,
       budgets,
-      cards,
+      allCards,
       cheques,
       debts,
       currencyUnit,
