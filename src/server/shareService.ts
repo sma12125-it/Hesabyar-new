@@ -203,6 +203,19 @@ export function shareAssetWithUser(input: {
     throw new Error('امکان اشتراک‌گذاری حداکثر با ۱۰ کاربر وجود دارد. سقف ظرفیت تکمیل شده است.')
   }
 
+  const profiles = readJsonFile<RegisteredProfile[]>(PROFILES_PATH, [])
+  const ownerClean = String(input.ownerUserId || '').trim().toLowerCase()
+  const ownerProfile = profiles.find((p) => p.userId.trim().toLowerCase() === ownerClean)
+  const rawOwnerName = (input.ownerDisplayName || '').trim()
+  const resolvedOwnerName =
+    (rawOwnerName && rawOwnerName !== 'مالک حساب' && rawOwnerName !== 'کاربر حسابیار'
+      ? rawOwnerName
+      : '') ||
+    ownerProfile?.displayName?.trim() ||
+    (ownerProfile?.handle ? `@${ownerProfile.handle}` : '') ||
+    rawOwnerName ||
+    'مالک حساب'
+
   const recordId = `share_${input.assetKind}_${cleanAssetId}_${input.granteeUser.userId.replace(/[^a-zA-Z0-9_-]/g, '_')}`
   const now = new Date().toISOString()
 
@@ -213,7 +226,7 @@ export function shareAssetWithUser(input: {
     assetName: input.assetName,
     assetDetails: input.assetDetails as any,
     ownerUserId: input.ownerUserId,
-    ownerDisplayName: input.ownerDisplayName || 'مالک حساب',
+    ownerDisplayName: resolvedOwnerName,
     status: 'pending',
     granteeUser: {
       ...input.granteeUser,
@@ -246,20 +259,26 @@ export function revokeAssetShare(
   assetKind: 'card' | 'account',
   assetId: string,
   granteeUserId: string,
+  shareId?: string,
 ): { success: boolean; remaining: number } {
   const shares = readJsonFile<SharedAssetRecord[]>(SHARES_PATH, [])
   const cleanGrantee = String(granteeUserId).trim().toLowerCase().replace(/^@+/, '')
   const cleanAssetId = String(assetId).trim()
+  const cleanShareId = shareId ? String(shareId).trim() : ''
 
   const filtered = shares.filter((s) => {
-    const isSameAsset = s.assetKind === assetKind && String(s.assetId).trim() === cleanAssetId
-    if (!isSameAsset) return true
-
     const gId = (s.granteeUser.userId || '').trim().toLowerCase()
     const gHandle = (s.granteeUser.handle || '').trim().toLowerCase().replace(/^@+/, '')
+    const matchesGrantee = Boolean(
+      cleanGrantee && ((gId && gId === cleanGrantee) || (gHandle && gHandle === cleanGrantee)),
+    )
+    if (!matchesGrantee) return true
 
-    const matches = gId === cleanGrantee || gHandle === cleanGrantee
-    return !matches
+    if (cleanShareId && s.id === cleanShareId) return false
+    if (s.id === cleanAssetId) return false
+
+    const isSameAsset = s.assetKind === assetKind && String(s.assetId).trim() === cleanAssetId
+    return !isSameAsset
   })
 
   writeJsonFile(SHARES_PATH, filtered)
@@ -301,18 +320,23 @@ export function respondToAssetShare(
  * Get all assets shared WITH a user (incoming shares).
  */
 export function getIncomingSharesForUser(userId?: string, handle?: string): SharedAssetRecord[] {
-  if (!userId && !handle) return []
-  const shares = readJsonFile<SharedAssetRecord[]>(SHARES_PATH, [])
   const cleanId = (userId || '').trim().toLowerCase()
   const cleanHandle = (handle || '').trim().replace(/^@+/, '').toLowerCase()
+  if (!cleanId && !cleanHandle) return []
+
+  const shares = readJsonFile<SharedAssetRecord[]>(SHARES_PATH, [])
 
   return shares.filter((s) => {
+    const ownerId = (s.ownerUserId || '').trim().toLowerCase()
+    if (cleanId && ownerId && ownerId === cleanId) return false
+
     const g = s.granteeUser
+    if (!g) return false
     const gId = (g.userId || '').trim().toLowerCase()
     const gHandle = (g.handle || '').trim().toLowerCase().replace(/^@+/, '')
 
-    const matchId = cleanId && (gId === cleanId || cleanId.includes(gId))
-    const matchHandle = cleanHandle && (gHandle === cleanHandle || cleanHandle.includes(gHandle))
+    const matchId = Boolean(cleanId && gId && gId === cleanId)
+    const matchHandle = Boolean(cleanHandle && gHandle && gHandle === cleanHandle)
     return matchId || matchHandle
   })
 }

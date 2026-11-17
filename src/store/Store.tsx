@@ -36,6 +36,7 @@ import { isValidIsoDate, todayIso } from '../lib/iso'
 import { actorStamp } from '../lib/actor'
 import { validateAccountName, validateAmount } from '../lib/money'
 import { applyShareToData, type SharePayload } from '../lib/share'
+import { getStableUserId } from '../lib/userShare'
 import type {
   Account,
   AccountClassification,
@@ -107,6 +108,8 @@ interface StoreValue {
     shareId: string
     ownerDisplayName?: string
     ownerUserId?: string
+    recipientUserId?: string
+    sourceAssetId?: string
   }) => Promise<void>
   removeSharedAccount: (shareIdOrAccountId: string) => Promise<void>
   applyShared: (ledgerId: string, payload: SharePayload) => Promise<void>
@@ -286,6 +289,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       createdAt: now,
       updatedAt: now,
       cardId: input.cardId,
+      isShared: false,
+      ownerUserId: input.ownerUserId ?? getStableUserId(),
     }
     const prev = dataRef.current
     await persistSnapshot(prev, { ...prev, accounts: [...prev.accounts, account] })
@@ -302,6 +307,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     shareId: string
     ownerDisplayName?: string
     ownerUserId?: string
+    recipientUserId?: string
+    sourceAssetId?: string
   }) => {
     const prev = dataRef.current
     if (prev.accounts.some((a) => a.shareId === input.shareId || a.id === input.id)) {
@@ -323,6 +330,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       isShared: true,
       ownerDisplayName: input.ownerDisplayName,
       ownerUserId: input.ownerUserId,
+      recipientUserId: input.recipientUserId ?? getStableUserId(),
+      sourceAssetId: input.sourceAssetId,
     }
     await persistSnapshot(prev, { ...prev, accounts: [...prev.accounts, acc] })
   }, [persistSnapshot])

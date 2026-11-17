@@ -2186,6 +2186,7 @@ apiRouter.post('/shares/revoke', (req: Request, res: Response): void => {
       body.assetKind === 'card' ? 'card' : 'account',
       String(body.assetId),
       String(body.granteeUserId),
+      body.shareId ? String(body.shareId) : undefined,
     )
 
     res.json(result)

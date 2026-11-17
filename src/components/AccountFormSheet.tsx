@@ -114,10 +114,10 @@ export function AccountFormSheet({
                 <input className="field-input" type="password" placeholder="رمز گاوصندوق برای دیدن کارت‌ها" value={phrase} onChange={(e) => setPhrase(e.target.value)} />
                 <button className="cat-mini" type="button" onClick={() => void unlockVault(phrase).catch(() => setError('رمز گاوصندوق نادرست است'))}>باز کردن</button>
               </div>
-            ) : cards.filter((card) => !card.accountId).length === 0 ? (
+            ) : cards.filter((card) => !card.accountId && !card.isShared).length === 0 ? (
               <p className="sheet-sub">کارت آزادی برای اتصال نیست.</p>
             ) : (
-              cards.filter((card) => !card.accountId).map((card) => (
+              cards.filter((card) => !card.accountId && !card.isShared).map((card) => (
                 <button key={card.id} className="card-pick" type="button" onClick={() => { setPicked(card); setSource('fresh'); setType('bank'); setName(`${card.bankName} ${card.pan.slice(-4)}`) }}>
                   <BankCardFace card={card} />
                 </button>

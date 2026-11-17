@@ -21,6 +21,7 @@ import {
 } from '../lib/investments'
 import { digitsOnly, toFaDigits } from '../lib/money'
 import { addDaysIso, todayIso } from '../lib/iso'
+import { getStableUserId, isIncomingSharedAsset } from '../lib/userShare'
 import type { BankCard, Budget, Cheque, ChequeStatus, CurrencyUnit, DebtLoan, DongEvent, InvestmentAsset, InvestmentTransaction, ReminderSettings, SavingsGoal } from '../types'
 
 interface VaultBlob {
@@ -121,9 +122,21 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
   const [sharedCards, setSharedCards] = useState<BankCard[]>([])
 
   const allCards = useMemo(() => {
+    const currentUserId = getStableUserId()
     const map = new Map<string, BankCard>()
-    for (const c of cards) map.set(c.id, c)
-    for (const sc of sharedCards) map.set(sc.id, sc)
+    for (const c of cards) {
+      map.set(c.id, {
+        ...c,
+        isShared: false,
+        shareId: undefined,
+        ownerUserId: c.ownerUserId || currentUserId,
+      })
+    }
+    for (const sc of sharedCards) {
+      if (isIncomingSharedAsset(sc, currentUserId) && !map.has(sc.id)) {
+        map.set(sc.id, sc)
+      }
+    }
     return Array.from(map.values())
   }, [cards, sharedCards])
 
@@ -683,6 +696,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         passphraseRef.current = null
         setPassphrase(null)
         setCards([])
+        setSharedCards([])
         setBudgets([])
         setGoals([])
         setInvestments([])
@@ -690,6 +704,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         setCheques([])
         setDebts([])
         setReminderState(emptyReminder)
+        await db.setKv('sharedCards', [])
         await db.setKv('budgets', [])
         await db.setKv('goals', [])
         await db.setKv('investments', [])
@@ -712,15 +727,23 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
           createdAt: existing?.createdAt ?? Date.now(),
           pan: digitsOnly(input.pan),
           accountId: existing?.accountId,
+          isShared: false,
+          shareId: undefined,
+          ownerUserId: existing?.ownerUserId ?? getStableUserId(),
         }
         const next = existing ? current.map((row) => (row.id === card.id ? card : row)) : [...current, card]
         await persistCards(next, active)
         return card
       },
       saveSharedCard: async (card: BankCard) => {
+        const normalized: BankCard = {
+          ...card,
+          isShared: true,
+          recipientUserId: card.recipientUserId ?? getStableUserId(),
+        }
         const current = (await db.getKv<BankCard[]>('sharedCards')) || []
-        const filtered = current.filter((c) => c.id !== card.id && c.shareId !== card.shareId)
-        const next = [card, ...filtered]
+        const filtered = current.filter((c) => c.id !== normalized.id && c.shareId !== normalized.shareId)
+        const next = [normalized, ...filtered]
         setSharedCards(next)
         await db.setKv('sharedCards', next)
         window.dispatchEvent(new CustomEvent('hy-share-assets-updated'))

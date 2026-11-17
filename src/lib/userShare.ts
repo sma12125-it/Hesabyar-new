@@ -105,6 +105,25 @@ export function getStableUserId(): string {
 }
 
 /**
+ * Strictly determines whether an account or bank card is an incoming shared asset
+ * received from another user. Assets created by the current user (even if shared
+ * out with others or carrying a legacy shareId) always return false.
+ */
+export function isIncomingSharedAsset(
+  item: { isShared?: boolean; ownerUserId?: string; recipientUserId?: string; shareId?: string } | null | undefined,
+  myUserId?: string,
+): boolean {
+  if (!item || item.isShared !== true) return false
+  const activeId = (myUserId || getStableUserId()).trim().toLowerCase()
+  if (!activeId) return false
+  const ownerId = (item.ownerUserId || '').trim().toLowerCase()
+  if (ownerId && ownerId === activeId) return false
+  const recipientId = (item.recipientUserId || '').trim().toLowerCase()
+  if (recipientId && recipientId !== activeId) return false
+  return true
+}
+
+/**
  * Registers the current active user profile on the server registry.
  */
 export async function autoRegisterCurrentProfile(): Promise<void> {
@@ -295,10 +314,14 @@ export async function addSharedUser(
   // 1. Save on server
   try {
     const localProfile = await safeGetKv<UserProfile>('userProfile')
+    const session = loadSession()
+    const stableId = getStableUserId()
     const ownerDisplayName =
-      localProfile?.displayName ||
-      `${localProfile?.firstName || ''} ${localProfile?.lastName || ''}`.trim() ||
-      'مالک حساب'
+      localProfile?.displayName?.trim() ||
+      `${localProfile?.firstName?.trim() || ''} ${localProfile?.lastName?.trim() || ''}`.trim() ||
+      (localProfile?.handle ? `@${localProfile.handle.replace(/^@+/, '')}` : '') ||
+      session?.email?.trim() ||
+      `کاربر ${stableId}`
 
     const res = await fetch('/api/v1/shares/share', {
       method: 'POST',
@@ -308,7 +331,7 @@ export async function addSharedUser(
         assetId: cleanId,
         assetName: assetInfo?.name || assetInfo?.bankName || (kind === 'card' ? 'کارت بانکی' : 'حساب مالی'),
         assetDetails: assetInfo,
-        ownerUserId: getStableUserId(),
+        ownerUserId: stableId,
         ownerDisplayName,
         granteeUser: user,
       }),
@@ -368,6 +391,7 @@ export async function removeSharedUser(
   kind: 'card' | 'account',
   id: string,
   targetUserIdOrHandle: string,
+  shareId?: string,
 ): Promise<number> {
   const cleanId = String(id).trim()
   const cleanTarget = String(targetUserIdOrHandle).trim().toLowerCase().replace(/^@+/, '')
@@ -381,6 +405,7 @@ export async function removeSharedUser(
         assetKind: kind,
         assetId: cleanId,
         granteeUserId: targetUserIdOrHandle,
+        ...(shareId ? { shareId } : {}),
       }),
     })
   } catch {}

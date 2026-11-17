@@ -30,6 +30,7 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 3000,
     allowedHosts: true,
+    hmr: false,
   },
   preview: {
     host: '0.0.0.0',
@@ -38,6 +39,24 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    {
+      name: 'disable-vite-client-ws',
+      apply: 'serve',
+      transform(code, id) {
+        if (
+          id.includes('vite/dist/client/client.mjs') &&
+          code.includes('transport.connect(createHMRHandler(handleMessage))')
+        ) {
+          return {
+            code: code.replace(
+              'transport.connect(createHMRHandler(handleMessage))',
+              '/* HMR disabled */ void 0',
+            ),
+            map: null,
+          }
+        }
+      },
+    },
     {
       name: 'copy-index-to-404',
       closeBundle() {

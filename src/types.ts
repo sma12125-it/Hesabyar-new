@@ -31,6 +31,8 @@ export interface Account {
   isShared?: boolean
   ownerDisplayName?: string
   ownerUserId?: string
+  recipientUserId?: string
+  sourceAssetId?: string
 }
 
 /** Absent on older rows, which stay manual entries. */
@@ -138,6 +140,8 @@ export interface CreateAccountInput {
   isShared?: boolean
   ownerDisplayName?: string
   ownerUserId?: string
+  recipientUserId?: string
+  sourceAssetId?: string
 }
 
 export interface QuickEntryInput {
@@ -236,6 +240,8 @@ export interface BankCard {
   isShared?: boolean
   ownerDisplayName?: string
   ownerUserId?: string
+  recipientUserId?: string
+  sourceAssetId?: string
 }
 
 export interface Budget {

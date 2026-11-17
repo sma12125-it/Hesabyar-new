@@ -12,6 +12,7 @@ import { computePocketBalances } from '../lib/balance'
 import { PocketFormSheet } from '../components/PocketFormSheet'
 import { PocketTransferSheet } from '../components/PocketTransferSheet'
 import { SwipeRow } from '../components/SwipeRow'
+import { isIncomingSharedAsset } from '../lib/userShare'
 import type { Pocket } from '../types'
 
 export function AccountDetailPage({
@@ -161,7 +162,7 @@ export function AccountDetailPage({
           <>
             <span className={`badge ${account.type}`}>{account.type === 'cash' ? 'نقد' : 'بانک'}</span>
             {' · '}
-            {account.shareId ? 'مشترک · ' : ''}
+            {isIncomingSharedAsset(account) ? 'مشترک · ' : ''}
             {account.archived ? 'آرشیو' : 'فعال'}
           </>
         }

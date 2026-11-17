@@ -8,6 +8,7 @@ import type { Account, Transaction } from '../types'
 import { useExtras } from '../store/Extras'
 import { SwipeRow } from './SwipeRow'
 import { useUiActions } from './UiActions'
+import { isIncomingSharedAsset } from '../lib/userShare'
 
 export function txTitle(tx: Transaction, accounts: Account[], categories: Parameters<typeof getCategory>[1] = []): string {
   if (tx.kind === 'transferOut' || tx.kind === 'transferIn') {
@@ -166,7 +167,7 @@ export const AccountRow = memo(function AccountRow({
         <div className="acct-meta">
           <div className="acct-name">{account.name}</div>
           <span className={`badge ${account.type}`}>{account.type === 'cash' ? 'نقد' : 'بانک'}</span>
-          {account.shareId ? <span className="badge bank">مشترک</span> : null}
+          {isIncomingSharedAsset(account) ? <span className="badge bank">مشترک (دریافتی)</span> : null}
           {accountPockets.length > 1 ? (
             <span
               className="badge"

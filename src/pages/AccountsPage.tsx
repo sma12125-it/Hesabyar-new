@@ -7,7 +7,13 @@ import { CardFormSheet } from '../components/CardFormSheet'
 import { AccountRow } from '../components/TxRow'
 import { BankCardFace } from '../components/BankCardFace'
 import { VaultRecover } from '../components/VaultRecover'
-import { fetchIncomingShares, respondIncomingShare, type IncomingSharedAsset } from '../lib/userShare'
+import {
+  fetchIncomingShares,
+  getStableUserId,
+  isIncomingSharedAsset,
+  respondIncomingShare,
+  type IncomingSharedAsset,
+} from '../lib/userShare'
 import { SharedAssetDetailSheet } from '../components/SharedAssetDetailSheet'
 import { notifyUser } from '../lib/sync'
 import type { Account, AccountClassification, BankCard } from '../types'
@@ -25,6 +31,7 @@ export function AccountsPage({
   const [activeTab, setActiveTab] = useState<AccountClassification>('cash')
   const [subTab, setSubTab] = useState<'accounts' | 'cards'>('accounts')
   const navigate = useNavigate()
+  const myUserId = getStableUserId()
 
   // Vault state for card view
   const [phrase, setPhrase] = useState('')
@@ -77,18 +84,25 @@ export function AccountsPage({
   }, [])
 
   const pendingShares = useMemo(() => {
+    const myIdLower = myUserId.trim().toLowerCase()
     return incomingShares.filter((s) => {
       if (s.status === 'rejected') return false
+      const ownerIdLower = (s.ownerUserId || '').trim().toLowerCase()
+      if (ownerIdLower && ownerIdLower === myIdLower) return false
       if (s.assetKind === 'account') {
-        const alreadyInAccounts = accounts.some((a) => a.shareId === s.id || a.id === s.assetId)
+        const alreadyInAccounts = accounts.some(
+          (a) => a.shareId === s.id || a.sourceAssetId === s.assetId || a.id === s.assetId,
+        )
         if (alreadyInAccounts) return false
       } else {
-        const alreadyInCards = cards.some((c) => c.shareId === s.id || c.id === s.assetId)
+        const alreadyInCards = cards.some(
+          (c) => c.shareId === s.id || c.sourceAssetId === s.assetId || c.id === s.assetId,
+        )
         if (alreadyInCards) return false
       }
       return true
     })
-  }, [incomingShares, accounts, cards])
+  }, [incomingShares, accounts, cards, myUserId])
 
   // Segregation of accounts by classification
   const cashAccounts = useMemo(
@@ -361,7 +375,7 @@ export function AccountsPage({
                     {share.assetName}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
-                    از طرف: <strong>{share.ownerDisplayName || 'کاربر حسابیار'}</strong>
+                    از طرف: <strong>{share.ownerDisplayName || `کاربر ${share.ownerUserId}`}</strong>
                   </div>
                 </div>
 
@@ -378,6 +392,7 @@ export function AccountsPage({
                     }}
                     onClick={async () => {
                       await respondIncomingShare(share.id, 'accept')
+                      const resolvedOwner = share.ownerDisplayName || `کاربر ${share.ownerUserId}`
                       if (share.assetKind === 'account') {
                         await addSharedAccount({
                           id: `shared_${share.id}`,
@@ -385,26 +400,30 @@ export function AccountsPage({
                           balance: share.assetDetails?.balance ?? 0,
                           accountNumber: share.assetDetails?.accountNumber,
                           shareId: share.id,
-                          ownerDisplayName: share.ownerDisplayName,
+                          sourceAssetId: share.assetId,
+                          ownerDisplayName: resolvedOwner,
                           ownerUserId: share.ownerUserId,
+                          recipientUserId: myUserId,
                         })
                       } else {
                         await saveSharedCard({
                           id: `shared_card_${share.id}`,
                           bankName: `${share.assetName || share.assetDetails?.bankName || 'کارت'} (مشترک)`,
-                          holder: share.ownerDisplayName || 'اشتراکی',
+                          holder: share.assetDetails?.holder || resolvedOwner,
                           pan: share.assetDetails?.pan || '',
                           sheba: share.assetDetails?.sheba || '',
                           expiry: share.assetDetails?.expiry || '1406/12',
                           cvv: '***',
-                          note: `کارت مشترک از طرف ${share.ownerDisplayName || 'کاربر حسابیار'}`,
+                          note: `کارت مشترک از طرف ${resolvedOwner}`,
                           createdAt: Date.now(),
                           classification: 'cash',
                           color: 'linear-gradient(135deg, #059669 0%, #0f172a 100%)',
                           shareId: share.id,
+                          sourceAssetId: share.assetId,
                           isShared: true,
-                          ownerDisplayName: share.ownerDisplayName,
+                          ownerDisplayName: resolvedOwner,
                           ownerUserId: share.ownerUserId,
+                          recipientUserId: myUserId,
                         })
                       }
                       notifyUser(`«${share.assetName}» به لیست شما افزوده شد ✨`)
@@ -835,7 +854,7 @@ export function AccountsPage({
                       onClick={() => navigate(`/accounts/${account.id}`)}
                     />
                   </div>
-                  {account.isShared || account.shareId ? (
+                  {isIncomingSharedAsset(account, myUserId) ? (
                     <button
                       type="button"
                       className="cat-mini"
@@ -1039,7 +1058,7 @@ export function AccountsPage({
                         >
                           {revealed === card.id ? 'پوشاندن' : 'نمایش اطلاعات'}
                         </button>
-                        {card.isShared || card.shareId ? (
+                        {isIncomingSharedAsset(card, myUserId) ? (
                           <button
                             className="cat-mini"
                             type="button"

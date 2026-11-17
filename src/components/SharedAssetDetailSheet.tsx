@@ -24,10 +24,12 @@ export function SharedAssetDetailSheet({
   const [leaving, setLeaving] = useState(false)
 
   const title = kind === 'card' ? (card?.bankName || 'کارت بانکی مشترک') : (account?.name || 'حساب مشترک')
-  const ownerName = kind === 'card' ? (card?.ownerDisplayName || 'کاربر حسابیار') : (account?.ownerDisplayName || 'کاربر حسابیار')
   const ownerId = kind === 'card' ? card?.ownerUserId : account?.ownerUserId
+  const rawOwnerName = kind === 'card' ? card?.ownerDisplayName : account?.ownerDisplayName
+  const ownerName = rawOwnerName || (ownerId ? `کاربر ${ownerId}` : 'مالک حساب')
   const shareId = kind === 'card' ? card?.shareId : account?.shareId
   const assetId = kind === 'card' ? card?.id : account?.id
+  const sourceAssetId = kind === 'card' ? card?.sourceAssetId : account?.sourceAssetId
 
   const copyText = (txt?: string, label?: string) => {
     if (!txt) return
@@ -45,8 +47,9 @@ export function SharedAssetDetailSheet({
     setLeaving(true)
     try {
       const myId = getStableUserId()
-      if (assetId) {
-        await removeSharedUser(kind, assetId, myId)
+      const targetAssetId = sourceAssetId || assetId
+      if (targetAssetId) {
+        await removeSharedUser(kind, targetAssetId, myId, shareId)
       }
 
       if (kind === 'account' && (shareId || assetId)) {

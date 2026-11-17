@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   addSharedUser,
   getSharedUsers,
+  isIncomingSharedAsset,
   lookupUserByIdOrHandle,
   removeSharedUser,
   type SharedUserProfile,
@@ -90,5 +91,36 @@ describe('userShare module', () => {
       success: true,
       total: 10,
     })
+  })
+
+  it('isIncomingSharedAsset strictly returns false for owned assets even with shareId', () => {
+    const me = 'usr_owner_me'
+
+    // Normal owned account / card (unshared)
+    expect(isIncomingSharedAsset({ isShared: false, ownerUserId: me }, me)).toBe(false)
+    expect(isIncomingSharedAsset({}, me)).toBe(false)
+
+    // Owned account attached with a legacy Supabase shareId
+    expect(isIncomingSharedAsset({ shareId: 'ledger_123', isShared: false, ownerUserId: me }, me)).toBe(false)
+    expect(isIncomingSharedAsset({ shareId: 'ledger_123' } as any, me)).toBe(false)
+
+    // Even if isShared were accidentally true, ownerUserId === me must return false
+    expect(isIncomingSharedAsset({ isShared: true, ownerUserId: me }, me)).toBe(false)
+
+    // Shared card received by another recipient account in same browser must return false
+    expect(
+      isIncomingSharedAsset(
+        { isShared: true, ownerUserId: 'usr_other_boss', recipientUserId: 'usr_different_user' },
+        me,
+      ),
+    ).toBe(false)
+
+    // Genuine incoming shared asset from another user to me returns true
+    expect(
+      isIncomingSharedAsset(
+        { isShared: true, ownerUserId: 'usr_other_boss', recipientUserId: me },
+        me,
+      ),
+    ).toBe(true)
   })
 })

@@ -122,4 +122,45 @@ describe('server shareService', () => {
     expect(foundCard?.ownerDisplayName).toBe('امیر مدیر')
     expect(foundCard?.assetName).toBe('کارت بانک ملت')
   })
+
+  it('uses strict exact match in getIncomingSharesForUser, excludes owner, and resolves owner name from profiles', () => {
+    registerUserProfile({
+      userId: 'usr_exact_owner',
+      handle: 'exact_owner_handle',
+      displayName: 'زهرا کریمی',
+    })
+
+    const uniqueAccId = `acc_strict_${Date.now()}`
+    const sharedRes = shareAssetWithUser({
+      assetKind: 'account',
+      assetId: uniqueAccId,
+      assetName: 'حساب بانک ملی',
+      ownerUserId: 'usr_exact_owner',
+      ownerDisplayName: 'مالک حساب', // Generic should be resolved from registered profile
+      granteeUser: {
+        userId: 'usr_exact_grantee',
+        handle: 'ali_rezaei_unique',
+        displayName: 'علی رضایی',
+      },
+    })
+    expect(sharedRes.share.ownerDisplayName).toBe('زهرا کریمی')
+
+    // Querying as owner must NOT return own share as incoming
+    const ownerIncoming = getIncomingSharesForUser('usr_exact_owner', 'exact_owner_handle')
+    expect(ownerIncoming.some((s) => s.assetId === uniqueAccId)).toBe(false)
+
+    // Substring userId or handle must NOT match (fixes includes("") & partial match leak)
+    const partialMatch = getIncomingSharesForUser('usr_exact_grantee_super', 'ali_rezaei_unique_2')
+    expect(partialMatch.some((s) => s.assetId === uniqueAccId)).toBe(false)
+
+    // Exact match returns it
+    const exactMatch = getIncomingSharesForUser('usr_exact_grantee', 'ali_rezaei_unique')
+    expect(exactMatch.some((s) => s.assetId === uniqueAccId)).toBe(true)
+
+    // Leave share by shareId also revokes cleanly on server
+    const revokeByShareId = revokeAssetShare('account', `shared_${sharedRes.share.id}`, 'usr_exact_grantee', sharedRes.share.id)
+    expect(revokeByShareId.success).toBe(true)
+    const afterLeave = getIncomingSharesForUser('usr_exact_grantee', 'ali_rezaei_unique')
+    expect(afterLeave.some((s) => s.assetId === uniqueAccId)).toBe(false)
+  })
 })
