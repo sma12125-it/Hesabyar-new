@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { formatRial, validateAccountName } from '../lib/money'
 import { notifyUser } from '../lib/sync'
 import { useExtras } from '../store/Extras'
@@ -20,9 +20,24 @@ export function AccountFormSheet({
   onMinimize?: () => void
 }) {
   const { createAccount, updateAccount } = useStore()
-  const { unlocked, vaultBiometricEnabled, cards, unlockVault, unlockVaultWithBiometric, linkCard } = useExtras()
+  const {
+    unlocked,
+    vaultConfigured,
+    vaultBiometricEnabled,
+    cards,
+    unlockVault,
+    unlockVaultWithBiometric,
+    syncVaultWithAccountPassword,
+    linkCard,
+  } = useExtras()
   const [source, setSource] = useState<'pick' | 'fresh'>(account ? 'fresh' : 'pick')
   const [phrase, setPhrase] = useState('')
+
+  useEffect(() => {
+    if (!unlocked) {
+      void syncVaultWithAccountPassword()
+    }
+  }, [unlocked, syncVaultWithAccountPassword])
   const [picked, setPicked] = useState<BankCard | null>(null)
   const [name, setName] = useState(account?.name ?? '')
   const [type, setType] = useState<AccountType>(account?.type ?? 'cash')
@@ -109,7 +124,7 @@ export function AccountFormSheet({
         {!isEdit && source === 'pick' ? (
           <div className="field-stack">
             <p className="sheet-sub">از کارت یا حساب تعریف‌شده استفاده کن، یا یک حساب تازه با عنوان جدید بساز.</p>
-            {!unlocked ? (
+            {vaultConfigured && !unlocked ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {vaultBiometricEnabled ? (
                   <button
@@ -122,12 +137,24 @@ export function AccountFormSheet({
                       )
                     }
                   >
-                    👆 باز کردن گاوصندوق با اثر انگشت / چهره
+                    👆 باز کردن کارت‌ها با اثر انگشت / چهره
                   </button>
                 ) : null}
                 <div className="field-chip">
-                  <input className="field-input" type="password" placeholder="رمز گاوصندوق برای دیدن کارت‌ها" value={phrase} onChange={(e) => setPhrase(e.target.value)} />
-                  <button className="cat-mini" type="button" onClick={() => void unlockVault(phrase).catch(() => setError('رمز گاوصندوق نادرست است'))}>باز کردن</button>
+                  <input
+                    className="field-input"
+                    type="password"
+                    placeholder="رمز ورود حساب برای دیدن کارت‌ها"
+                    value={phrase}
+                    onChange={(e) => setPhrase(e.target.value)}
+                  />
+                  <button
+                    className="cat-mini"
+                    type="button"
+                    onClick={() => void unlockVault(phrase).catch(() => setError('رمز واردشده نادرست است'))}
+                  >
+                    باز کردن
+                  </button>
                 </div>
               </div>
             ) : cards.filter((card) => !card.accountId && !card.isShared).length === 0 ? (

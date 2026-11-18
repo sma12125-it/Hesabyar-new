@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BankCardFace } from './BankCardFace'
 import { VaultRecover } from './VaultRecover'
 import { useExtras } from '../store/Extras'
@@ -13,13 +13,29 @@ export function CardVaultSection({
   classificationFilter?: AccountClassification
   title?: string
 }) {
-  const { unlocked, vaultConfigured, vaultBiometricEnabled, cards, unlockVault, unlockVaultWithBiometric, lockVault, deleteCard } = useExtras()
+  const {
+    unlocked,
+    vaultConfigured,
+    vaultBiometricEnabled,
+    cards,
+    unlockVault,
+    unlockVaultWithBiometric,
+    syncVaultWithAccountPassword,
+    lockVault,
+    deleteCard,
+  } = useExtras()
   const [phrase, setPhrase] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [bioBusy, setBioBusy] = useState(false)
   const [revealed, setRevealed] = useState<string | null>(null)
   const [forgot, setForgot] = useState(false)
   const [recoveryCode, setRecoveryCode] = useState('')
+
+  useEffect(() => {
+    if (!unlocked) {
+      void syncVaultWithAccountPassword()
+    }
+  }, [unlocked, syncVaultWithAccountPassword])
 
   const displayedCards = classificationFilter
     ? cards.filter((c) => (c.classification ?? 'cash') === classificationFilter)
@@ -50,13 +66,11 @@ export function CardVaultSection({
     <section className="card-vault">
       <div className="section-head">
         <h2>{title}</h2>
-        {unlocked ? <button className="link" type="button" onClick={lockVault}>قفل</button> : null}
+        {unlocked && vaultConfigured ? <button className="link" type="button" onClick={lockVault}>قفل موقت</button> : null}
       </div>
-      <p className="sheet-sub">شماره، انقضا و CVV فقط با رمز شما رمزنگاری می‌شود.</p>
+      <p className="sheet-sub">اطلاعات کارت‌ها با رمز ورود حساب‌یار شما رمزنگاری می‌شود.</p>
       {error ? <div className="banner error"><span>{error}</span></div> : null}
-      {!vaultConfigured ? (
-        <p className="sheet-sub">رمز گاوصندوق هنوز تعیین نشده. آن را در تنظیمات مشخص کنید.</p>
-      ) : !unlocked ? (
+      {vaultConfigured && !unlocked ? (
         <>
           {vaultBiometricEnabled ? (
             <button
@@ -73,7 +87,7 @@ export function CardVaultSection({
             <input
               className="field-input"
               type="password"
-              placeholder="رمز گاوصندوق"
+              placeholder="رمز ورود به حساب‌یار (یا رمز قبلی گاوصندوق)"
               value={phrase}
               onChange={(e) => setPhrase(e.target.value)}
               onKeyDown={(e) => {
@@ -81,7 +95,7 @@ export function CardVaultSection({
               }}
             />
             <button className="cat-mini" type="button" onClick={() => void unlock()}>باز کردن</button>
-            <button className="link" type="button" onClick={() => setForgot((value) => !value)}>رمز را فراموش کرده‌ام</button>
+            <button className="link" type="button" onClick={() => setForgot((value) => !value)}>بازیابی</button>
           </div>
           {forgot ? <VaultRecover onDone={(code) => { setRecoveryCode(code); setForgot(false) }} /> : null}
           {recoveryCode ? (

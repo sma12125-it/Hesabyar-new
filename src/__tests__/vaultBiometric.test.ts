@@ -1,20 +1,23 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   clearVaultBiometric,
+  ensureTemporaryVaultDeviceKey,
+  getVaultDeviceKeyInfo,
   hasVaultBiometric,
   saveVaultBiometricPhrase,
   unwrapVaultBiometricPhrase,
 } from '../lib/vaultBiometric'
-import { openCards, sealCards } from '../lib/vault'
+import { openCards, sealCards, unwrapText, wrapText } from '../lib/vault'
 import type { BankCard } from '../types'
 
-describe('vaultBiometric', () => {
+describe('vaultBiometric & unified account-password migration', () => {
   beforeEach(async () => {
     await clearVaultBiometric()
   })
 
-  it('returns false before biometric unlock is configured', async () => {
+  it('returns false before biometric/device key is configured', async () => {
     expect(await hasVaultBiometric()).toBe(false)
+    expect(await getVaultDeviceKeyInfo()).toBeNull()
     await expect(unwrapVaultBiometricPhrase()).rejects.toThrow()
   })
 
@@ -29,9 +32,12 @@ describe('vaultBiometric', () => {
 
     const unwrapped = await unwrapVaultBiometricPhrase()
     expect(unwrapped).toBe('my-secret-123')
+
+    const info = await getVaultDeviceKeyInfo()
+    expect(info).toEqual({ phrase: 'my-secret-123', isTemporaryDeviceKey: false })
   })
 
-  it('overwrites existing wrapped passphrase when password changes', async () => {
+  it('overwrites existing wrapped passphrase when account password changes', async () => {
     await saveVaultBiometricPhrase('old-pass-111')
     expect(await unwrapVaultBiometricPhrase()).toBe('old-pass-111')
 
@@ -40,16 +46,33 @@ describe('vaultBiometric', () => {
     expect(await unwrapVaultBiometricPhrase()).toBe('new-pass-999')
   })
 
+  it('creates a temporary device key and cleanly migrates it to real account password', async () => {
+    const tempKey = await ensureTemporaryVaultDeviceKey()
+    expect(tempKey.length).toBeGreaterThanOrEqual(24)
+
+    const info1 = await getVaultDeviceKeyInfo()
+    expect(info1).toEqual({ phrase: tempKey, isTemporaryDeviceKey: true })
+
+    // Re-calling returns the same temporary key
+    expect(await ensureTemporaryVaultDeviceKey()).toBe(tempKey)
+
+    // Saving real account password clears temporary flag
+    await saveVaultBiometricPhrase('real-account-pass', { isTemporaryDeviceKey: false })
+    const info2 = await getVaultDeviceKeyInfo()
+    expect(info2).toEqual({ phrase: 'real-account-pass', isTemporaryDeviceKey: false })
+  })
+
   it('clears stored biometric material completely', async () => {
     await saveVaultBiometricPhrase('temp-pass-456')
     expect(await hasVaultBiometric()).toBe(true)
 
     await clearVaultBiometric()
     expect(await hasVaultBiometric()).toBe(false)
+    expect(await getVaultDeviceKeyInfo()).toBeNull()
     await expect(unwrapVaultBiometricPhrase()).rejects.toThrow()
   })
 
-  it('performs full round-trip card vault decryption using unwrapped biometric passphrase', async () => {
+  it('migrates legacy separate vault password to account login password without data loss', async () => {
     const sampleCards: BankCard[] = [
       {
         id: 'card-1',
@@ -66,16 +89,29 @@ describe('vaultBiometric', () => {
       },
     ]
 
-    const vaultPass = 'hesabyar-vault-2026'
-    const sealed = await sealCards(vaultPass, sampleCards)
-    await saveVaultBiometricPhrase(vaultPass)
+    const legacyVaultPass = 'old-separate-vault-pass'
+    const accountLoginPass = 'my-hesabyar-login-2026'
 
-    const unlockedPass = await unwrapVaultBiometricPhrase()
-    const opened = await openCards(unlockedPass, sealed.salt, sealed.payload)
+    // Legacy vault sealed with separate password, wrapped with account password
+    const legacySealed = await sealCards(legacyVaultPass, sampleCards)
+    const accountWrap = await wrapText(legacyVaultPass, accountLoginPass)
 
-    expect(opened).toHaveLength(1)
-    expect(opened[0].pan).toBe('6104337812345678')
-    expect(opened[0].bankName).toBe('بانک ملت')
-    expect(opened[0].sheba).toBe('IR120120000000001234567890')
+    // Opening directly with accountLoginPass fails initially
+    await expect(openCards(accountLoginPass, legacySealed.salt, legacySealed.payload)).rejects.toThrow()
+
+    // Unwrap legacy passphrase via accountWrap, open cards, and migrate to accountLoginPass
+    const recoveredLegacyPass = await unwrapText(accountWrap, accountLoginPass)
+    const opened = await openCards(recoveredLegacyPass, legacySealed.salt, legacySealed.payload)
+    const migratedSealed = await sealCards(accountLoginPass, opened)
+    await saveVaultBiometricPhrase(accountLoginPass, { isTemporaryDeviceKey: false })
+
+    // Subsequent open works directly with accountLoginPass and device-local unwrapped key
+    const unwrapped = await unwrapVaultBiometricPhrase()
+    expect(unwrapped).toBe(accountLoginPass)
+
+    const reopened = await openCards(unwrapped, migratedSealed.salt, migratedSealed.payload)
+    expect(reopened).toHaveLength(1)
+    expect(reopened[0].pan).toBe('6104337812345678')
+    expect(reopened[0].sheba).toBe('IR120120000000001234567890')
   })
 })

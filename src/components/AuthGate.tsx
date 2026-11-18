@@ -1,6 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { PatternLock } from './PatternLock'
-import { checkPasswordVerifier, logoutCompletely, savePasswordVerifier, generateRecoveryCode } from '../lib/account'
+import {
+  checkPasswordVerifier,
+  logoutCompletely,
+  rememberAccountPassword,
+  savePasswordVerifier,
+  generateRecoveryCode,
+} from '../lib/account'
 import {
   checkPattern,
   loadLock,
@@ -141,7 +147,12 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
     localStorage.setItem('hy-cloud-dirty', '1')
   }
 
-  async function enterApp() {
+  async function enterApp(accountPassword?: string) {
+    try {
+      await extras.syncVaultWithAccountPassword(accountPassword)
+    } catch {
+      /* fallback unlock remains available inside the app if a legacy vault needs manual password */
+    }
     try {
       await Promise.race([syncProfile(), new Promise((resolve) => window.setTimeout(resolve, 8000))])
     } catch {
@@ -154,7 +165,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
     saveSession(session)
     await savePasswordVerifier(session.email, phrase)
     await adopt(session, kind)
-    await enterApp()
+    await enterApp(phrase)
   }
 
   async function submitAccount() {
@@ -205,13 +216,14 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
     setBusy(true)
     try {
       if (await checkPasswordVerifier(password)) {
-        await enterApp()
+        rememberAccountPassword(password)
+        await enterApp(password)
         return
       }
       const next = await signIn(session.email, password)
       saveSession(next)
       await savePasswordVerifier(next.email, password)
-      await enterApp()
+      await enterApp(password)
     } catch {
       setError('رمز نادرست است')
     } finally {
@@ -566,7 +578,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
         <div className="field-stack">
           <p className="sheet-sub">این کد بازیابی رمز حساب است. اگر رمز را فراموش کنید، با همین کد رمز تازه می‌سازید. یک‌بار نشان داده می‌شود.</p>
           <p className="recovery-code">{code}</p>
-          <button className="cta-confirm" type="button" onClick={() => void enterApp()}>ذخیره کردم، ادامه</button>
+          <button className="cta-confirm" type="button" onClick={() => void enterApp(password)}>ذخیره کردم، ادامه</button>
         </div>
       ) : null}
     </div>

@@ -6,6 +6,8 @@ import { openCards, sealCards, unwrapText, validateCard, wrapText } from '../lib
 import { authenticateWithBiometrics } from '../lib/applock'
 import {
   clearVaultBiometric,
+  ensureTemporaryVaultDeviceKey,
+  getVaultDeviceKeyInfo,
   hasVaultBiometric,
   saveVaultBiometricPhrase,
   unwrapVaultBiometricPhrase,
@@ -60,6 +62,11 @@ interface ExtrasValue {
   vaultBiometricEnabled: boolean
   unlockVault: (passphrase: string) => Promise<void>
   unlockVaultWithBiometric: () => Promise<void>
+  syncVaultWithAccountPassword: (accountPassword?: string) => Promise<{
+    unlocked: boolean
+    migrated: boolean
+    needsLegacyPassword?: boolean
+  }>
   enableVaultBiometric: (explicitPassphrase?: string) => Promise<void>
   disableVaultBiometric: () => Promise<void>
   lockVault: () => void
@@ -506,44 +513,217 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
     [confirmAccountPassword],
   )
 
+  const sealAndMigrateToAccountPassword = useCallback(
+    async (openedCards: BankCard[], accountPass: string, activeSalt?: string) => {
+      const trimmed = accountPass.trim()
+      const saltBytes = activeSalt
+        ? Uint8Array.from(atob(activeSalt), (c) => c.charCodeAt(0))
+        : undefined
+      const packed = await sealCards(trimmed, openedCards, saltBytes)
+      const code = generateRecoveryCode()
+      const stored: VaultBlob = {
+        salt: packed.salt,
+        payload: packed.payload,
+        accountWrap: await wrapText(trimmed, trimmed),
+        recoveryWrap: await wrapText(trimmed, code),
+      }
+      await db.setKv('cardVault', stored)
+      blobRef.current = stored
+      setBlob(stored)
+      cardsRef.current = openedCards
+      setCards(openedCards)
+      passphraseRef.current = trimmed
+      setPassphrase(trimmed)
+      await saveVaultBiometricPhrase(trimmed, { isTemporaryDeviceKey: false })
+      vaultBiometricRef.current = true
+      setVaultBiometricEnabled(true)
+      const { notifyLocalChange } = await import('../lib/sync')
+      notifyLocalChange()
+      return stored
+    },
+    [],
+  )
+
+  const syncVaultWithAccountPassword = useCallback(
+    async (accountPassword?: string) => {
+      const activeBlob = blobRef.current ?? (await db.getKv<VaultBlob>('cardVault')) ?? null
+      if (activeBlob && !blobRef.current) {
+        blobRef.current = activeBlob
+        setBlob(activeBlob)
+      }
+      const acctPass = (accountPassword ?? rememberedAccountPassword()).trim()
+      const deviceInfo = await getVaultDeviceKeyInfo()
+
+      if (acctPass) {
+        if (!activeBlob) {
+          passphraseRef.current = acctPass
+          setPassphrase(acctPass)
+          cardsRef.current = []
+          setCards([])
+          await saveVaultBiometricPhrase(acctPass, { isTemporaryDeviceKey: false })
+          vaultBiometricRef.current = true
+          setVaultBiometricEnabled(true)
+          return { unlocked: true, migrated: false }
+        }
+
+        // 1) Try opening directly with the account login password
+        try {
+          const opened = await openCards(acctPass, activeBlob.salt, activeBlob.payload)
+          cardsRef.current = opened
+          setCards(opened)
+          passphraseRef.current = acctPass
+          setPassphrase(acctPass)
+          await saveVaultBiometricPhrase(acctPass, { isTemporaryDeviceKey: false })
+          vaultBiometricRef.current = true
+          setVaultBiometricEnabled(true)
+          return { unlocked: true, migrated: false }
+        } catch {
+          /* legacy password or changed account password — try migration paths */
+        }
+
+        // 2) Try unwrapping legacy vault password via accountWrap and migrating to account password
+        if (activeBlob.accountWrap) {
+          try {
+            const legacyPhrase = await unwrapText(activeBlob.accountWrap, acctPass)
+            const opened = await openCards(legacyPhrase, activeBlob.salt, activeBlob.payload)
+            await sealAndMigrateToAccountPassword(opened, acctPass, activeBlob.salt)
+            return { unlocked: true, migrated: true }
+          } catch {
+            /* try next fallback */
+          }
+        }
+
+        // 3) Try previously stored device-local key (covers password change or temp device key)
+        if (deviceInfo?.phrase) {
+          try {
+            const opened = await openCards(deviceInfo.phrase, activeBlob.salt, activeBlob.payload)
+            await sealAndMigrateToAccountPassword(opened, acctPass, activeBlob.salt)
+            return { unlocked: true, migrated: true }
+          } catch {
+            /* try next fallback */
+          }
+        }
+
+        // 4) If vault is already unlocked in memory (e.g. account password changed in Settings), re-seal with new password
+        if (passphraseRef.current) {
+          try {
+            const opened = await openCards(passphraseRef.current, activeBlob.salt, activeBlob.payload)
+            await sealAndMigrateToAccountPassword(opened, acctPass, activeBlob.salt)
+            return { unlocked: true, migrated: true }
+          } catch {
+            /* fallback to in-memory cards if blob changed */
+            await sealAndMigrateToAccountPassword(cardsRef.current, acctPass, activeBlob.salt)
+            return { unlocked: true, migrated: true }
+          }
+        }
+
+        return { unlocked: false, migrated: false, needsLegacyPassword: true }
+      }
+
+      // No plaintext account password in this session (e.g., biometric / pattern login)
+      if (!activeBlob) {
+        const key = deviceInfo?.phrase || (await ensureTemporaryVaultDeviceKey())
+        passphraseRef.current = key
+        setPassphrase(key)
+        cardsRef.current = []
+        setCards([])
+        vaultBiometricRef.current = true
+        setVaultBiometricEnabled(true)
+        return { unlocked: true, migrated: false }
+      }
+
+      if (deviceInfo?.phrase) {
+        try {
+          const opened = await openCards(deviceInfo.phrase, activeBlob.salt, activeBlob.payload)
+          cardsRef.current = opened
+          setCards(opened)
+          passphraseRef.current = deviceInfo.phrase
+          setPassphrase(deviceInfo.phrase)
+          vaultBiometricRef.current = true
+          setVaultBiometricEnabled(true)
+          return { unlocked: true, migrated: false }
+        } catch {
+          /* stored device key no longer matches */
+        }
+      }
+
+      return { unlocked: false, migrated: false, needsLegacyPassword: true }
+    },
+    [sealAndMigrateToAccountPassword],
+  )
+
   const unlockVault = useCallback(
     async (phrase: string) => {
-      if (!blob) {
-        passphraseRef.current = phrase
-        setPassphrase(phrase)
+      const trimmed = phrase.trim()
+      if (!trimmed) throw new Error('لطفاً رمز ورود به حساب‌یار را وارد کنید')
+      const activeBlob = blobRef.current ?? (await db.getKv<VaultBlob>('cardVault')) ?? null
+      const acctPass = rememberedAccountPassword().trim()
+
+      if (!activeBlob) {
+        const effective = acctPass || trimmed
+        passphraseRef.current = effective
+        setPassphrase(effective)
+        cardsRef.current = []
         setCards([])
+        await saveVaultBiometricPhrase(effective, { isTemporaryDeviceKey: false })
+        vaultBiometricRef.current = true
+        setVaultBiometricEnabled(true)
         return
       }
-      const next = await openCards(phrase, blob.salt, blob.payload)
-      setCards(next)
-      passphraseRef.current = phrase
-      setPassphrase(phrase)
+
+      // 1) Direct open with entered phrase (works for unified account password OR legacy vault password)
+      try {
+        const opened = await openCards(trimmed, activeBlob.salt, activeBlob.payload)
+        if (acctPass && acctPass !== trimmed) {
+          // Automatically migrate legacy vault password to the account login password
+          await sealAndMigrateToAccountPassword(opened, acctPass, activeBlob.salt)
+          return
+        }
+        cardsRef.current = opened
+        setCards(opened)
+        passphraseRef.current = trimmed
+        setPassphrase(trimmed)
+        await saveVaultBiometricPhrase(trimmed, { isTemporaryDeviceKey: false })
+        vaultBiometricRef.current = true
+        setVaultBiometricEnabled(true)
+        return
+      } catch {
+        /* Try accountWrap if user typed their account login password on a legacy vault */
+      }
+
+      // 2) Unwrap legacy password via accountWrap when user types account login password
+      if (activeBlob.accountWrap) {
+        const legacyPhrase = await unwrapText(activeBlob.accountWrap, trimmed)
+        const opened = await openCards(legacyPhrase, activeBlob.salt, activeBlob.payload)
+        await sealAndMigrateToAccountPassword(opened, trimmed, activeBlob.salt)
+        return
+      }
+
+      throw new Error('رمز نادرست است')
     },
-    [blob],
+    [sealAndMigrateToAccountPassword],
   )
 
   const enableVaultBiometric = useCallback(
     async (explicitPassphrase?: string) => {
-      const phrase = (explicitPassphrase ?? passphraseRef.current ?? '').trim()
+      const phrase = (explicitPassphrase ?? passphraseRef.current ?? rememberedAccountPassword()).trim()
       if (!phrase) {
-        throw new Error('ابتدا رمز گاوصندوق را وارد کنید تا بازگشایی بیومتریک فعال شود')
+        throw new Error('ابتدا رمز ورود حساب را وارد کنید تا بازگشایی بیومتریک فعال شود')
       }
       const activeBlob = blobRef.current
       if (activeBlob) {
-        const opened = await openCards(phrase, activeBlob.salt, activeBlob.payload)
-        setCards(opened)
-        passphraseRef.current = phrase
-        setPassphrase(phrase)
+        await unlockVault(phrase)
       }
       const bio = await authenticateWithBiometrics({ allowRegistration: true })
       if (!bio.ok) {
         throw new Error(bio.error || 'احراز هویت بیومتریک تأیید نشد')
       }
-      await saveVaultBiometricPhrase(phrase)
+      const finalPhrase = passphraseRef.current || phrase
+      await saveVaultBiometricPhrase(finalPhrase, { isTemporaryDeviceKey: false })
       vaultBiometricRef.current = true
       setVaultBiometricEnabled(true)
     },
-    [],
+    [unlockVault],
   )
 
   const disableVaultBiometric = useCallback(async () => {
@@ -553,15 +733,12 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const unlockVaultWithBiometric = useCallback(async () => {
-    const activeBlob = blobRef.current
-    if (!activeBlob) {
-      throw new Error('گاوصندوق کارت هنوز تنظیم نشده است')
-    }
+    const activeBlob = blobRef.current ?? (await db.getKv<VaultBlob>('cardVault')) ?? null
     const configured = await hasVaultBiometric()
     if (!configured) {
       vaultBiometricRef.current = false
       setVaultBiometricEnabled(false)
-      throw new Error('بازگشایی بیومتریک گاوصندوق روی این دستگاه فعال نشده است')
+      throw new Error('بازگشایی بیومتریک روی این دستگاه هنوز فعال نشده است')
     }
     const bio = await authenticateWithBiometrics({ allowRegistration: false })
     if (!bio.ok) {
@@ -574,10 +751,18 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       await clearVaultBiometric()
       vaultBiometricRef.current = false
       setVaultBiometricEnabled(false)
-      throw new Error('اطلاعات بیومتریک گاوصندوق نیاز به ثبت مجدد دارد؛ لطفاً یک‌بار با رمز وارد شوید')
+      throw new Error('اطلاعات بیومتریک نیاز به ثبت مجدد دارد؛ لطفاً یک‌بار با رمز ورود باز کنید')
+    }
+    if (!activeBlob) {
+      passphraseRef.current = phrase
+      setPassphrase(phrase)
+      cardsRef.current = []
+      setCards([])
+      return
     }
     try {
       const next = await openCards(phrase, activeBlob.salt, activeBlob.payload)
+      cardsRef.current = next
       setCards(next)
       passphraseRef.current = phrase
       setPassphrase(phrase)
@@ -585,7 +770,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       await clearVaultBiometric()
       vaultBiometricRef.current = false
       setVaultBiometricEnabled(false)
-      throw new Error('رمز گاوصندوق تغییر کرده است؛ لطفاً یک‌بار با رمز جدید باز کنید و بیومتریک را فعال نمایید')
+      throw new Error('رمز تغییر کرده است؛ لطفاً یک‌بار با رمز ورود جدید باز کنید')
     }
   }, [])
 
@@ -720,6 +905,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       formatCompactMoney,
       unlockVault,
       unlockVaultWithBiometric,
+      syncVaultWithAccountPassword,
       enableVaultBiometric,
       disableVaultBiometric,
       lockVault: () => {
@@ -826,9 +1012,16 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       saveCard: async (input, phrase) => {
         const error = validateCard(input)
         if (error) throw new Error(error)
-        const active = passphraseRef.current ?? phrase
-        if (!active) throw new Error('گاوصندوق قفل است')
-        const current = blob && !passphraseRef.current ? await openCards(active, blob.salt, blob.payload) : cardsRef.current
+        let active = passphraseRef.current ?? phrase
+        if (!active) {
+          const synced = await syncVaultWithAccountPassword()
+          if (synced.unlocked && passphraseRef.current) {
+            active = passphraseRef.current
+          }
+        }
+        if (!active) throw new Error('برای ثبت کارت ابتدا با رمز ورود حساب، گاوصندوق را باز کنید')
+        const activeBlob = blobRef.current
+        const current = activeBlob && !passphraseRef.current ? await openCards(active, activeBlob.salt, activeBlob.payload) : cardsRef.current
         const existing = input.id ? current.find((card) => card.id === input.id) : undefined
         const card: BankCard = {
           ...input,
@@ -841,7 +1034,14 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
           ownerUserId: existing?.ownerUserId ?? getStableUserId(),
         }
         const next = existing ? current.map((row) => (row.id === card.id ? card : row)) : [...current, card]
-        await persistCards(next, active)
+        const wraps =
+          !activeBlob || !activeBlob.accountWrap
+            ? {
+                accountWrap: await wrapText(active, rememberedAccountPassword().trim() || active),
+                recoveryWrap: await wrapText(active, generateRecoveryCode()),
+              }
+            : undefined
+        await persistCards(next, active, wraps)
         return card
       },
       saveSharedCard: async (card: BankCard) => {
@@ -1173,23 +1373,15 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         }
         if (data.cardVault && typeof data.cardVault === 'object') {
           const nextBlob = data.cardVault as VaultBlob
-          const phrase = passphraseRef.current
-          if (phrase && nextBlob.salt && nextBlob.payload) {
-            try {
-              const opened = await openCards(phrase, nextBlob.salt, nextBlob.payload)
-              setBlob(nextBlob)
-              await db.setKv('cardVault', nextBlob)
-              setCards(opened)
-              return
-            } catch {
-              /* رمز فعلی این نسخه را باز نکرد؛ گاوصندوق قفل می‌ماند */
-            }
-          }
+          blobRef.current = nextBlob
           setBlob(nextBlob)
           await db.setKv('cardVault', nextBlob)
-          passphraseRef.current = null
-          setPassphrase(null)
-          setCards([])
+          const synced = await syncVaultWithAccountPassword(rememberedAccountPassword() || passphraseRef.current || undefined)
+          if (!synced.unlocked) {
+            passphraseRef.current = null
+            setPassphrase(null)
+            setCards([])
+          }
         }
       },
     }),
@@ -1217,6 +1409,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       unitLabel,
       unlockVault,
       unlockVaultWithBiometric,
+      syncVaultWithAccountPassword,
       enableVaultBiometric,
       disableVaultBiometric,
       vaultBiometricEnabled,

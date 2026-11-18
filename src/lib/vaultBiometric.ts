@@ -5,6 +5,7 @@ export interface VaultBiometricRecord {
   secret: string
   wrappedPhrase: string
   updatedAt: number
+  isTemporaryDeviceKey?: boolean
 }
 
 const KV_KEY = 'cardVaultBio'
@@ -63,7 +64,7 @@ async function writeRecord(record: VaultBiometricRecord | null): Promise<void> {
 }
 
 /**
- * Checks whether biometric unlock for the card vault is configured on this device.
+ * Checks whether a device-local wrapped vault key is stored on this device.
  */
 export async function hasVaultBiometric(): Promise<boolean> {
   const rec = await readRecord()
@@ -74,7 +75,10 @@ export async function hasVaultBiometric(): Promise<boolean> {
  * Wraps the vault passphrase with a freshly generated 256-bit device-local key
  * and stores it locally (never included in cloud sync backups).
  */
-export async function saveVaultBiometricPhrase(phrase: string): Promise<void> {
+export async function saveVaultBiometricPhrase(
+  phrase: string,
+  options?: { isTemporaryDeviceKey?: boolean },
+): Promise<void> {
   const trimmed = phrase.trim()
   if (!trimmed) throw new Error('رمز گاوصندوق خالی است')
   const secret = randomSecretHex(32)
@@ -83,11 +87,12 @@ export async function saveVaultBiometricPhrase(phrase: string): Promise<void> {
     secret,
     wrappedPhrase,
     updatedAt: Date.now(),
+    isTemporaryDeviceKey: Boolean(options?.isTemporaryDeviceKey),
   })
 }
 
 /**
- * Unwraps the stored vault passphrase after biometric authentication has succeeded.
+ * Unwraps the stored vault passphrase (used after app login or biometric auth).
  */
 export async function unwrapVaultBiometricPhrase(): Promise<string> {
   const rec = await readRecord()
@@ -95,6 +100,39 @@ export async function unwrapVaultBiometricPhrase(): Promise<string> {
     throw new Error('بازگشایی بیومتریک برای گاوصندوق هنوز فعال نشده است')
   }
   return unwrapText(rec.wrappedPhrase, rec.secret)
+}
+
+/**
+ * Returns the unwrapped device-local key along with whether it was a temporary
+ * device key awaiting migration to the user's real account login password.
+ */
+export async function getVaultDeviceKeyInfo(): Promise<{
+  phrase: string
+  isTemporaryDeviceKey: boolean
+} | null> {
+  const rec = await readRecord()
+  if (!rec || !rec.secret || !rec.wrappedPhrase) return null
+  try {
+    const phrase = await unwrapText(rec.wrappedPhrase, rec.secret)
+    return {
+      phrase,
+      isTemporaryDeviceKey: Boolean(rec.isTemporaryDeviceKey),
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Ensures a device-local vault key exists when the user signs in via biometric/pattern
+ * before a password-based key has been stored on this device.
+ */
+export async function ensureTemporaryVaultDeviceKey(): Promise<string> {
+  const existing = await getVaultDeviceKeyInfo()
+  if (existing?.phrase) return existing.phrase
+  const generated = randomSecretHex(24)
+  await saveVaultBiometricPhrase(generated, { isTemporaryDeviceKey: true })
+  return generated
 }
 
 /**

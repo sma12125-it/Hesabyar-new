@@ -14,7 +14,7 @@ import hashlib
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PUBLIC_DIR = os.path.join(ROOT_DIR, 'public')
 OUTPUT_APK = os.path.join(PUBLIC_DIR, 'Hesabyar-Release.apk')
-OUTPUT_APK_V3 = os.path.join(PUBLIC_DIR, 'Hesabyar-v0.3.4.apk')
+OUTPUT_APK_V3 = os.path.join(PUBLIC_DIR, 'Hesabyar-v0.4.0.apk')
 
 # Standard Android attribute resource IDs
 RES_ATTR_VERSION_CODE = 0x0101021b
@@ -125,7 +125,7 @@ class AxmlBuilder:
         return struct.pack('<HHIIIII', 0x0103, 16, 24, line, 0xFFFFFFFF, uri_idx, name_idx)
 
 
-def generate_binary_manifest(pkg_name="ir.hesabyar.app", version_code=35, version_name="0.3.5"):
+def generate_binary_manifest(pkg_name="ir.hesabyar.app", version_code=40, version_name="0.4.0"):
     b = AxmlBuilder()
 
     uri_str = "http://schemas.android.com/apk/res/android"
