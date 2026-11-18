@@ -114,4 +114,25 @@ describe('vaultBiometric & unified account-password migration', () => {
     expect(reopened[0].pan).toBe('6104337812345678')
     expect(reopened[0].sheba).toBe('IR120120000000001234567890')
   })
+
+  it('persists and recovers device-local vault key via localStorage mirror across reloads', async () => {
+    const store = new Map<string, string>()
+    Object.assign(globalThis, {
+      localStorage: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => store.set(k, v),
+        removeItem: (k: string) => store.delete(k),
+      },
+    })
+
+    await saveVaultBiometricPhrase('persistent-card-key-77')
+    expect(store.has('hy-card-vault-bio-v1')).toBe(true)
+
+    const recovered = await getVaultDeviceKeyInfo()
+    expect(recovered?.phrase).toBe('persistent-card-key-77')
+
+    await clearVaultBiometric()
+    expect(store.has('hy-card-vault-bio-v1')).toBe(false)
+    expect(await getVaultDeviceKeyInfo()).toBeNull()
+  })
 })

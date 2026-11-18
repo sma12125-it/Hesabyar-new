@@ -6,6 +6,7 @@ import { useExtras } from '../store/Extras'
 import { CardFormSheet } from '../components/CardFormSheet'
 import { AccountRow } from '../components/TxRow'
 import { BankCardFace } from '../components/BankCardFace'
+import { CardLegacySyncBanner } from '../components/CardLegacySyncBanner'
 import {
   fetchIncomingShares,
   getStableUserId,
@@ -27,6 +28,7 @@ export function AccountsPage({
     cards,
     formatMoney,
     unlocked,
+    vaultConfigured,
     syncVaultWithAccountPassword,
     deleteCard,
     saveSharedCard,
@@ -901,7 +903,10 @@ export function AccountsPage({
           </div>
 
           <div>
-              {currentTabCards.length === 0 ? (
+              {vaultConfigured && !unlocked ? (
+                <CardLegacySyncBanner />
+              ) : null}
+              {currentTabCards.length === 0 && !(vaultConfigured && !unlocked) ? (
                 <div className="empty-state" style={{ padding: '24px 16px', margin: '8px 0' }}>
                   <div style={{ fontSize: 32, marginBottom: 8 }}>💳</div>
                   <h3 style={{ fontSize: 14, margin: '0 0 4px', fontWeight: 700 }}>
@@ -919,7 +924,7 @@ export function AccountsPage({
                     ＋ ایجاد کارت جدید
                   </button>
                 </div>
-              ) : (
+              ) : currentTabCards.length > 0 ? (
                 <div className="card-gallery">
                   {currentTabCards.map((card, idx) => (
                     <div
@@ -1058,7 +1063,7 @@ export function AccountsPage({
                     </div>
                   ))}
                 </div>
-              )}
+              ) : null}
           </div>
         </div>
       )}

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { BankCardFace, formatPan, formatSheba } from './BankCardFace'
+import { CardLegacySyncBanner } from './CardLegacySyncBanner'
 import { useExtras } from '../store/Extras'
 import { useStore } from '../store/Store'
 import { toFaDigits, toWesternDigits } from '../lib/money'
@@ -159,7 +160,7 @@ function getCardCopyOptions(card: BankCard): CopyOption[] {
 export function QuickCardsSheet({ initialTab = 'cards', onClose }: QuickCardsSheetProps) {
   const navigate = useNavigate()
   const { activeAccounts } = useStore()
-  const { cards, unlocked, syncVaultWithAccountPassword, formatMoney, unitLabel } = useExtras()
+  const { cards, unlocked, vaultConfigured, syncVaultWithAccountPassword, formatMoney, unitLabel } = useExtras()
 
   const [tab, setTab] = useState<'cards' | 'accounts'>(initialTab)
   const [search, setSearch] = useState('')
@@ -270,7 +271,9 @@ export function QuickCardsSheet({ initialTab = 'cards', onClose }: QuickCardsShe
         {/* Body */}
         <div className="sheet-body-scroll" style={{ paddingBottom: 16 }}>
           {tab === 'cards' ? (
-            cards.length === 0 ? (
+            vaultConfigured && !unlocked ? (
+              <CardLegacySyncBanner compact />
+            ) : cards.length === 0 ? (
               <div className="empty-state" style={{ padding: '24px 16px' }}>
                 <div style={{ fontSize: 30, marginBottom: 6 }} aria-hidden="true">💳</div>
                 <h3 style={{ fontSize: 14, margin: '0 0 6px', fontWeight: 700 }}>

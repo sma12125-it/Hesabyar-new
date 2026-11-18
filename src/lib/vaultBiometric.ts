@@ -9,6 +9,7 @@ export interface VaultBiometricRecord {
 }
 
 const KV_KEY = 'cardVaultBio'
+const LS_MIRROR_KEY = 'hy-card-vault-bio-v1'
 const memFallback = new Map<string, VaultBiometricRecord | null>()
 
 function randomSecretHex(bytesLength = 32): string {
@@ -20,47 +21,69 @@ function randomSecretHex(bytesLength = 32): string {
   return out
 }
 
+function readLocalMirror(): VaultBiometricRecord | null {
+  if (typeof localStorage === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(LS_MIRROR_KEY) ?? localStorage.getItem(KV_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as VaultBiometricRecord
+    if (parsed && parsed.secret && parsed.wrappedPhrase) return parsed
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+function writeLocalMirror(record: VaultBiometricRecord | null): void {
+  if (typeof localStorage === 'undefined') return
+  try {
+    if (record === null) {
+      localStorage.removeItem(LS_MIRROR_KEY)
+      localStorage.removeItem(KV_KEY)
+    } else {
+      localStorage.setItem(LS_MIRROR_KEY, JSON.stringify(record))
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 async function readRecord(): Promise<VaultBiometricRecord | null> {
   try {
     if (typeof indexedDB !== 'undefined') {
       const rec = await db.getKv<VaultBiometricRecord | null>(KV_KEY)
-      return rec ?? null
+      if (rec && rec.secret && rec.wrappedPhrase) {
+        writeLocalMirror(rec)
+        return rec
+      }
     }
   } catch {
     /* fallback below */
   }
-  if (typeof localStorage !== 'undefined') {
+  const mirrored = readLocalMirror()
+  if (mirrored) {
     try {
-      const raw = localStorage.getItem(KV_KEY)
-      if (raw) return JSON.parse(raw) as VaultBiometricRecord
+      if (typeof indexedDB !== 'undefined') {
+        void db.setKv(KV_KEY, mirrored)
+      }
     } catch {
       /* ignore */
     }
+    return mirrored
   }
   return memFallback.get(KV_KEY) ?? null
 }
 
 async function writeRecord(record: VaultBiometricRecord | null): Promise<void> {
+  memFallback.set(KV_KEY, record)
+  writeLocalMirror(record)
   try {
     if (typeof indexedDB !== 'undefined') {
       await db.setKv(KV_KEY, record)
-      return
     }
   } catch {
-    /* fallback below */
+    /* mirror already updated */
   }
-  if (typeof localStorage !== 'undefined') {
-    try {
-      if (record === null) {
-        localStorage.removeItem(KV_KEY)
-      } else {
-        localStorage.setItem(KV_KEY, JSON.stringify(record))
-      }
-    } catch {
-      /* ignore */
-    }
-  }
-  memFallback.set(KV_KEY, record)
 }
 
 /**
