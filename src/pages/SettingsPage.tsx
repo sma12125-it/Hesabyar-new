@@ -13,7 +13,6 @@ import { getSupabaseSettings } from '../lib/supabaseClient'
 import { useExtras } from '../store/Extras'
 import { useStore } from '../store/Store'
 import { SmsSettingsSection } from '../components/SmsSettingsSection'
-import { VaultRecover } from '../components/VaultRecover'
 import { AboutContent, APP_UPDATE_DATE, APP_VERSION } from '../components/AboutPopup'
 import { ThemeGallery } from '../components/ThemeGallery'
 import { ChatGPTApiSection } from '../components/ChatGPTApiSection'
@@ -163,16 +162,8 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
   const [accountAgainPass, setAccountAgainPass] = useState('')
   const [passUpdating, setPassUpdating] = useState(false)
 
-  // Vault Section States
-  const [vaultSyncPhrase, setVaultSyncPhrase] = useState('')
-  const [vaultRecoveryCode, setVaultRecoveryCode] = useState('')
-  const [vaultForgot, setVaultForgot] = useState(false)
-  const [vaultInfo, setVaultInfo] = useState<string | null>(null)
-  const [vaultError, setVaultError] = useState<string | null>(null)
-  const [vaultBioBusy, setVaultBioBusy] = useState(false)
-
   const [showThemeGallery, setShowThemeGallery] = useState(false)
-  const [securityTab, setSecurityTab] = useState<'lock' | 'vault' | 'share'>('lock')
+  const [securityTab, setSecurityTab] = useState<'lock' | 'share'>('lock')
   const [updatePlatform, setUpdatePlatform] = useState<'webapp' | 'apk'>('webapp')
   const [isDownloadingApk, setIsDownloadingApk] = useState(false)
   const [apkProgress, setApkProgress] = useState(0)
@@ -184,13 +175,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
     setCurrencyUnit,
     exportLocal,
     importLocal,
-    unlocked,
-    vaultConfigured,
-    vaultBiometricEnabled,
-    unlockVault,
-    unlockVaultWithBiometric,
     syncVaultWithAccountPassword,
-    lockVault,
   } = useExtras()
   const { accounts, transactions, plans, items, customCategories, importCloud } = useStore()
 
@@ -425,29 +410,12 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
       }
       setAccountNewPass('')
       setAccountAgainPass('')
-      setSecurityInfo('رمز عبور حساب و گاوصندوق کارت‌ها با موفقیت به‌روزرسانی شد ✨')
-      notifyUser('رمز عبور حساب و گاوصندوق تغییر یافت')
+      setSecurityInfo('رمز عبور حساب‌یار با موفقیت به‌روزرسانی شد و دسترسی کارت‌ها نیز همگام گردید ✨')
+      notifyUser('رمز عبور حساب تغییر یافت')
     } catch (err) {
       setSecurityInfo(err instanceof Error ? err.message : 'خطا در تغییر رمز عبور')
     } finally {
       setPassUpdating(false)
-    }
-  }
-
-  async function handleUnlockOrMigrateVault() {
-    setVaultError(null)
-    setVaultInfo(null)
-    if (!vaultSyncPhrase.trim()) {
-      setVaultError('لطفاً رمز ورود به حساب‌یار (یا رمز قبلی گاوصندوق) را وارد کنید')
-      return
-    }
-    try {
-      await unlockVault(vaultSyncPhrase)
-      setVaultSyncPhrase('')
-      setVaultInfo('گاوصندوق باز شد و با رمز ورود حساب یکپارچه گردید ✨')
-      notifyUser('گاوصندوق کارت‌ها با رمز ورود همگام شد')
-    } catch {
-      setVaultError('رمز واردشده نادرست است')
     }
   }
 
@@ -617,13 +585,14 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           </div>
         )
 
+      case 'vault':
       case 'security':
         return (
           <div className="settings-sub-screen">
             <SettingsSubHeader
               icon="🛡️"
               title="امنیت"
-              subtitle="رمز و بیومتریک، گاوصندوق کارت‌ها و اشتراک با شناسه کاربر"
+              subtitle="رمز عبور حساب، ورود سریع و بیومتریک و اشتراک با شناسه کاربر"
               onBack={() => setActiveSection(null)}
             />
 
@@ -637,13 +606,6 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                 🛡️ رمز و بیومتریک
               </button>
               <button
-                className={`seg-btn${securityTab === 'vault' ? ' active' : ''}`}
-                type="button"
-                onClick={() => setSecurityTab('vault')}
-              >
-                🔐 گاوصندوق کارت‌ها
-              </button>
-              <button
                 className={`seg-btn${securityTab === 'share' ? ' active' : ''}`}
                 type="button"
                 onClick={() => setSecurityTab('share')}
@@ -654,7 +616,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
 
             {securityTab === 'lock' && (
               <>
-                {/* 1. Biometric Unlock Toggle */}
+                {/* 1. Passkey-free Biometric / Quick Device Unlock Toggle */}
                 <section className="lg settings-block" style={{ marginTop: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -673,9 +635,11 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                         👆
                       </div>
                       <div>
-                        <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>ورود با بیومتریک (WebAuthn)</h2>
+                        <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>ورود سریع و بیومتریک (بدون Passkey)</h2>
                         <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
-                          {isBiometricActive(lock) ? 'قفل اثر انگشت و تشخیص چهره فعال است' : 'ورود با حسگر بیومتریک غیرفعال است'}
+                          {isBiometricActive(lock)
+                            ? 'ورود سریع و بیومتریک روی این دستگاه فعال است'
+                            : 'غیرفعال — قابل فعال‌سازی روی همه گوشی‌ها و مرورگرها بدون نیاز به Passkey'}
                         </div>
                       </div>
                     </div>
@@ -684,8 +648,8 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                     </span>
                   </div>
 
-                  <p className="sheet-sub" style={{ marginTop: 10, fontSize: 11, lineHeight: 1.6 }}>
-                    با فعال‌سازی، هنگام بازگشایی برنامه حسگر اثر انگشت، تشخیص چهره یا قفل امنیتی مرورگر فراخوانی می‌شود.
+                  <p className="sheet-sub" style={{ marginTop: 10, fontSize: 11, lineHeight: 1.7 }}>
+                    با فعال‌سازی این گزینه، بدون نیاز به ساخت Passkey می‌توانید روی هر گوشی و مرورگری با یک لمس (و در نسخه اپلیکیشن با حسگر اثر انگشت یا تشخیص چهره) وارد حساب‌یار شوید و به‌صورت خودکار به تمام حساب‌ها و کارت‌های بانکی دسترسی داشته باشید.
                   </p>
 
                   <div style={{ marginTop: 12 }}>
@@ -697,11 +661,11 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                         onClick={() => {
                           setBiometricActive(false)
                           setLock(loadLock())
-                          setSecurityInfo('ورود بیومتریک غیرفعال شد')
+                          setSecurityInfo('ورود سریع و بیومتریک غیرفعال شد')
                           notifyUser('ورود بیومتریک غیرفعال شد')
                         }}
                       >
-                        ✕ غیرفعال‌سازی ورود با بیومتریک
+                        ✕ غیرفعال‌سازی ورود بیومتریک
                       </button>
                     ) : (
                       <button
@@ -712,15 +676,15 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                           void registerBiometric()
                             .then(() => {
                               setLock(loadLock())
-                              setSecurityInfo('ورود با قفل بیومتریک گوشی با موفقیت فعال شد ✨')
-                              notifyUser('قفل بیومتریک فعال شد')
+                              setSecurityInfo('ورود سریع و بیومتریک با موفقیت روی این دستگاه فعال شد ✨')
+                              notifyUser('ورود بیومتریک فعال شد')
                             })
                             .catch((err) =>
-                              setSecurityInfo(err instanceof Error ? err.message : 'قفل گوشی در دسترس نیست')
+                              setSecurityInfo(err instanceof Error ? err.message : 'خطا در فعال‌سازی ورود بیومتریک')
                             )
                         }}
                       >
-                        🔐 فعال‌سازی ورود با اثر انگشت یا چهره
+                        👆 فعال‌سازی ورود سریع و بیومتریک
                       </button>
                     )}
                   </div>
@@ -744,9 +708,9 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                       🔑
                     </div>
                     <div>
-                      <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>تغییر رمز عبور حساب و گاوصندوق</h2>
+                      <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>تغییر رمز عبور حساب‌یار</h2>
                       <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
-                        تعیین رمز تازه جهت ورود به نرم‌افزار (به‌طور خودکار روی گاوصندوق کارت‌ها نیز اعمال می‌شود)
+                        تعیین رمز تازه جهت ورود به نرم‌افزار (رمزنگاری کارت‌ها نیز خودکار با همین رمز همگام می‌شود)
                       </div>
                     </div>
                   </div>
@@ -784,176 +748,6 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                   </div>
                 ) : null}
               </>
-            )}
-
-            {securityTab === 'vault' && (
-              <section className="lg settings-block" style={{ marginTop: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 14,
-                        background: 'rgba(15, 118, 110, 0.2)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 22,
-                      }}
-                    >
-                      🔐
-                    </div>
-                    <div>
-                      <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>
-                        گاوصندوق یکپارچه با رمز ورود حساب
-                      </h2>
-                      <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
-                        {unlocked || !vaultConfigured
-                          ? 'باز و متصل به رمز ورود حساب‌یار — بدون نیاز به رمز مجزا'
-                          : 'قفل موقت یا در انتظار همگام‌سازی یک‌باره با رمز ورود'}
-                      </div>
-                    </div>
-                  </div>
-                  <span className={`badge ${unlocked || !vaultConfigured ? 'ok' : 'pending'}`}>
-                    {unlocked || !vaultConfigured ? '● یکپارچه و باز' : '○ قفل'}
-                  </span>
-                </div>
-
-                <p className="sheet-sub" style={{ marginTop: 4, lineHeight: 1.7 }}>
-                  رمز گاوصندوق کارت‌های بانکی با <strong>رمز ورود به حساب‌یار</strong> یکسان شده است. به محض ورود به برنامه (با رمز، اثر انگشت، چهره یا الگو)، کارت‌های شما بدون نیاز به وارد کردن رمز جداگانه قابل مشاهده هستند و با تغییر رمز عبور حساب، رمز گاوصندوق نیز خودکار به‌روزرسانی می‌شود.
-                </p>
-
-                {vaultConfigured && !unlocked ? (
-                  <div
-                    className="field-stack"
-                    style={{
-                      marginTop: 14,
-                      padding: 12,
-                      borderRadius: 14,
-                      background: 'rgba(0, 0, 0, 0.2)',
-                      border: '1px solid var(--glass-border)',
-                    }}
-                  >
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--hy-text)' }}>
-                      بازگشایی و همگام‌سازی یک‌باره با رمز ورود حساب:
-                    </div>
-                    {vaultBiometricEnabled ? (
-                      <button
-                        type="button"
-                        className="cta-confirm"
-                        disabled={vaultBioBusy}
-                        style={{ height: 44, fontWeight: 700 }}
-                        onClick={() => {
-                          setVaultError(null)
-                          setVaultInfo(null)
-                          setVaultBioBusy(true)
-                          void unlockVaultWithBiometric()
-                            .then(() => {
-                              setVaultInfo('گاوصندوق کارت‌ها با بیومتریک باز شد')
-                              notifyUser('گاوصندوق باز شد')
-                            })
-                            .catch((err) => setVaultError(err instanceof Error ? err.message : 'احراز هویت بیومتریک ناموفق بود'))
-                            .finally(() => setVaultBioBusy(false))
-                        }}
-                      >
-                        {vaultBioBusy ? 'در حال بررسی بیومتریک…' : '👆 بازگشایی با اثر انگشت / چهره'}
-                      </button>
-                    ) : null}
-                    <input
-                      className="field-input"
-                      type="password"
-                      placeholder="رمز ورود حساب‌یار (یا رمز قبلی گاوصندوق)"
-                      value={vaultSyncPhrase}
-                      onChange={(e) => setVaultSyncPhrase(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') void handleUnlockOrMigrateVault()
-                      }}
-                    />
-                    <button
-                      className="cta-confirm"
-                      type="button"
-                      style={{ height: 44 }}
-                      onClick={() => void handleUnlockOrMigrateVault()}
-                    >
-                      بازگشایی و اتصال به رمز ورود حساب
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
-                    <button
-                      className="cta-confirm"
-                      type="button"
-                      style={{ width: '100%', height: 44, justifyContent: 'center', fontWeight: 700 }}
-                      onClick={() => setSecurityTab('lock')}
-                    >
-                      🔑 مدیریت رمز ورود حساب و بیومتریک
-                    </button>
-
-                    {vaultConfigured && unlocked ? (
-                      <button
-                        className="home-pill ghost"
-                        type="button"
-                        style={{ width: '100%', height: 42, justifyContent: 'center', fontWeight: 700 }}
-                        onClick={() => {
-                          lockVault()
-                          setVaultInfo('گاوصندوق موقتاً قفل شد')
-                          notifyUser('گاوصندوق موقتاً قفل شد')
-                        }}
-                      >
-                        🔒 قفل موقت کارت‌ها در این نشست
-                      </button>
-                    ) : null}
-                  </div>
-                )}
-
-                {vaultRecoveryCode ? (
-                  <div style={{ marginTop: 14, padding: 12, borderRadius: 12, background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                    <p className="sheet-sub" style={{ fontWeight: 700, color: 'var(--hy-income)' }}>
-                      کد بازیابی اضطراری گاوصندوق (آن را در جای امن نگه دارید):
-                    </p>
-                    <p className="recovery-code" style={{ textAlign: 'center', margin: '8px 0', fontSize: 18 }}>
-                      {vaultRecoveryCode}
-                    </p>
-                  </div>
-                ) : null}
-
-                {vaultConfigured && !unlocked ? (
-                  <div style={{ marginTop: 14 }}>
-                    <button
-                      className="link"
-                      type="button"
-                      onClick={() => setVaultForgot((v) => !v)}
-                      style={{ fontSize: 12 }}
-                    >
-                      بازیابی اضطراری گاوصندوق
-                    </button>
-                  </div>
-                ) : null}
-
-                {vaultForgot ? (
-                  <div style={{ marginTop: 12 }}>
-                    <VaultRecover
-                      onDone={(code) => {
-                        setVaultRecoveryCode(code)
-                        setVaultForgot(false)
-                        setVaultInfo('گاوصندوق با موفقیت بازیابی شد')
-                      }}
-                    />
-                  </div>
-                ) : null}
-
-                {vaultError ? (
-                  <div className="banner error" style={{ marginTop: 10 }}>
-                    <span>{vaultError}</span>
-                  </div>
-                ) : null}
-                {vaultInfo ? (
-                  <div className="banner ok" style={{ marginTop: 10 }}>
-                    <span>{vaultInfo}</span>
-                  </div>
-                ) : null}
-              </section>
             )}
 
             {securityTab === 'share' && (
@@ -1722,9 +1516,9 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           id: 'security' as const,
           icon: '🛡️',
           title: 'امنیت',
-          subtitle: 'رمز و بیومتریک، گاوصندوق کارت‌ها و اشتراک با شناسه کاربر',
-          badge: isBiometricActive(lock) || vaultConfigured ? 'فعال' : 'خاموش',
-          badgeClass: isBiometricActive(lock) || vaultConfigured ? 'ok' : 'pending',
+          subtitle: 'رمز عبور حساب، ورود سریع و بیومتریک و اشتراک با شناسه کاربر',
+          badge: isBiometricActive(lock) ? 'بیومتریک فعال' : 'رمز حساب',
+          badgeClass: isBiometricActive(lock) ? 'ok' : 'accent',
         },
       ],
     },
@@ -1777,7 +1571,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           icon: '🔄',
           title: 'بروزرسانی',
           subtitle: 'بررسی و اعمال آخرین نسخه وب‌اپ و دریافت نسخه جدید نصبی اندروید (APK)',
-          badge: 'نسخه ۰.۳.۳',
+          badge: `نسخه ${toFaDigits(APP_VERSION)}`,
           badgeClass: 'ok',
         },
         {

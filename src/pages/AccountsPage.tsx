@@ -6,7 +6,6 @@ import { useExtras } from '../store/Extras'
 import { CardFormSheet } from '../components/CardFormSheet'
 import { AccountRow } from '../components/TxRow'
 import { BankCardFace } from '../components/BankCardFace'
-import { VaultRecover } from '../components/VaultRecover'
 import {
   fetchIncomingShares,
   getStableUserId,
@@ -28,12 +27,7 @@ export function AccountsPage({
     cards,
     formatMoney,
     unlocked,
-    vaultConfigured,
-    vaultBiometricEnabled,
-    unlockVault,
-    unlockVaultWithBiometric,
     syncVaultWithAccountPassword,
-    lockVault,
     deleteCard,
     saveSharedCard,
   } = useExtras()
@@ -45,13 +39,7 @@ export function AccountsPage({
   const navigate = useNavigate()
   const myUserId = getStableUserId()
 
-  // Vault state for card view
-  const [phrase, setPhrase] = useState('')
-  const [vaultError, setVaultError] = useState<string | null>(null)
-  const [bioBusy, setBioBusy] = useState(false)
   const [revealed, setRevealed] = useState<string | null>(null)
-  const [forgot, setForgot] = useState(false)
-  const [recoveryCode, setRecoveryCode] = useState('')
 
   useEffect(() => {
     if (subTab === 'cards' && !unlocked) {
@@ -276,30 +264,6 @@ export function AccountsPage({
       localStorage.setItem('hy_cards_manual_order', JSON.stringify(next))
     } catch {
       /* ignore */
-    }
-  }
-
-  async function unlock() {
-    setVaultError(null)
-    try {
-      await unlockVault(phrase)
-      notifyUser('کارت‌ها باز شدند و با رمز ورود همگام گردیدند')
-      setPhrase('')
-    } catch {
-      setVaultError('رمز واردشده نادرست است')
-    }
-  }
-
-  async function unlockByBiometric() {
-    setVaultError(null)
-    setBioBusy(true)
-    try {
-      await unlockVaultWithBiometric()
-      notifyUser('گاوصندوق کارت با بیومتریک باز شد')
-    } catch (err) {
-      setVaultError(err instanceof Error ? err.message : 'احراز هویت بیومتریک ناموفق بود')
-    } finally {
-      setBioBusy(false)
     }
   }
 
@@ -664,9 +628,7 @@ export function AccountsPage({
             type="button"
             className="cat-mini"
             onClick={() => {
-              if (vaultConfigured && !unlocked) {
-                setSubTab('cards')
-              }
+              setSubTab('cards')
               setCardId(null)
             }}
             style={{ fontSize: 11, padding: '6px 12px', background: 'color-mix(in srgb, var(--hy-transfer) 20%, transparent)', color: 'var(--hy-transfer)' }}
@@ -936,72 +898,9 @@ export function AccountsPage({
         <div>
           <div className="section-head" style={{ marginBottom: 10 }}>
             <h2>کارت‌های بانکی {tabLabels[activeTab].title} ({toFaDigits(currentTabCards.length)})</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              {unlocked && vaultConfigured ? (
-                <button className="link" type="button" onClick={lockVault}>
-                  قفل موقت
-                </button>
-              ) : null}
-            </div>
           </div>
 
-          <p className="sheet-sub">
-            کارت‌های شما با رمز ورود حساب‌یار رمزگذاری می‌شوند و پس از ورود بدون نیاز به رمز مجزا در دسترس هستند.
-          </p>
-          {vaultError ? <div className="banner error"><span>{vaultError}</span></div> : null}
-
-          {vaultConfigured && !unlocked ? (
-            <div style={{ margin: '14px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {vaultBiometricEnabled ? (
-                <button
-                  type="button"
-                  className="cta-confirm"
-                  disabled={bioBusy}
-                  onClick={() => void unlockByBiometric()}
-                  style={{
-                    minHeight: 48,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                    fontSize: 13,
-                    fontWeight: 800,
-                  }}
-                >
-                  <span aria-hidden="true">👆</span>
-                  <span>{bioBusy ? 'در حال تأیید بیومتریک…' : 'باز کردن کارت‌ها با اثر انگشت / چهره'}</span>
-                </button>
-              ) : null}
-
-              <div className="field-chip">
-                <input
-                  className="field-input"
-                  type="password"
-                  placeholder="رمز ورود به حساب‌یار (یا رمز قبلی گاوصندوق)"
-                  value={phrase}
-                  onChange={(e) => setPhrase(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') void unlock()
-                  }}
-                />
-                <button className="cat-mini" type="button" onClick={() => void unlock()}>
-                  باز کردن
-                </button>
-                <button className="link" type="button" onClick={() => setForgot((value) => !value)}>
-                  بازیابی
-                </button>
-              </div>
-
-              {forgot ? <VaultRecover onDone={(code) => { setRecoveryCode(code); setForgot(false) }} /> : null}
-              {recoveryCode ? (
-                <div style={{ marginTop: 10 }}>
-                  <p className="sheet-sub">کد بازیابی:</p>
-                  <p className="recovery-code">{recoveryCode}</p>
-                </div>
-              ) : null}
-            </div>
-          ) : (
-            <div>
+          <div>
               {currentTabCards.length === 0 ? (
                 <div className="empty-state" style={{ padding: '24px 16px', margin: '8px 0' }}>
                   <div style={{ fontSize: 32, marginBottom: 8 }}>💳</div>
@@ -1147,7 +1046,7 @@ export function AccountsPage({
                               type="button"
                               onClick={() => {
                                 if (confirm('آیا از حذف این کارت اطمینان دارید؟')) {
-                                  void deleteCard(card.id, phrase)
+                                  void deleteCard(card.id)
                                 }
                               }}
                             >
@@ -1160,8 +1059,7 @@ export function AccountsPage({
                   ))}
                 </div>
               )}
-            </div>
-          )}
+          </div>
         </div>
       )}
 

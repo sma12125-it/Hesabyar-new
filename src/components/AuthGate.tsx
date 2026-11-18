@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PatternLock } from './PatternLock'
 import {
   checkPasswordVerifier,
@@ -12,8 +12,6 @@ import {
   loadLock,
   lockEnabled,
   isBiometricActive,
-  isWebAuthnSupported,
-  isPlatformAuthenticatorAvailable,
   authenticateWithBiometrics,
 } from '../lib/applock'
 import {
@@ -73,44 +71,12 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
   const [busy, setBusy] = useState(false)
   const lock = loadLock()
 
-  const [biometricAvailable, setBiometricAvailable] = useState<boolean>(false)
+  const biometricAvailable = isBiometricActive(lock)
   const [biometricStatus, setBiometricStatus] = useState<'idle' | 'prompting' | 'success' | 'error'>('idle')
   const [biometricMsg, setBiometricMsg] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'biometric' | 'password' | 'pattern'>('biometric')
-  const autoPromptRef = useRef(false)
-
-  useEffect(() => {
-    let active = true
-    async function checkBio() {
-      const supported = isWebAuthnSupported()
-      if (!supported) {
-        if (active) {
-          setBiometricAvailable(false)
-          setActiveTab(lock.patternHash ? 'pattern' : 'password')
-        }
-        return
-      }
-      const platformAvail = await isPlatformAuthenticatorAvailable()
-      if (active) {
-        const canUse = (platformAvail || Boolean(lock.credentialId)) && isBiometricActive(lock)
-        setBiometricAvailable(canUse)
-        if (!canUse) {
-          setActiveTab(lock.patternHash ? 'pattern' : 'password')
-        }
-      }
-    }
-    void checkBio()
-    return () => {
-      active = false
-    }
-  }, [lock.credentialId, lock.patternHash])
-
-  useEffect(() => {
-    if (mode === 'unlock' && store.ready && biometricAvailable && !autoPromptRef.current) {
-      autoPromptRef.current = true
-      void triggerBiometricPrompt(true)
-    }
-  }, [mode, store.ready, biometricAvailable])
+  const [activeTab, setActiveTab] = useState<'biometric' | 'password' | 'pattern'>(() =>
+    isBiometricActive(lock) ? 'biometric' : lock.patternHash ? 'pattern' : 'password',
+  )
 
   async function adopt(session: CloudSession, _kind: 'in' | 'up') {
     const remote = await pullSnapshot<Payload>(session)
@@ -359,7 +325,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
                 }}
               >
                 <span>👆</span>
-                <span>بیومتریک (WebAuthn)</span>
+                <span>ورود بیومتریک</span>
               </button>
             ) : null}
 
@@ -390,14 +356,14 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
             ) : null}
           </div>
 
-          {/* 1. Biometric (WebAuthn) View */}
+          {/* 1. Passkey-Free Biometric / Quick Device Unlock View */}
           {activeTab === 'biometric' && biometricAvailable ? (
             <div className="biometric-prompt-card">
               <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--hy-text)', marginBottom: 2 }}>
-                احراز هویت بیومتریک (WebAuthn)
+                ورود سریع و بیومتریک
               </div>
               <p className="sheet-sub" style={{ fontSize: 11, margin: '2px 0 10px', lineHeight: 1.5 }}>
-                اسکن اثر انگشت، تشخیص چهره یا قفل امنیتی مرورگر
+                احراز هویت امن محلی دستگاه بدون نیاز به Passkey
               </p>
 
               {/* Scanner with Animated Ripple */}
@@ -408,7 +374,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
                   className="biometric-scanner-btn"
                   disabled={busy || booting || biometricStatus === 'prompting' || biometricStatus === 'success'}
                   onClick={() => void triggerBiometricPrompt(false)}
-                  aria-label="احراز هویت بیومتریک WebAuthn"
+                  aria-label="احراز هویت بیومتریک"
                   title="لمس حسگر بیومتریک"
                 >
                   {biometricStatus === 'success' ? (
@@ -423,12 +389,12 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
                 </button>
               </div>
 
-              {/* Status Pill */}
+              {/* Status Indicator */}
               <div className={`biometric-status-pill ${biometricStatus}`}>
                 {biometricStatus === 'prompting' ? (
                   <>
                     <span className="live-dot" style={{ background: '#38bdf8' }} />
-                    <span>{biometricMsg || 'در حال ارتباط با حسگر بیومتریک...'}</span>
+                    <span>{biometricMsg || 'در حال تأیید هویت دستگاه...'}</span>
                   </>
                 ) : biometricStatus === 'success' ? (
                   <>
@@ -443,7 +409,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
                 ) : (
                   <>
                     <span>🔒</span>
-                    <span>{biometricMsg || 'حسگر دستگاه آماده اسکن است'}</span>
+                    <span>{biometricMsg || 'برای ورود سریع لمس کنید'}</span>
                   </>
                 )}
               </div>
@@ -457,8 +423,8 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
                 onClick={() => void triggerBiometricPrompt(false)}
               >
                 {biometricStatus === 'error'
-                  ? '🔄 تلاش مجدد احراز هویت بیومتریک'
-                  : '🔐 اسکن اثر انگشت / تشخیص چهره'}
+                  ? '🔄 تلاش مجدد ورود بیومتریک'
+                  : '👆 ورود سریع با اثر انگشت / بیومتریک'}
               </button>
             </div>
           ) : null}

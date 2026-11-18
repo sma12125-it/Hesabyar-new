@@ -20,18 +20,8 @@ export function AccountFormSheet({
   onMinimize?: () => void
 }) {
   const { createAccount, updateAccount } = useStore()
-  const {
-    unlocked,
-    vaultConfigured,
-    vaultBiometricEnabled,
-    cards,
-    unlockVault,
-    unlockVaultWithBiometric,
-    syncVaultWithAccountPassword,
-    linkCard,
-  } = useExtras()
+  const { unlocked, cards, syncVaultWithAccountPassword, linkCard } = useExtras()
   const [source, setSource] = useState<'pick' | 'fresh'>(account ? 'fresh' : 'pick')
-  const [phrase, setPhrase] = useState('')
 
   useEffect(() => {
     if (!unlocked) {
@@ -124,40 +114,7 @@ export function AccountFormSheet({
         {!isEdit && source === 'pick' ? (
           <div className="field-stack">
             <p className="sheet-sub">از کارت یا حساب تعریف‌شده استفاده کن، یا یک حساب تازه با عنوان جدید بساز.</p>
-            {vaultConfigured && !unlocked ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {vaultBiometricEnabled ? (
-                  <button
-                    className="cta-confirm"
-                    type="button"
-                    style={{ minHeight: 44 }}
-                    onClick={() =>
-                      void unlockVaultWithBiometric().catch((err) =>
-                        setError(err instanceof Error ? err.message : 'احراز هویت بیومتریک ناموفق بود'),
-                      )
-                    }
-                  >
-                    👆 باز کردن کارت‌ها با اثر انگشت / چهره
-                  </button>
-                ) : null}
-                <div className="field-chip">
-                  <input
-                    className="field-input"
-                    type="password"
-                    placeholder="رمز ورود حساب برای دیدن کارت‌ها"
-                    value={phrase}
-                    onChange={(e) => setPhrase(e.target.value)}
-                  />
-                  <button
-                    className="cat-mini"
-                    type="button"
-                    onClick={() => void unlockVault(phrase).catch(() => setError('رمز واردشده نادرست است'))}
-                  >
-                    باز کردن
-                  </button>
-                </div>
-              </div>
-            ) : cards.filter((card) => !card.accountId && !card.isShared).length === 0 ? (
+            {cards.filter((card) => !card.accountId && !card.isShared).length === 0 ? (
               <p className="sheet-sub">کارت آزادی برای اتصال نیست.</p>
             ) : (
               cards.filter((card) => !card.accountId && !card.isShared).map((card) => (

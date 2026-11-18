@@ -79,7 +79,7 @@ interface ExtrasValue {
   saveSharedCard: (card: BankCard) => Promise<void>
   deleteSharedCard: (idOrShareId: string) => Promise<void>
   linkCard: (id: string, accountId: string) => Promise<void>
-  deleteCard: (id: string, passphrase: string) => Promise<void>
+  deleteCard: (id: string, passphrase?: string) => Promise<void>
   saveBudget: (budget: Budget) => Promise<void>
   deleteBudget: (id: string) => Promise<void>
   saveGoal: (goal: Omit<SavingsGoal, 'id'> & { id?: string }) => Promise<void>
@@ -224,11 +224,49 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       if (cancelled) return
       setBlob(vault ?? null)
       blobRef.current = vault ?? null
-      const hasBio = await hasVaultBiometric()
+      const deviceInfo = await getVaultDeviceKeyInfo()
+      const acctPass = rememberedAccountPassword().trim()
       if (!cancelled) {
-        const bioActive = Boolean(vault && hasBio)
+        const bioActive = Boolean(vault && deviceInfo)
         setVaultBiometricEnabled(bioActive)
         vaultBiometricRef.current = bioActive
+      }
+      // Seamlessly auto-unlock cards on load using account password or device-local wrapped key
+      if (!cancelled) {
+        const candidateKey = acctPass || deviceInfo?.phrase || ''
+        if (!vault) {
+          if (candidateKey) {
+            passphraseRef.current = candidateKey
+            setPassphrase(candidateKey)
+            cardsRef.current = []
+            setCards([])
+          }
+        } else if (candidateKey) {
+          try {
+            const opened = await openCards(candidateKey, vault.salt, vault.payload)
+            if (!cancelled) {
+              cardsRef.current = opened
+              setCards(opened)
+              passphraseRef.current = candidateKey
+              setPassphrase(candidateKey)
+            }
+          } catch {
+            if (acctPass && vault.accountWrap) {
+              try {
+                const legacy = await unwrapText(vault.accountWrap, acctPass)
+                const opened = await openCards(legacy, vault.salt, vault.payload)
+                if (!cancelled) {
+                  cardsRef.current = opened
+                  setCards(opened)
+                  passphraseRef.current = acctPass
+                  setPassphrase(acctPass)
+                }
+              } catch {
+                /* will sync on login */
+              }
+            }
+          }
+        }
       }
       setSharedCards(savedSharedCards ?? [])
       setBudgets(nextBudgets ?? [])
@@ -1019,9 +1057,20 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
             active = passphraseRef.current
           }
         }
-        if (!active) throw new Error('برای ثبت کارت ابتدا با رمز ورود حساب، گاوصندوق را باز کنید')
+        if (!active) {
+          active = rememberedAccountPassword().trim() || (await ensureTemporaryVaultDeviceKey())
+          passphraseRef.current = active
+          setPassphrase(active)
+        }
         const activeBlob = blobRef.current
-        const current = activeBlob && !passphraseRef.current ? await openCards(active, activeBlob.salt, activeBlob.payload) : cardsRef.current
+        let current = cardsRef.current
+        if (activeBlob && !cardsRef.current.length) {
+          try {
+            current = await openCards(active, activeBlob.salt, activeBlob.payload)
+          } catch {
+            current = cardsRef.current
+          }
+        }
         const existing = input.id ? current.find((card) => card.id === input.id) : undefined
         const card: BankCard = {
           ...input,
@@ -1065,14 +1114,26 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         window.dispatchEvent(new CustomEvent('hy-share-assets-updated'))
       },
       linkCard: async (id, accountId) => {
-        if (!passphrase || !blob) return
-        const next = cards.map((card) => (card.id === id ? { ...card, accountId } : card))
-        await persistCards(next, passphrase)
+        let active = passphraseRef.current
+        if (!active) {
+          await syncVaultWithAccountPassword()
+          active = passphraseRef.current
+        }
+        if (!active || !blobRef.current) return
+        const next = cardsRef.current.map((card) => (card.id === id ? { ...card, accountId } : card))
+        await persistCards(next, active)
       },
       deleteCard: async (id, phrase) => {
-        const active = passphraseRef.current ?? phrase
-        if (!active) throw new Error('گاوصندوق قفل است')
-        const current = !passphraseRef.current && blob ? await openCards(active, blob.salt, blob.payload) : cardsRef.current
+        let active = passphraseRef.current ?? phrase
+        if (!active) {
+          const synced = await syncVaultWithAccountPassword()
+          if (synced.unlocked && passphraseRef.current) {
+            active = passphraseRef.current
+          }
+        }
+        if (!active) throw new Error('حذف کارت ممکن نشد')
+        const activeBlob = blobRef.current
+        const current = !passphraseRef.current && activeBlob ? await openCards(active, activeBlob.salt, activeBlob.payload) : cardsRef.current
         await persistCards(current.filter((card) => card.id !== id), active)
       },
       saveBudget: async (budget) => {
