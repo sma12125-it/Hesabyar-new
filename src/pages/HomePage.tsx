@@ -12,13 +12,14 @@ interface HomePageProps {
   setToast: Dispatch<SetStateAction<string | null>>
   onQuickEntry: (kind: 'expense' | 'income') => void
   onTransfer: () => void
+  onQuickCards: () => void
   onAll: (initialSearch?: string) => void
   onSettings: () => void
 }
 
 const PERSIAN_WEEKDAYS = ['یکشنبه', 'دوشنبه', 'سه‌شنبه', 'چهارشنبه', 'پنج‌شنبه', 'جمعه', 'شنبه']
 
-export function HomePage({ onScroll, onQuickEntry, onTransfer, onAll }: HomePageProps) {
+export function HomePage({ onScroll, onQuickEntry, onTransfer, onQuickCards, onAll }: HomePageProps) {
   const [now, setNow] = useState(() => new Date())
   const { pending } = useSmsDrafts()
 
@@ -73,6 +74,28 @@ export function HomePage({ onScroll, onQuickEntry, onTransfer, onAll }: HomePage
           </div>
           <div className="home-head-icons" style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
             <CloudLamp />
+            {/* 1-tap Quick Cards Wallet Shortcut */}
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={onQuickCards}
+              title="دسترسی سریع به کارت‌های بانکی (Alt+C)"
+              aria-label="دسترسی سریع به کارت‌های بانکی"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 40,
+                height: 40,
+                borderRadius: '50%',
+                background: 'var(--glass-chrome)',
+                border: 'var(--glass-border)',
+                color: 'inherit',
+                fontSize: 18,
+              }}
+            >
+              <span aria-hidden="true">💳</span>
+            </button>
             {/* Notification button for pending SMS transactions */}
             <Link
               to="/transactions/pending"
@@ -177,6 +200,9 @@ export function HomePage({ onScroll, onQuickEntry, onTransfer, onAll }: HomePage
           </button>
           <button className="home-pill ghost" type="button" onClick={onTransfer}>
             انتقال
+          </button>
+          <button className="home-pill ghost" type="button" onClick={onQuickCards}>
+            💳 کارت‌ها
           </button>
         </div>
       </div>

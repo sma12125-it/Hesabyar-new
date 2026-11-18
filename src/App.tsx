@@ -34,6 +34,7 @@ import { LiveSync } from './components/LiveSync'
 import { SharedSync } from './components/SharedSync'
 import { ProfileSync } from './components/ProfileSync'
 import { UnifiedShareSheet, type ShareTargetItem } from './components/UnifiedShareSheet'
+import { QuickCardsSheet } from './components/QuickCardsSheet'
 import { autoRegisterCurrentProfile } from './lib/userShare'
 import { SmsBridge } from './components/SmsBridge'
 import { ChequeSheet } from './components/ChequeSheet'
@@ -60,6 +61,7 @@ export type Sheet =
   | { type: 'dong-create' }
   | { type: 'sync' }
   | { type: 'share'; kind: 'card' | 'account'; item: ShareTargetItem }
+  | { type: 'quick-cards'; initialTab?: 'cards' | 'accounts' }
   | { type: 'confirm'; title: string; message: string; confirmLabel?: string; run: () => Promise<void>; returnToAll?: string }
 
 function Shell() {
@@ -130,6 +132,8 @@ function Shell() {
         return { icon: '👥', title: 'رویداد دونگ جدید' }
       case 'sync':
         return { icon: '☁️', title: 'همگام‌سازی ابری' }
+      case 'quick-cards':
+        return { icon: '💳', title: 'کیف کارت سریع' }
       case 'settings':
         return { icon: '⚙️', title: 'داده محلی' }
       case 'confirm':
@@ -192,6 +196,16 @@ function Shell() {
     const onOpenCheque = () => setSheet({ type: 'cheque' })
     const onOpenDebt = () => setSheet({ type: 'debt' })
     const onOpenDong = () => setSheet({ type: 'dong-create' })
+    const onOpenQuickCards = (e?: Event) => {
+      const tab = (e as CustomEvent<{ tab?: 'cards' | 'accounts' }> | undefined)?.detail?.tab
+      setSheet({ type: 'quick-cards', initialTab: tab ?? 'cards' })
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.altKey && !e.ctrlKey && !e.metaKey && e.key.toLowerCase() === 'c') {
+        e.preventDefault()
+        setSheet((prev) => (prev?.type === 'quick-cards' ? null : { type: 'quick-cards', initialTab: 'cards' }))
+      }
+    }
 
     window.addEventListener('hy-new-account', onNewAccount)
     window.addEventListener('hy:open-voice-sheet', onOpenVoice)
@@ -201,8 +215,10 @@ function Shell() {
     window.addEventListener('hy:open-debt-sheet', onOpenDebt)
     window.addEventListener('hy-open-debt-sheet', onOpenDebt)
     window.addEventListener('hy:open-create-dong', onOpenDong)
+    window.addEventListener('hy:open-quick-cards', onOpenQuickCards)
+    window.addEventListener('keydown', onKeyDown)
 
-    // Handle launcher/widget URL query parameters like ?action=voice or ?action=quick-entry
+    // Handle launcher/widget URL query parameters like ?action=voice or ?action=cards
     try {
       const searchParams = new URLSearchParams(window.location.search)
       const action = searchParams.get('action')
@@ -218,6 +234,8 @@ function Shell() {
         setSheet({ type: 'dong-create' })
       } else if (action === 'installment') {
         setSheet({ type: 'installment-plan' })
+      } else if (action === 'cards') {
+        setSheet({ type: 'quick-cards', initialTab: 'cards' })
       }
     } catch {}
 
@@ -230,6 +248,8 @@ function Shell() {
       window.removeEventListener('hy:open-debt-sheet', onOpenDebt)
       window.removeEventListener('hy-open-debt-sheet', onOpenDebt)
       window.removeEventListener('hy:open-create-dong', onOpenDong)
+      window.removeEventListener('hy:open-quick-cards', onOpenQuickCards)
+      window.removeEventListener('keydown', onKeyDown)
     }
   }, [])
 
@@ -344,6 +364,7 @@ function Shell() {
                 setToast={setToast}
                 onQuickEntry={(kind) => setSheet({ type: 'quick', kind })}
                 onTransfer={() => setSheet({ type: 'transfer' })}
+                onQuickCards={() => setSheet({ type: 'quick-cards', initialTab: 'cards' })}
                 onAll={(search) => setSheet({ type: 'all-tx', search })}
                 onSettings={() => setSheet({ type: 'settings' })}
               />
@@ -395,6 +416,7 @@ function Shell() {
         {!sheetOpen ? (
           <TabBar
             onQuickEntry={() => setSheet({ type: 'quick', kind: 'expense' })}
+            onQuickCards={() => setSheet({ type: 'quick-cards', initialTab: 'cards' })}
             onVoiceEntry={() => setSheet({ type: 'voice' })}
             onInstallmentEntry={() => setSheet({ type: 'installment-plan' })}
             onChequeEntry={() => setSheet({ type: 'cheque' })}
@@ -521,6 +543,12 @@ function Shell() {
         <UnifiedShareSheet
           kind={sheet.kind}
           item={sheet.item}
+          onClose={() => closeSheet(sheet)}
+        />
+      ) : null}
+      {sheet?.type === 'quick-cards' ? (
+        <QuickCardsSheet
+          initialTab={sheet.initialTab}
           onClose={() => closeSheet(sheet)}
         />
       ) : null}

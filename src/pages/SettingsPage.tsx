@@ -173,6 +173,9 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
   const [vaultInfo, setVaultInfo] = useState<string | null>(null)
   const [vaultError, setVaultError] = useState<string | null>(null)
   const [showVaultChangeForm, setShowVaultChangeForm] = useState(false)
+  const [vaultBioPhrase, setVaultBioPhrase] = useState('')
+  const [showVaultBioForm, setShowVaultBioForm] = useState(false)
+  const [vaultBioBusy, setVaultBioBusy] = useState(false)
 
   const [showThemeGallery, setShowThemeGallery] = useState(false)
   const [securityTab, setSecurityTab] = useState<'lock' | 'vault' | 'share'>('lock')
@@ -181,7 +184,20 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
   const [apkProgress, setApkProgress] = useState(0)
   const [showRestartConfirm, setShowRestartConfirm] = useState(false)
 
-  const { userProfile, currencyUnit, setCurrencyUnit, exportLocal, importLocal, vaultConfigured, setVaultPassword, changeVaultPassword } = useExtras()
+  const {
+    userProfile,
+    currencyUnit,
+    setCurrencyUnit,
+    exportLocal,
+    importLocal,
+    unlocked,
+    vaultConfigured,
+    vaultBiometricEnabled,
+    enableVaultBiometric,
+    disableVaultBiometric,
+    setVaultPassword,
+    changeVaultPassword,
+  } = useExtras()
   const { accounts, transactions, plans, items, customCategories, importCloud } = useStore()
 
   const currentThemeId = getCurrentTheme()
@@ -824,9 +840,160 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                     : 'با تعیین رمز گاوصندوق، مشخصات محرمانه کارت‌ها به صورت امن قفل و رمزگذاری می‌شوند.'}
                 </p>
 
+                {/* Biometric Vault Unlock Management */}
+                {vaultConfigured ? (
+                  <div
+                    style={{
+                      marginTop: 14,
+                      padding: 12,
+                      borderRadius: 14,
+                      background: 'rgba(15, 118, 110, 0.1)',
+                      border: '1px solid rgba(15, 118, 110, 0.28)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 10,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--hy-text)' }}>
+                          بازگشایی گاوصندوق با بیومتریک (اثر انگشت / چهره)
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
+                          {vaultBiometricEnabled
+                            ? 'فعال — هنگام باز کردن کارت‌ها بدون نیاز به تایپ رمز، حسگر بیومتریک فراخوانی می‌شود'
+                            : 'غیرفعال — با فعال‌سازی، کارت‌ها را تنها با یک لمس بیومتریک مشاهده کنید'}
+                        </div>
+                      </div>
+                      <span className={`badge ${vaultBiometricEnabled ? 'ok' : 'pending'}`}>
+                        {vaultBiometricEnabled ? '● فعال' : '○ غیرفعال'}
+                      </span>
+                    </div>
+
+                    {vaultBiometricEnabled ? (
+                      <button
+                        type="button"
+                        className="home-pill ghost"
+                        disabled={vaultBioBusy}
+                        style={{ width: '100%', height: 42, justifyContent: 'center', color: '#f87171', fontWeight: 700 }}
+                        onClick={() => {
+                          setVaultError(null)
+                          setVaultBioBusy(true)
+                          void disableVaultBiometric()
+                            .then(() => {
+                              setVaultInfo('بازگشایی بیومتریک گاوصندوق غیرفعال شد')
+                              notifyUser('بازگشایی بیومتریک گاوصندوق غیرفعال شد')
+                            })
+                            .finally(() => setVaultBioBusy(false))
+                        }}
+                      >
+                        غیرفعال‌سازی بازگشایی بیومتریک گاوصندوق
+                      </button>
+                    ) : unlocked ? (
+                      <button
+                        type="button"
+                        className="cta-confirm"
+                        disabled={vaultBioBusy}
+                        style={{ width: '100%', height: 42, justifyContent: 'center', fontWeight: 700 }}
+                        onClick={() => {
+                          setVaultError(null)
+                          setVaultInfo(null)
+                          setVaultBioBusy(true)
+                          void enableVaultBiometric()
+                            .then(() => {
+                              setVaultInfo('بازگشایی گاوصندوق با اثر انگشت / چهره فعال شد')
+                              notifyUser('بازگشایی بیومتریک گاوصندوق فعال شد')
+                            })
+                            .catch((err) => setVaultError(err instanceof Error ? err.message : 'فعال‌سازی بیومتریک ناموفق بود'))
+                            .finally(() => setVaultBioBusy(false))
+                        }}
+                      >
+                        {vaultBioBusy ? 'در حال تأیید بیومتریک…' : '👆 فعال‌سازی بازگشایی بیومتریک گاوصندوق'}
+                      </button>
+                    ) : (
+                      <>
+                        {!showVaultBioForm ? (
+                          <button
+                            type="button"
+                            className="cta-confirm"
+                            style={{ width: '100%', height: 42, justifyContent: 'center', fontWeight: 700 }}
+                            onClick={() => {
+                              setShowVaultBioForm(true)
+                              setVaultError(null)
+                            }}
+                          >
+                            👆 فعال‌سازی بازگشایی بیومتریک گاوصندوق
+                          </button>
+                        ) : (
+                          <div className="field-stack" style={{ marginTop: 2 }}>
+                            <input
+                              className="field-input"
+                              type="password"
+                              placeholder="رمز فعلی گاوصندوق را برای اتصال بیومتریک وارد کنید"
+                              value={vaultBioPhrase}
+                              onChange={(e) => setVaultBioPhrase(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && vaultBioPhrase.trim()) {
+                                  setVaultError(null)
+                                  setVaultInfo(null)
+                                  setVaultBioBusy(true)
+                                  void enableVaultBiometric(vaultBioPhrase)
+                                    .then(() => {
+                                      setVaultBioPhrase('')
+                                      setShowVaultBioForm(false)
+                                      setVaultInfo('بازگشایی گاوصندوق با اثر انگشت / چهره فعال شد')
+                                      notifyUser('بازگشایی بیومتریک گاوصندوق فعال شد')
+                                    })
+                                    .catch((err) => setVaultError(err instanceof Error ? err.message : 'رمز نادرست یا بیومتریک لغو شد'))
+                                    .finally(() => setVaultBioBusy(false))
+                                }
+                              }}
+                            />
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button
+                                type="button"
+                                className="cta-confirm"
+                                disabled={vaultBioBusy || !vaultBioPhrase.trim()}
+                                style={{ flex: 1.5, height: 42, fontWeight: 700 }}
+                                onClick={() => {
+                                  setVaultError(null)
+                                  setVaultInfo(null)
+                                  setVaultBioBusy(true)
+                                  void enableVaultBiometric(vaultBioPhrase)
+                                    .then(() => {
+                                      setVaultBioPhrase('')
+                                      setShowVaultBioForm(false)
+                                      setVaultInfo('بازگشایی گاوصندوق با اثر انگشت / چهره فعال شد')
+                                      notifyUser('بازگشایی بیومتریک گاوصندوق فعال شد')
+                                    })
+                                    .catch((err) => setVaultError(err instanceof Error ? err.message : 'رمز نادرست یا بیومتریک لغو شد'))
+                                    .finally(() => setVaultBioBusy(false))
+                                }}
+                              >
+                                {vaultBioBusy ? 'در حال بررسی…' : 'تأیید و اتصال بیومتریک'}
+                              </button>
+                              <button
+                                type="button"
+                                className="home-pill ghost"
+                                style={{ flex: 0.7, height: 42, justifyContent: 'center' }}
+                                onClick={() => {
+                                  setShowVaultBioForm(false)
+                                  setVaultBioPhrase('')
+                                }}
+                              >
+                                انصراف
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ) : null}
+
                 {/* Button to toggle Change Password Form when vault is configured */}
                 {vaultConfigured ? (
-                  <div style={{ marginTop: 14 }}>
+                  <div style={{ marginTop: 12 }}>
                     <button
                       className="home-pill ghost"
                       type="button"

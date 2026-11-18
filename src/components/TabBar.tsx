@@ -6,6 +6,7 @@ import { ActionMenuModal, type ActionMenuItem } from './ActionMenuModal'
 interface TabBarProps {
   compact?: boolean
   onQuickEntry: () => void
+  onQuickCards?: () => void
   onVoiceEntry?: () => void
   onInstallmentEntry?: () => void
   onChequeEntry?: () => void
@@ -15,6 +16,7 @@ interface TabBarProps {
 
 export function TabBar({
   onQuickEntry,
+  onQuickCards,
   onVoiceEntry,
   onInstallmentEntry,
   onChequeEntry,
@@ -43,6 +45,21 @@ export function TabBar({
   const isDark = THEMES.find((t) => t.id === currentTheme)?.isDark ?? true
 
   const actionMenuItems: ActionMenuItem[] = [
+    {
+      id: 'quick-cards',
+      title: 'کیف کارت و حساب سریع',
+      desc: 'مشاهده و کپی آنی شماره کارت، شبا و CVV با بیومتریک',
+      icon: '💳',
+      color: 'linear-gradient(135deg, #0f766e 0%, #0d9488 100%)',
+      badge: 'دسترسی سریع',
+      onClick: () => {
+        if (onQuickCards) {
+          onQuickCards()
+        } else {
+          window.dispatchEvent(new CustomEvent('hy:open-quick-cards'))
+        }
+      },
+    },
     {
       id: 'tx',
       title: 'تراکنش جدید (درآمد / هزینه)',
@@ -183,6 +200,31 @@ export function TabBar({
         >
           <span className="desk-action-icon">＋</span>
           {!isCollapsed && <span className="desk-action-label">ثبت جدید (+)</span>}
+        </button>
+
+        {/* شورتکات کیف کارت سریع */}
+        <button
+          type="button"
+          className="desk-nav-item"
+          onClick={() => {
+            if (onQuickCards) {
+              onQuickCards()
+            } else {
+              window.dispatchEvent(new CustomEvent('hy:open-quick-cards'))
+            }
+          }}
+          title="کیف کارت سریع (Alt+C)"
+          style={{
+            marginTop: 6,
+            marginBottom: 4,
+            background: 'rgba(15, 118, 110, 0.14)',
+            border: '1px solid rgba(15, 118, 110, 0.3)',
+            width: '100%',
+            textAlign: 'right',
+          }}
+        >
+          <span className="desk-nav-icon">💳</span>
+          {!isCollapsed && <span className="desk-nav-label">کیف کارت سریع</span>}
         </button>
 
         {/* پیوندهای ناوبری اصلی */}

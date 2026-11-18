@@ -13,9 +13,10 @@ export function CardVaultSection({
   classificationFilter?: AccountClassification
   title?: string
 }) {
-  const { unlocked, vaultConfigured, cards, unlockVault, lockVault, deleteCard } = useExtras()
+  const { unlocked, vaultConfigured, vaultBiometricEnabled, cards, unlockVault, unlockVaultWithBiometric, lockVault, deleteCard } = useExtras()
   const [phrase, setPhrase] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [bioBusy, setBioBusy] = useState(false)
   const [revealed, setRevealed] = useState<string | null>(null)
   const [forgot, setForgot] = useState(false)
   const [recoveryCode, setRecoveryCode] = useState('')
@@ -33,6 +34,18 @@ export function CardVaultSection({
     }
   }
 
+  async function unlockBio() {
+    setError(null)
+    setBioBusy(true)
+    try {
+      await unlockVaultWithBiometric()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'احراز هویت بیومتریک ناموفق بود')
+    } finally {
+      setBioBusy(false)
+    }
+  }
+
   return (
     <section className="card-vault">
       <div className="section-head">
@@ -45,8 +58,28 @@ export function CardVaultSection({
         <p className="sheet-sub">رمز گاوصندوق هنوز تعیین نشده. آن را در تنظیمات مشخص کنید.</p>
       ) : !unlocked ? (
         <>
+          {vaultBiometricEnabled ? (
+            <button
+              className="cta-confirm"
+              type="button"
+              disabled={bioBusy}
+              onClick={() => void unlockBio()}
+              style={{ marginBottom: 10, minHeight: 44 }}
+            >
+              {bioBusy ? 'در حال بررسی بیومتریک…' : '👆 باز کردن با اثر انگشت / چهره'}
+            </button>
+          ) : null}
           <div className="field-chip">
-            <input className="field-input" type="password" placeholder="رمز گاوصندوق" value={phrase} onChange={(e) => setPhrase(e.target.value)} />
+            <input
+              className="field-input"
+              type="password"
+              placeholder="رمز گاوصندوق"
+              value={phrase}
+              onChange={(e) => setPhrase(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void unlock()
+              }}
+            />
             <button className="cat-mini" type="button" onClick={() => void unlock()}>باز کردن</button>
             <button className="link" type="button" onClick={() => setForgot((value) => !value)}>رمز را فراموش کرده‌ام</button>
           </div>

@@ -15,6 +15,7 @@ import {
   type IncomingSharedAsset,
 } from '../lib/userShare'
 import { SharedAssetDetailSheet } from '../components/SharedAssetDetailSheet'
+import { isWebAuthnSupported } from '../lib/applock'
 import { notifyUser } from '../lib/sync'
 import type { Account, AccountClassification, BankCard } from '../types'
 
@@ -24,7 +25,19 @@ export function AccountsPage({
   onScroll: (compact: boolean) => void
 }) {
   const { accounts, activeAccounts, transactions, addSharedAccount } = useStore()
-  const { cards, formatMoney, unlocked, vaultConfigured, unlockVault, lockVault, deleteCard, saveSharedCard } = useExtras()
+  const {
+    cards,
+    formatMoney,
+    unlocked,
+    vaultConfigured,
+    vaultBiometricEnabled,
+    unlockVault,
+    unlockVaultWithBiometric,
+    enableVaultBiometric,
+    lockVault,
+    deleteCard,
+    saveSharedCard,
+  } = useExtras()
   const [cardId, setCardId] = useState<string | null | undefined>(undefined)
   const [selectedSharedAsset, setSelectedSharedAsset] = useState<{ kind: 'card' | 'account'; account?: Account; card?: BankCard } | null>(null)
   const [incomingShares, setIncomingShares] = useState<IncomingSharedAsset[]>([])
@@ -36,6 +49,8 @@ export function AccountsPage({
   // Vault state for card view
   const [phrase, setPhrase] = useState('')
   const [vaultError, setVaultError] = useState<string | null>(null)
+  const [bioBusy, setBioBusy] = useState(false)
+  const [enrollBio, setEnrollBio] = useState(() => isWebAuthnSupported())
   const [revealed, setRevealed] = useState<string | null>(null)
   const [forgot, setForgot] = useState(false)
   const [recoveryCode, setRecoveryCode] = useState('')
@@ -264,8 +279,30 @@ export function AccountsPage({
     setVaultError(null)
     try {
       await unlockVault(phrase)
+      if (!vaultBiometricEnabled && enrollBio && isWebAuthnSupported()) {
+        try {
+          await enableVaultBiometric(phrase)
+          notifyUser('گاوصندوق باز شد و بازگشایی بیومتریک فعال گردید')
+        } catch {
+          /* user cancelled optional biometric bind */
+        }
+      }
+      setPhrase('')
     } catch {
       setVaultError('رمز گاوصندوق نادرست است')
+    }
+  }
+
+  async function unlockByBiometric() {
+    setVaultError(null)
+    setBioBusy(true)
+    try {
+      await unlockVaultWithBiometric()
+      notifyUser('گاوصندوق کارت با بیومتریک باز شد')
+    } catch (err) {
+      setVaultError(err instanceof Error ? err.message : 'احراز هویت بیومتریک ناموفق بود')
+    } finally {
+      setBioBusy(false)
     }
   }
 
@@ -902,11 +939,30 @@ export function AccountsPage({
         <div>
           <div className="section-head" style={{ marginBottom: 10 }}>
             <h2>کارت‌های بانکی {tabLabels[activeTab].title} ({toFaDigits(currentTabCards.length)})</h2>
-            {unlocked ? (
-              <button className="link" type="button" onClick={lockVault}>
-                قفل گاوصندوق
-              </button>
-            ) : null}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              {unlocked && vaultConfigured && !vaultBiometricEnabled && isWebAuthnSupported() ? (
+                <button
+                  className="cat-mini"
+                  type="button"
+                  disabled={bioBusy}
+                  onClick={() => {
+                    setVaultError(null)
+                    setBioBusy(true)
+                    void enableVaultBiometric()
+                      .then(() => notifyUser('بازگشایی بیومتریک گاوصندوق فعال شد'))
+                      .catch((err) => setVaultError(err instanceof Error ? err.message : 'فعال‌سازی بیومتریک ناموفق بود'))
+                      .finally(() => setBioBusy(false))
+                  }}
+                >
+                  {bioBusy ? '…' : 'فعال‌سازی بیومتریک'}
+                </button>
+              ) : null}
+              {unlocked ? (
+                <button className="link" type="button" onClick={lockVault}>
+                  قفل گاوصندوق
+                </button>
+              ) : null}
+            </div>
           </div>
 
           <p className="sheet-sub">اطلاعات حساس کارت‌ها شامل CVV و تاریخ انقضا در گاوصندوق امن نگهداری می‌شوند.</p>
@@ -929,7 +985,28 @@ export function AccountsPage({
               </button>
             </div>
           ) : !unlocked ? (
-            <div style={{ margin: '14px 0' }}>
+            <div style={{ margin: '14px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {vaultBiometricEnabled ? (
+                <button
+                  type="button"
+                  className="cta-confirm"
+                  disabled={bioBusy}
+                  onClick={() => void unlockByBiometric()}
+                  style={{
+                    minHeight: 48,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    fontSize: 13,
+                    fontWeight: 800,
+                  }}
+                >
+                  <span aria-hidden="true">👆</span>
+                  <span>{bioBusy ? 'در حال تأیید بیومتریک…' : 'باز کردن گاوصندوق با اثر انگشت / چهره'}</span>
+                </button>
+              ) : null}
+
               <div className="field-chip">
                 <input
                   className="field-input"
@@ -948,6 +1025,29 @@ export function AccountsPage({
                   فراموشی رمز
                 </button>
               </div>
+
+              {!vaultBiometricEnabled && isWebAuthnSupported() ? (
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    fontSize: 12,
+                    color: 'var(--hy-text-secondary)',
+                    cursor: 'pointer',
+                    padding: '2px 4px',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={enrollBio}
+                    onChange={(e) => setEnrollBio(e.target.checked)}
+                    style={{ width: 16, height: 16, accentColor: 'var(--hy-teal, #0f766e)' }}
+                  />
+                  <span>فعال‌سازی بازگشایی بیومتریک (اثر انگشت / چهره) برای دفعات بعد</span>
+                </label>
+              ) : null}
+
               {forgot ? <VaultRecover onDone={(code) => { setRecoveryCode(code); setForgot(false) }} /> : null}
               {recoveryCode ? (
                 <div style={{ marginTop: 10 }}>

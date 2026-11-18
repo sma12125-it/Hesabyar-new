@@ -3,6 +3,13 @@ import * as db from '../db/db'
 import { checkPasswordVerifier, generateRecoveryCode, rememberedAccountPassword } from '../lib/account'
 import { loadSession, signIn } from '../lib/sync'
 import { openCards, sealCards, unwrapText, validateCard, wrapText } from '../lib/vault'
+import { authenticateWithBiometrics } from '../lib/applock'
+import {
+  clearVaultBiometric,
+  hasVaultBiometric,
+  saveVaultBiometricPhrase,
+  unwrapVaultBiometricPhrase,
+} from '../lib/vaultBiometric'
 import { createId } from '../lib/ids'
 import {
   collectDeletedExpenseIds,
@@ -50,7 +57,11 @@ interface ExtrasValue {
   formatMoney: (amountInRials: number, withUnit?: boolean) => string
   formatCompactMoney: (amountInRials: number) => string
   vaultConfigured: boolean
+  vaultBiometricEnabled: boolean
   unlockVault: (passphrase: string) => Promise<void>
+  unlockVaultWithBiometric: () => Promise<void>
+  enableVaultBiometric: (explicitPassphrase?: string) => Promise<void>
+  disableVaultBiometric: () => Promise<void>
   lockVault: () => void
   setVaultPassword: (passphrase: string, accountPassword?: string) => Promise<string>
   changeVaultPassword: (current: string, next: string, accountPassword?: string) => Promise<string>
@@ -113,6 +124,9 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
   const [blob, setBlob] = useState<VaultBlob | null>(null)
   const blobRef = useRef<VaultBlob | null>(null)
   blobRef.current = blob
+  const [vaultBiometricEnabled, setVaultBiometricEnabled] = useState(false)
+  const vaultBiometricRef = useRef(false)
+  vaultBiometricRef.current = vaultBiometricEnabled
   const [passphrase, setPassphrase] = useState<string | null>(null)
   const passphraseRef = useRef<string | null>(null)
   passphraseRef.current = passphrase
@@ -203,6 +217,12 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       if (cancelled) return
       setBlob(vault ?? null)
       blobRef.current = vault ?? null
+      const hasBio = await hasVaultBiometric()
+      if (!cancelled) {
+        const bioActive = Boolean(vault && hasBio)
+        setVaultBiometricEnabled(bioActive)
+        vaultBiometricRef.current = bioActive
+      }
       setSharedCards(savedSharedCards ?? [])
       setBudgets(nextBudgets ?? [])
       budgetsRef.current = nextBudgets ?? []
@@ -502,6 +522,73 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
     [blob],
   )
 
+  const enableVaultBiometric = useCallback(
+    async (explicitPassphrase?: string) => {
+      const phrase = (explicitPassphrase ?? passphraseRef.current ?? '').trim()
+      if (!phrase) {
+        throw new Error('ابتدا رمز گاوصندوق را وارد کنید تا بازگشایی بیومتریک فعال شود')
+      }
+      const activeBlob = blobRef.current
+      if (activeBlob) {
+        const opened = await openCards(phrase, activeBlob.salt, activeBlob.payload)
+        setCards(opened)
+        passphraseRef.current = phrase
+        setPassphrase(phrase)
+      }
+      const bio = await authenticateWithBiometrics({ allowRegistration: true })
+      if (!bio.ok) {
+        throw new Error(bio.error || 'احراز هویت بیومتریک تأیید نشد')
+      }
+      await saveVaultBiometricPhrase(phrase)
+      vaultBiometricRef.current = true
+      setVaultBiometricEnabled(true)
+    },
+    [],
+  )
+
+  const disableVaultBiometric = useCallback(async () => {
+    await clearVaultBiometric()
+    vaultBiometricRef.current = false
+    setVaultBiometricEnabled(false)
+  }, [])
+
+  const unlockVaultWithBiometric = useCallback(async () => {
+    const activeBlob = blobRef.current
+    if (!activeBlob) {
+      throw new Error('گاوصندوق کارت هنوز تنظیم نشده است')
+    }
+    const configured = await hasVaultBiometric()
+    if (!configured) {
+      vaultBiometricRef.current = false
+      setVaultBiometricEnabled(false)
+      throw new Error('بازگشایی بیومتریک گاوصندوق روی این دستگاه فعال نشده است')
+    }
+    const bio = await authenticateWithBiometrics({ allowRegistration: false })
+    if (!bio.ok) {
+      throw new Error(bio.error || 'احراز هویت بیومتریک لغو یا ناموفق شد')
+    }
+    let phrase = ''
+    try {
+      phrase = await unwrapVaultBiometricPhrase()
+    } catch {
+      await clearVaultBiometric()
+      vaultBiometricRef.current = false
+      setVaultBiometricEnabled(false)
+      throw new Error('اطلاعات بیومتریک گاوصندوق نیاز به ثبت مجدد دارد؛ لطفاً یک‌بار با رمز وارد شوید')
+    }
+    try {
+      const next = await openCards(phrase, activeBlob.salt, activeBlob.payload)
+      setCards(next)
+      passphraseRef.current = phrase
+      setPassphrase(phrase)
+    } catch {
+      await clearVaultBiometric()
+      vaultBiometricRef.current = false
+      setVaultBiometricEnabled(false)
+      throw new Error('رمز گاوصندوق تغییر کرده است؛ لطفاً یک‌بار با رمز جدید باز کنید و بیومتریک را فعال نمایید')
+    }
+  }, [])
+
   const saveCheque = useCallback(async (input: Omit<Cheque, 'id' | 'createdAt'> & { id?: string }): Promise<Cheque> => {
     const current = chequesRef.current
     const existing = input.id ? current.find((c) => c.id === input.id) : undefined
@@ -614,6 +701,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
     () => ({
       unlocked: passphrase != null,
       vaultConfigured: blob != null,
+      vaultBiometricEnabled,
       activePlanId,
       setActivePlanId,
       userProfile,
@@ -631,6 +719,9 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       formatMoney,
       formatCompactMoney,
       unlockVault,
+      unlockVaultWithBiometric,
+      enableVaultBiometric,
+      disableVaultBiometric,
       lockVault: () => {
         passphraseRef.current = null
         setPassphrase(null)
@@ -642,6 +733,9 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         if (trimmed.length < 4) throw new Error('رمز گاوصندوق حداقل ۴ حرف است')
         const wraps = await wrapsFor(trimmed, accountPassword)
         await persistCards([], trimmed, wraps)
+        if (vaultBiometricRef.current) {
+          await saveVaultBiometricPhrase(trimmed)
+        }
         return wraps.code
       },
       changeVaultPassword: async (current, next, accountPassword) => {
@@ -651,6 +745,9 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         const opened = await openCards(current, blob.salt, blob.payload)
         const wraps = await wrapsFor(trimmed, accountPassword)
         await persistCards(opened, trimmed, wraps)
+        if (vaultBiometricRef.current) {
+          await saveVaultBiometricPhrase(trimmed)
+        }
         return wraps.code
       },
       recoverVaultPassword: async (secret, mode, next) => {
@@ -670,10 +767,16 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         if (!accountPassword) {
           const code = generateRecoveryCode()
           await persistCards(opened, trimmed, { recoveryWrap: await wrapText(trimmed, code) })
+          if (vaultBiometricRef.current) {
+            await saveVaultBiometricPhrase(trimmed)
+          }
           return code
         }
         const wraps = await wrapsFor(trimmed, accountPassword)
         await persistCards(opened, trimmed, wraps)
+        if (vaultBiometricRef.current) {
+          await saveVaultBiometricPhrase(trimmed)
+        }
         return wraps.code
       },
       resetVault: async (phrase, accountPassword) => {
@@ -687,6 +790,9 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         setCards([])
         passphraseRef.current = trimmed
         setPassphrase(trimmed)
+        if (vaultBiometricRef.current) {
+          await saveVaultBiometricPhrase(trimmed)
+        }
         const { notifyLocalChange } = await import('../lib/sync')
         notifyLocalChange()
         return wraps.code
@@ -695,6 +801,8 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         setBlob(null)
         passphraseRef.current = null
         setPassphrase(null)
+        vaultBiometricRef.current = false
+        setVaultBiometricEnabled(false)
         setCards([])
         setSharedCards([])
         setBudgets([])
@@ -704,6 +812,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         setCheques([])
         setDebts([])
         setReminderState(emptyReminder)
+        await clearVaultBiometric()
         await db.setKv('sharedCards', [])
         await db.setKv('budgets', [])
         await db.setKv('goals', [])
@@ -1107,6 +1216,10 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       settleDebt,
       unitLabel,
       unlockVault,
+      unlockVaultWithBiometric,
+      enableVaultBiometric,
+      disableVaultBiometric,
+      vaultBiometricEnabled,
       updateChequeStatus,
       wrapsFor,
       activePlanId,
