@@ -4,7 +4,16 @@ import { SyncSheet } from '../components/SyncSheet'
 import { SyncBackupsPanel } from '../components/SyncBackupsPanel'
 import { restorePayload, syncReady } from '../lib/cloudSync'
 import { SupabaseConfigSheet } from '../components/SupabaseConfigSheet'
-import { loadLock, registerBiometric, isBiometricActive, setBiometricActive, type AppLockRecord } from '../lib/applock'
+import {
+  loadLock,
+  registerBiometric,
+  isBiometricActive,
+  setBiometricActive,
+  isPlatformAuthenticatorAvailable,
+  setPin,
+  clearPin,
+  type AppLockRecord,
+} from '../lib/applock'
 import { savePasswordVerifier } from '../lib/account'
 import { joinSharedCode } from '../lib/share'
 import { getStableUserId } from '../lib/userShare'
@@ -158,6 +167,10 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
   // Security Section States
   const [lock, setLock] = useState<AppLockRecord>(() => loadLock())
   const [securityInfo, setSecurityInfo] = useState<string | null>(null)
+  const [bioHardwareAvailable, setBioHardwareAvailable] = useState<boolean | null>(null)
+  const [bioRegistering, setBioRegistering] = useState(false)
+  const [newPin, setNewPin] = useState('')
+  const [confirmPin, setConfirmPin] = useState('')
   const [accountNewPass, setAccountNewPass] = useState('')
   const [accountAgainPass, setAccountAgainPass] = useState('')
   const [passUpdating, setPassUpdating] = useState(false)
@@ -192,6 +205,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
       setOfflineReady(res.isReady)
       setCachedAssetsCount(res.cachedCount)
     })
+    void isPlatformAuthenticatorAvailable().then((ok) => setBioHardwareAvailable(ok))
     const onCacheUpdate = (e: Event) => {
       const custom = e as CustomEvent<{ cachedCount?: number }>
       setOfflineReady(true)
@@ -616,7 +630,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
 
             {securityTab === 'lock' && (
               <>
-                {/* 1. Passkey-free Biometric / Quick Device Unlock Toggle */}
+                {/* 1. Real Hardware Biometric Unlock Toggle */}
                 <section className="lg settings-block" style={{ marginTop: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -635,11 +649,13 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                         👆
                       </div>
                       <div>
-                        <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>ورود سریع و بیومتریک (بدون Passkey)</h2>
+                        <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>ورود با اثر انگشت یا تشخیص چهره</h2>
                         <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
                           {isBiometricActive(lock)
-                            ? 'ورود سریع و بیومتریک روی این دستگاه فعال است'
-                            : 'غیرفعال — قابل فعال‌سازی روی همه گوشی‌ها و مرورگرها بدون نیاز به Passkey'}
+                            ? 'احراز هویت واقعی با حسگر بیومتریک دستگاه فعال است'
+                            : bioHardwareAvailable === false
+                              ? 'حسگر اثر انگشت/چهره در این مرورگر در دسترس نیست (از پین سریع زیر استفاده کنید)'
+                              : 'غیرفعال — با تأیید واقعی اثر انگشت، چهره یا قفل سخت‌افزاری دستگاه'}
                         </div>
                       </div>
                     </div>
@@ -649,7 +665,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                   </div>
 
                   <p className="sheet-sub" style={{ marginTop: 10, fontSize: 11, lineHeight: 1.7 }}>
-                    با فعال‌سازی این گزینه، بدون نیاز به ساخت Passkey می‌توانید روی هر گوشی و مرورگری با یک لمس (و در نسخه اپلیکیشن با حسگر اثر انگشت یا تشخیص چهره) وارد حساب‌یار شوید و به‌صورت خودکار به تمام حساب‌ها و کارت‌های بانکی دسترسی داشته باشید.
+                    با فعال‌سازی این گزینه، هنگام ورود به حساب‌یار <strong>حسگر واقعی اثر انگشت، تشخیص چهره (Face ID) یا Windows Hello</strong> دستگاه فراخوانی می‌شود و بدون تأیید واقعی دستگاه ورود انجام نخواهد شد (به‌صورت محلی روی همین دستگاه بدون نیاز به Passkey ابری).
                   </p>
 
                   <div style={{ marginTop: 12 }}>
@@ -661,33 +677,124 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                         onClick={() => {
                           setBiometricActive(false)
                           setLock(loadLock())
-                          setSecurityInfo('ورود سریع و بیومتریک غیرفعال شد')
+                          setSecurityInfo('ورود با اثر انگشت / تشخیص چهره غیرفعال شد')
                           notifyUser('ورود بیومتریک غیرفعال شد')
                         }}
                       >
-                        ✕ غیرفعال‌سازی ورود بیومتریک
+                        ✕ غیرفعال‌سازی اثر انگشت / چهره
                       </button>
                     ) : (
                       <button
                         className="cta-confirm"
                         type="button"
+                        disabled={bioRegistering}
                         style={{ width: '100%', height: 42, justifyContent: 'center' }}
                         onClick={() => {
+                          setSecurityInfo(null)
+                          setBioRegistering(true)
                           void registerBiometric()
                             .then(() => {
                               setLock(loadLock())
-                              setSecurityInfo('ورود سریع و بیومتریک با موفقیت روی این دستگاه فعال شد ✨')
-                              notifyUser('ورود بیومتریک فعال شد')
+                              setSecurityInfo('حسگر اثر انگشت / تشخیص چهره دستگاه با موفقیت ثبت و فعال شد ✨')
+                              notifyUser('ورود با اثر انگشت / چهره فعال شد')
                             })
                             .catch((err) =>
-                              setSecurityInfo(err instanceof Error ? err.message : 'خطا در فعال‌سازی ورود بیومتریک')
+                              setSecurityInfo(err instanceof Error ? err.message : 'حسگر بیومتریک روی این دستگاه در دسترس نیست')
                             )
+                            .finally(() => setBioRegistering(false))
                         }}
                       >
-                        👆 فعال‌سازی ورود سریع و بیومتریک
+                        {bioRegistering ? 'در حال فراخوانی حسگر اثر انگشت / چهره…' : '👆 ثبت و فعال‌سازی اثر انگشت / چهره'}
                       </button>
                     )}
                   </div>
+                </section>
+
+                {/* 2. Quick 4-6 Digit PIN Lock (Real Auth on Every Device) */}
+                <section className="lg settings-block" style={{ marginTop: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div
+                        style={{
+                          width: 42,
+                          height: 42,
+                          borderRadius: 14,
+                          background: lock.pinHash ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.08)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 20,
+                        }}
+                      >
+                        🔢
+                      </div>
+                      <div>
+                        <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>ورود سریع با پین عددی (۴ تا ۶ رقم)</h2>
+                        <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
+                          {lock.pinHash ? 'پین عددی ورود سریع فعال است' : 'قابل استفاده روی تمام گوشی‌ها و مرورگرها بدون نیاز به حسگر بیومتریک'}
+                        </div>
+                      </div>
+                    </div>
+                    <span className={`badge ${lock.pinHash ? 'ok' : 'pending'}`}>
+                      {lock.pinHash ? '● فعال' : '○ غیرفعال'}
+                    </span>
+                  </div>
+
+                  {lock.pinHash ? (
+                    <button
+                      className="home-pill ghost"
+                      type="button"
+                      style={{ width: '100%', height: 42, justifyContent: 'center', color: '#f87171', marginTop: 8 }}
+                      onClick={() => {
+                        clearPin()
+                        setLock(loadLock())
+                        setSecurityInfo('پین ورود سریع حذف شد')
+                        notifyUser('پین ورود سریع حذف شد')
+                      }}
+                    >
+                      ✕ حذف پین ورود سریع
+                    </button>
+                  ) : (
+                    <div className="field-stack" style={{ marginTop: 10 }}>
+                      <input
+                        className="field-input"
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="پین جدید (۴ تا ۶ رقم)"
+                        dir="ltr"
+                        value={newPin}
+                        onChange={(e) => setNewPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      />
+                      <input
+                        className="field-input"
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={6}
+                        placeholder="تکرار پین جدید"
+                        dir="ltr"
+                        value={confirmPin}
+                        onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      />
+                      <button
+                        className="cta-confirm"
+                        type="button"
+                        disabled={newPin.length < 4 || newPin !== confirmPin}
+                        style={{ height: 42 }}
+                        onClick={() => {
+                          void setPin(newPin).then(() => {
+                            setLock(loadLock())
+                            setNewPin('')
+                            setConfirmPin('')
+                            setSecurityInfo('پین عددی ورود سریع با موفقیت فعال شد ✨')
+                            notifyUser('پین ورود سریع فعال شد')
+                          })
+                        }}
+                      >
+                        ثبت پین ورود سریع
+                      </button>
+                    </div>
+                  )}
                 </section>
 
                 {/* 2. Change Account Password */}

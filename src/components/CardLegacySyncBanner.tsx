@@ -14,13 +14,13 @@ import { VaultRecover } from './VaultRecover'
  * and this banner never appears again.
  */
 export function CardLegacySyncBanner({ compact = false }: { compact?: boolean }) {
-  const { vaultConfigured, unlocked, unlockVault } = useExtras()
+  const { vaultConfigured, unlocked, hasRecoverableBackup, unlockVault } = useExtras()
   const [phrase, setPhrase] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showRecover, setShowRecover] = useState(false)
 
-  if (!vaultConfigured || unlocked) return null
+  if (!hasRecoverableBackup && (!vaultConfigured || unlocked)) return null
 
   async function handleRecover() {
     setError(null)

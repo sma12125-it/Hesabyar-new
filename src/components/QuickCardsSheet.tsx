@@ -160,7 +160,7 @@ function getCardCopyOptions(card: BankCard): CopyOption[] {
 export function QuickCardsSheet({ initialTab = 'cards', onClose }: QuickCardsSheetProps) {
   const navigate = useNavigate()
   const { activeAccounts } = useStore()
-  const { cards, unlocked, vaultConfigured, syncVaultWithAccountPassword, formatMoney, unitLabel } = useExtras()
+  const { cards, unlocked, vaultConfigured, hasRecoverableBackup, syncVaultWithAccountPassword, formatMoney, unitLabel } = useExtras()
 
   const [tab, setTab] = useState<'cards' | 'accounts'>(initialTab)
   const [search, setSearch] = useState('')
@@ -271,7 +271,7 @@ export function QuickCardsSheet({ initialTab = 'cards', onClose }: QuickCardsShe
         {/* Body */}
         <div className="sheet-body-scroll" style={{ paddingBottom: 16 }}>
           {tab === 'cards' ? (
-            vaultConfigured && !unlocked ? (
+            (vaultConfigured && !unlocked) || (cards.length === 0 && hasRecoverableBackup) ? (
               <CardLegacySyncBanner compact />
             ) : cards.length === 0 ? (
               <div className="empty-state" style={{ padding: '24px 16px' }}>

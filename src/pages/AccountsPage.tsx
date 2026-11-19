@@ -29,6 +29,7 @@ export function AccountsPage({
     formatMoney,
     unlocked,
     vaultConfigured,
+    hasRecoverableBackup,
     syncVaultWithAccountPassword,
     deleteCard,
     saveSharedCard,
@@ -903,26 +904,47 @@ export function AccountsPage({
           </div>
 
           <div>
-              {vaultConfigured && !unlocked ? (
+              {(vaultConfigured && !unlocked) || hasRecoverableBackup ? (
                 <CardLegacySyncBanner />
               ) : null}
-              {currentTabCards.length === 0 && !(vaultConfigured && !unlocked) ? (
+              {currentTabCards.length === 0 && !((vaultConfigured && !unlocked) || hasRecoverableBackup) ? (
                 <div className="empty-state" style={{ padding: '24px 16px', margin: '8px 0' }}>
                   <div style={{ fontSize: 32, marginBottom: 8 }}>💳</div>
                   <h3 style={{ fontSize: 14, margin: '0 0 4px', fontWeight: 700 }}>
                     کارتی در بخش {tabLabels[activeTab].title} ذخیره نشده است
                   </h3>
-                  <p style={{ fontSize: 12, color: 'var(--hy-text-tertiary)', margin: '0 0 12px' }}>
-                    می‌توانید کارت بانکی شتابی یا کارت اعتباری جدید اضافه کنید.
-                  </p>
-                  <button
-                    type="button"
-                    className="cta-confirm"
-                    onClick={() => setCardId(null)}
-                    style={{ fontSize: 12, padding: '8px 16px', width: 'auto' }}
-                  >
-                    ＋ ایجاد کارت جدید
-                  </button>
+                  {cards.length > 0 ? (
+                    <p style={{ fontSize: 12, color: 'var(--hy-teal)', margin: '0 0 12px', fontWeight: 600 }}>
+                      شما {toFaDigits(cards.length)} کارت ثبت‌شده در دسته‌های دیگر دارید.
+                    </p>
+                  ) : (
+                    <p style={{ fontSize: 12, color: 'var(--hy-text-tertiary)', margin: '0 0 12px' }}>
+                      می‌توانید کارت بانکی شتابی یا کارت اعتباری جدید اضافه کنید.
+                    </p>
+                  )}
+                  <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                    {cards.length > 0 ? (
+                      <button
+                        type="button"
+                        className="cat-mini active"
+                        onClick={() => {
+                          const firstOther = cards[0]?.classification ?? 'cash'
+                          setActiveTab(firstOther)
+                        }}
+                        style={{ fontSize: 12, padding: '8px 14px' }}
+                      >
+                        مشاهده کارت‌های ثبت‌شده ({toFaDigits(cards.length)})
+                      </button>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="cta-confirm"
+                      onClick={() => setCardId(null)}
+                      style={{ fontSize: 12, padding: '8px 16px', width: 'auto' }}
+                    >
+                      ＋ ایجاد کارت جدید
+                    </button>
+                  </div>
                 </div>
               ) : currentTabCards.length > 0 ? (
                 <div className="card-gallery">

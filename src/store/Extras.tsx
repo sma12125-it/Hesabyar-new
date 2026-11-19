@@ -60,6 +60,7 @@ interface ExtrasValue {
   formatCompactMoney: (amountInRials: number) => string
   vaultConfigured: boolean
   vaultBiometricEnabled: boolean
+  hasRecoverableBackup: boolean
   unlockVault: (passphrase: string) => Promise<void>
   unlockVaultWithBiometric: () => Promise<void>
   syncVaultWithAccountPassword: (accountPassword?: string) => Promise<{
@@ -131,6 +132,9 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
   const [blob, setBlob] = useState<VaultBlob | null>(null)
   const blobRef = useRef<VaultBlob | null>(null)
   blobRef.current = blob
+  const [recoverableBackupBlob, setRecoverableBackupBlob] = useState<VaultBlob | null>(null)
+  const recoverableBackupRef = useRef<VaultBlob | null>(null)
+  recoverableBackupRef.current = recoverableBackupBlob
   const [vaultBiometricEnabled, setVaultBiometricEnabled] = useState(false)
   const vaultBiometricRef = useRef(false)
   vaultBiometricRef.current = vaultBiometricEnabled
@@ -194,6 +198,147 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
   const [currencyUnit, setCurrencyUnitState] = useState<CurrencyUnit>('IRT')
   currencyUnitRef.current = currencyUnit
 
+  const isNonEmptyVaultBlob = (candidate: unknown): candidate is VaultBlob => {
+    if (!candidate || typeof candidate !== 'object') return false
+    const v = candidate as Partial<VaultBlob>
+    // An AES-GCM sealed empty array "[]" is ~40 base64 chars; any real card list is > 60 chars
+    return typeof v.salt === 'string' && typeof v.payload === 'string' && v.payload.length > 60
+  }
+
+  const collectBackupVaultBlobs = useCallback(async (currentBlob: VaultBlob | null): Promise<VaultBlob[]> => {
+    const out: VaultBlob[] = []
+    const seen = new Set<string>()
+    if (currentBlob?.payload) seen.add(currentBlob.payload)
+
+    const consider = (candidate: unknown) => {
+      if (!isNonEmptyVaultBlob(candidate)) return
+      if (seen.has(candidate.payload)) return
+      seen.add(candidate.payload)
+      out.push(candidate)
+    }
+
+    if (recoverableBackupRef.current) consider(recoverableBackupRef.current)
+    try {
+      const prev = await db.getKv<VaultBlob>('cardVaultPrevBackup')
+      consider(prev)
+    } catch {
+      /* ignore */
+    }
+    try {
+      const backups = await db.listBackups()
+      for (const b of backups) {
+        consider(b.payload?.cardVault)
+      }
+    } catch {
+      /* ignore */
+    }
+    return out
+  }, [])
+
+  const sealAndMigrateToAccountPassword = useCallback(
+    async (openedCards: BankCard[], accountPass: string, activeSalt?: string) => {
+      const trimmed = accountPass.trim()
+      const existing = blobRef.current ?? (await db.getKv<VaultBlob>('cardVault')) ?? null
+      // Safety guard: never overwrite a non-empty encrypted vault with an empty array during migration
+      if (openedCards.length === 0 && isNonEmptyVaultBlob(existing)) {
+        return existing
+      }
+      if (isNonEmptyVaultBlob(existing)) {
+        try {
+          await db.setKv('cardVaultPrevBackup', existing)
+        } catch {
+          /* non-fatal */
+        }
+      }
+      const saltBytes = activeSalt
+        ? Uint8Array.from(atob(activeSalt), (c) => c.charCodeAt(0))
+        : undefined
+      const packed = await sealCards(trimmed, openedCards, saltBytes)
+      const code = generateRecoveryCode()
+      const stored: VaultBlob = {
+        salt: packed.salt,
+        payload: packed.payload,
+        accountWrap: await wrapText(trimmed, trimmed),
+        recoveryWrap: await wrapText(trimmed, code),
+      }
+      await db.setKv('cardVault', stored)
+      blobRef.current = stored
+      setBlob(stored)
+      cardsRef.current = openedCards
+      setCards(openedCards)
+      passphraseRef.current = trimmed
+      setPassphrase(trimmed)
+      if (openedCards.length > 0) {
+        recoverableBackupRef.current = null
+        setRecoverableBackupBlob(null)
+      }
+      await saveVaultBiometricPhrase(trimmed, { isTemporaryDeviceKey: false })
+      vaultBiometricRef.current = true
+      setVaultBiometricEnabled(true)
+      const { notifyLocalChange } = await import('../lib/sync')
+      notifyLocalChange()
+      return stored
+    },
+    [],
+  )
+
+  const tryRecoverCardsFromBackups = useCallback(
+    async (
+      currentBlob: VaultBlob | null,
+      keys: { acctPass?: string; devicePhrase?: string },
+    ): Promise<{ recovered: BankCard[]; keyUsed: string } | null> => {
+      const candidates = await collectBackupVaultBlobs(currentBlob)
+      if (candidates.length === 0) return null
+
+      const acctPass = (keys.acctPass || '').trim()
+      const devicePhrase = (keys.devicePhrase || '').trim()
+
+      for (const candidate of candidates) {
+        if (acctPass) {
+          try {
+            const opened = await openCards(acctPass, candidate.salt, candidate.payload)
+            if (opened.length > 0) {
+              await sealAndMigrateToAccountPassword(opened, acctPass, candidate.salt)
+              return { recovered: opened, keyUsed: acctPass }
+            }
+          } catch {
+            /* try accountWrap */
+          }
+          if (candidate.accountWrap) {
+            try {
+              const legacy = await unwrapText(candidate.accountWrap, acctPass)
+              const opened = await openCards(legacy, candidate.salt, candidate.payload)
+              if (opened.length > 0) {
+                await sealAndMigrateToAccountPassword(opened, acctPass, candidate.salt)
+                return { recovered: opened, keyUsed: acctPass }
+              }
+            } catch {
+              /* try device key */
+            }
+          }
+        }
+        if (devicePhrase) {
+          try {
+            const opened = await openCards(devicePhrase, candidate.salt, candidate.payload)
+            if (opened.length > 0) {
+              const targetKey = acctPass || devicePhrase
+              await sealAndMigrateToAccountPassword(opened, targetKey, candidate.salt)
+              return { recovered: opened, keyUsed: targetKey }
+            }
+          } catch {
+            /* try next candidate */
+          }
+        }
+      }
+
+      // A non-empty backup exists but needs the user's legacy password to decrypt
+      recoverableBackupRef.current = candidates[0]!
+      setRecoverableBackupBlob(candidates[0]!)
+      return null
+    },
+    [collectBackupVaultBlobs, sealAndMigrateToAccountPassword],
+  )
+
   useEffect(() => {
     let cancelled = false
     ;(async () => {
@@ -237,12 +382,18 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       // Seamlessly auto-unlock cards on load without clobbering an already-unlocked session
       if (!cancelled && !passphraseRef.current) {
         if (!effectiveVault) {
-          const candidateKey = acctPass || deviceInfo?.phrase || ''
-          if (candidateKey) {
-            passphraseRef.current = candidateKey
-            setPassphrase(candidateKey)
-            if (cardsRef.current.length === 0) {
-              setCards([])
+          const restored = await tryRecoverCardsFromBackups(null, {
+            acctPass,
+            devicePhrase: deviceInfo?.phrase,
+          })
+          if (!cancelled && !restored) {
+            const candidateKey = acctPass || deviceInfo?.phrase || ''
+            if (candidateKey) {
+              passphraseRef.current = candidateKey
+              setPassphrase(candidateKey)
+              if (cardsRef.current.length === 0) {
+                setCards([])
+              }
             }
           }
         } else {
@@ -286,7 +437,18 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
           }
 
           if (!cancelled && openedCards) {
-            if (needsMigrationToAcct && acctPass) {
+            if (openedCards.length === 0) {
+              const restored = await tryRecoverCardsFromBackups(effectiveVault, {
+                acctPass,
+                devicePhrase: deviceInfo?.phrase,
+              })
+              if (restored) {
+                openedCards = restored.recovered
+                usedKey = restored.keyUsed
+                needsMigrationToAcct = false
+              }
+            }
+            if (!cancelled && needsMigrationToAcct && acctPass) {
               const saltBytes = effectiveVault.salt
                 ? Uint8Array.from(atob(effectiveVault.salt), (c) => c.charCodeAt(0))
                 : undefined
@@ -310,7 +472,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
                 vaultBiometricRef.current = true
                 setVaultBiometricEnabled(true)
               }
-            } else {
+            } else if (!cancelled) {
               cardsRef.current = openedCards
               setCards(openedCards)
               passphraseRef.current = usedKey
@@ -616,37 +778,6 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
     [confirmAccountPassword],
   )
 
-  const sealAndMigrateToAccountPassword = useCallback(
-    async (openedCards: BankCard[], accountPass: string, activeSalt?: string) => {
-      const trimmed = accountPass.trim()
-      const saltBytes = activeSalt
-        ? Uint8Array.from(atob(activeSalt), (c) => c.charCodeAt(0))
-        : undefined
-      const packed = await sealCards(trimmed, openedCards, saltBytes)
-      const code = generateRecoveryCode()
-      const stored: VaultBlob = {
-        salt: packed.salt,
-        payload: packed.payload,
-        accountWrap: await wrapText(trimmed, trimmed),
-        recoveryWrap: await wrapText(trimmed, code),
-      }
-      await db.setKv('cardVault', stored)
-      blobRef.current = stored
-      setBlob(stored)
-      cardsRef.current = openedCards
-      setCards(openedCards)
-      passphraseRef.current = trimmed
-      setPassphrase(trimmed)
-      await saveVaultBiometricPhrase(trimmed, { isTemporaryDeviceKey: false })
-      vaultBiometricRef.current = true
-      setVaultBiometricEnabled(true)
-      const { notifyLocalChange } = await import('../lib/sync')
-      notifyLocalChange()
-      return stored
-    },
-    [],
-  )
-
   const syncVaultWithAccountPassword = useCallback(
     async (accountPassword?: string) => {
       const activeBlob = blobRef.current ?? (await db.getKv<VaultBlob>('cardVault')) ?? null
@@ -659,6 +790,10 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
 
       if (acctPass) {
         if (!activeBlob) {
+          const restored = await tryRecoverCardsFromBackups(null, { acctPass, devicePhrase: deviceInfo?.phrase })
+          if (restored) {
+            return { unlocked: true, migrated: true }
+          }
           passphraseRef.current = acctPass
           setPassphrase(acctPass)
           cardsRef.current = []
@@ -672,6 +807,10 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         // 1) Try opening directly with the account login password
         try {
           const opened = await openCards(acctPass, activeBlob.salt, activeBlob.payload)
+          if (opened.length === 0) {
+            const restored = await tryRecoverCardsFromBackups(activeBlob, { acctPass, devicePhrase: deviceInfo?.phrase })
+            if (restored) return { unlocked: true, migrated: true }
+          }
           cardsRef.current = opened
           setCards(opened)
           passphraseRef.current = acctPass
@@ -689,6 +828,10 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
           try {
             const legacyPhrase = await unwrapText(activeBlob.accountWrap, acctPass)
             const opened = await openCards(legacyPhrase, activeBlob.salt, activeBlob.payload)
+            if (opened.length === 0) {
+              const restored = await tryRecoverCardsFromBackups(activeBlob, { acctPass, devicePhrase: deviceInfo?.phrase })
+              if (restored) return { unlocked: true, migrated: true }
+            }
             await sealAndMigrateToAccountPassword(opened, acctPass, activeBlob.salt)
             return { unlocked: true, migrated: true }
           } catch {
@@ -700,6 +843,10 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         if (deviceInfo?.phrase) {
           try {
             const opened = await openCards(deviceInfo.phrase, activeBlob.salt, activeBlob.payload)
+            if (opened.length === 0) {
+              const restored = await tryRecoverCardsFromBackups(activeBlob, { acctPass, devicePhrase: deviceInfo.phrase })
+              if (restored) return { unlocked: true, migrated: true }
+            }
             await sealAndMigrateToAccountPassword(opened, acctPass, activeBlob.salt)
             return { unlocked: true, migrated: true }
           } catch {
@@ -707,16 +854,16 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // 4) If vault is already unlocked in memory (e.g. account password changed in Settings), re-seal with new password
+        // 4) ONLY if vault is already open with passphraseRef.current AND it ACTUALLY decrypts activeBlob
+        // (e.g. account password changed in Settings), re-seal the decrypted cards with the new password.
+        // NEVER overwrite activeBlob in a catch block!
         if (passphraseRef.current) {
           try {
             const opened = await openCards(passphraseRef.current, activeBlob.salt, activeBlob.payload)
             await sealAndMigrateToAccountPassword(opened, acctPass, activeBlob.salt)
             return { unlocked: true, migrated: true }
           } catch {
-            /* fallback to in-memory cards if blob changed */
-            await sealAndMigrateToAccountPassword(cardsRef.current, acctPass, activeBlob.salt)
-            return { unlocked: true, migrated: true }
+            /* passphraseRef does not match activeBlob — leave activeBlob untouched! */
           }
         }
 
@@ -725,6 +872,10 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
 
       // No plaintext account password in this session (e.g., biometric / pattern login)
       if (!activeBlob) {
+        const restored = await tryRecoverCardsFromBackups(null, { devicePhrase: deviceInfo?.phrase })
+        if (restored) {
+          return { unlocked: true, migrated: true }
+        }
         const key = deviceInfo?.phrase || (await ensureTemporaryVaultDeviceKey())
         passphraseRef.current = key
         setPassphrase(key)
@@ -738,6 +889,10 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       if (deviceInfo?.phrase) {
         try {
           const opened = await openCards(deviceInfo.phrase, activeBlob.salt, activeBlob.payload)
+          if (opened.length === 0) {
+            const restored = await tryRecoverCardsFromBackups(activeBlob, { devicePhrase: deviceInfo.phrase })
+            if (restored) return { unlocked: true, migrated: true }
+          }
           cardsRef.current = opened
           setCards(opened)
           passphraseRef.current = deviceInfo.phrase
@@ -752,7 +907,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
 
       return { unlocked: false, migrated: false, needsLegacyPassword: true }
     },
-    [sealAndMigrateToAccountPassword],
+    [sealAndMigrateToAccountPassword, tryRecoverCardsFromBackups],
   )
 
   const unlockVault = useCallback(
@@ -775,7 +930,13 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       }
       const acctPass = rememberedAccountPassword().trim()
 
-      if (!activeBlob) {
+      // Try activeBlob + any non-empty backup blobs (e.g. cardVaultPrevBackup / syncBackups)
+      const candidates: VaultBlob[] = []
+      if (activeBlob) candidates.push(activeBlob)
+      const backups = await collectBackupVaultBlobs(activeBlob)
+      for (const b of backups) candidates.push(b)
+
+      if (candidates.length === 0) {
         const effective = acctPass || trimmed
         passphraseRef.current = effective
         setPassphrase(effective)
@@ -787,43 +948,60 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      // 1) Direct open with entered phrase (works for unified account password OR legacy vault password)
-      try {
-        const opened = await openCards(trimmed, activeBlob.salt, activeBlob.payload)
-        const targetKey = acctPass || trimmed
-        await sealAndMigrateToAccountPassword(opened, targetKey, activeBlob.salt)
+      let fallbackEmptyUnlock: { blob: VaultBlob; key: string } | null = null
+
+      for (const targetBlob of candidates) {
+        // 1) Direct open with entered phrase
+        try {
+          const opened = await openCards(trimmed, targetBlob.salt, targetBlob.payload)
+          if (opened.length > 0) {
+            await sealAndMigrateToAccountPassword(opened, acctPass || trimmed, targetBlob.salt)
+            return
+          }
+          if (!fallbackEmptyUnlock) fallbackEmptyUnlock = { blob: targetBlob, key: acctPass || trimmed }
+        } catch {
+          /* try accountWrap */
+        }
+
+        // 2) Unwrap legacy password via accountWrap
+        if (targetBlob.accountWrap) {
+          try {
+            const legacyPhrase = await unwrapText(targetBlob.accountWrap, trimmed)
+            const opened = await openCards(legacyPhrase, targetBlob.salt, targetBlob.payload)
+            if (opened.length > 0) {
+              await sealAndMigrateToAccountPassword(opened, acctPass || trimmed, targetBlob.salt)
+              return
+            }
+            if (!fallbackEmptyUnlock) fallbackEmptyUnlock = { blob: targetBlob, key: acctPass || trimmed }
+          } catch {
+            /* try recoveryWrap */
+          }
+        }
+
+        // 3) Accept recovery code directly
+        if (targetBlob.recoveryWrap) {
+          try {
+            const legacyPhrase = await unwrapText(targetBlob.recoveryWrap, trimmed)
+            const opened = await openCards(legacyPhrase, targetBlob.salt, targetBlob.payload)
+            if (opened.length > 0) {
+              await sealAndMigrateToAccountPassword(opened, acctPass || legacyPhrase, targetBlob.salt)
+              return
+            }
+            if (!fallbackEmptyUnlock) fallbackEmptyUnlock = { blob: targetBlob, key: acctPass || legacyPhrase }
+          } catch {
+            /* invalid for this candidate */
+          }
+        }
+      }
+
+      if (fallbackEmptyUnlock) {
+        await sealAndMigrateToAccountPassword([], fallbackEmptyUnlock.key, fallbackEmptyUnlock.blob.salt)
         return
-      } catch {
-        /* Try accountWrap if user typed their account login password on a legacy vault */
-      }
-
-      // 2) Unwrap legacy password via accountWrap when user types account login password
-      if (activeBlob.accountWrap) {
-        try {
-          const legacyPhrase = await unwrapText(activeBlob.accountWrap, trimmed)
-          const opened = await openCards(legacyPhrase, activeBlob.salt, activeBlob.payload)
-          await sealAndMigrateToAccountPassword(opened, acctPass || trimmed, activeBlob.salt)
-          return
-        } catch {
-          /* try recoveryWrap next */
-        }
-      }
-
-      // 3) Also accept recovery code directly if user pastes it into the input
-      if (activeBlob.recoveryWrap) {
-        try {
-          const legacyPhrase = await unwrapText(activeBlob.recoveryWrap, trimmed)
-          const opened = await openCards(legacyPhrase, activeBlob.salt, activeBlob.payload)
-          await sealAndMigrateToAccountPassword(opened, acctPass || legacyPhrase, activeBlob.salt)
-          return
-        } catch {
-          /* invalid */
-        }
       }
 
       throw new Error('رمز نادرست است')
     },
-    [sealAndMigrateToAccountPassword],
+    [collectBackupVaultBlobs, sealAndMigrateToAccountPassword],
   )
 
   const enableVaultBiometric = useCallback(
@@ -1009,6 +1187,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       unlocked: passphrase != null,
       vaultConfigured: blob != null,
       vaultBiometricEnabled,
+      hasRecoverableBackup: recoverableBackupBlob != null,
       activePlanId,
       setActivePlanId,
       userProfile,
@@ -1521,17 +1700,34 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
         }
         if (data.cardVault && typeof data.cardVault === 'object') {
           const nextBlob = data.cardVault as VaultBlob
+          const prevBlob = blobRef.current
+          // Guard: never let an incoming empty cloud cardVault wipe a non-empty local cardVault!
+          if (isNonEmptyVaultBlob(prevBlob) && !isNonEmptyVaultBlob(nextBlob)) {
+            try {
+              await db.setKv('cardVaultPrevBackup', prevBlob)
+            } catch {
+              /* non-fatal */
+            }
+            return
+          }
           const unchangedAndUnlocked =
             Boolean(passphraseRef.current) &&
-            blobRef.current?.salt === nextBlob.salt &&
-            blobRef.current?.payload === nextBlob.payload
+            prevBlob?.salt === nextBlob.salt &&
+            prevBlob?.payload === nextBlob.payload
+          if (isNonEmptyVaultBlob(prevBlob) && prevBlob.payload !== nextBlob.payload) {
+            try {
+              await db.setKv('cardVaultPrevBackup', prevBlob)
+            } catch {
+              /* non-fatal */
+            }
+          }
           blobRef.current = nextBlob
           setBlob(nextBlob)
           await db.setKv('cardVault', nextBlob)
           if (!unchangedAndUnlocked) {
-            const synced = await syncVaultWithAccountPassword(
-              rememberedAccountPassword() || passphraseRef.current || undefined,
-            )
+            // IMPORTANT: pass ONLY rememberedAccountPassword() (never passphraseRef.current!)
+            // so a temporary device key cannot trigger re-sealing an unreadable cloud vault with [].
+            const synced = await syncVaultWithAccountPassword(rememberedAccountPassword() || undefined)
             if (!synced.unlocked) {
               passphraseRef.current = null
               setPassphrase(null)
@@ -1544,6 +1740,7 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
     }),
     [
       blob,
+      recoverableBackupBlob,
       budgets,
       allCards,
       cheques,

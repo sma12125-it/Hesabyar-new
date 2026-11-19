@@ -13,7 +13,7 @@ export function CardVaultSection({
   classificationFilter?: AccountClassification
   title?: string
 }) {
-  const { unlocked, vaultConfigured, cards, syncVaultWithAccountPassword, deleteCard } = useExtras()
+  const { unlocked, vaultConfigured, hasRecoverableBackup, cards, syncVaultWithAccountPassword, deleteCard } = useExtras()
   const [revealed, setRevealed] = useState<string | null>(null)
 
   useEffect(() => {
@@ -31,7 +31,7 @@ export function CardVaultSection({
       <div className="section-head">
         <h2>{title}</h2>
       </div>
-      {vaultConfigured && !unlocked ? (
+      {(vaultConfigured && !unlocked) || (displayedCards.length === 0 && hasRecoverableBackup) ? (
         <CardLegacySyncBanner compact />
       ) : displayedCards.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '16px 8px', color: 'var(--hy-text-tertiary)', fontSize: 13 }}>

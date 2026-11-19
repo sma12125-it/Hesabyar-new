@@ -9,9 +9,11 @@ import {
 } from '../lib/account'
 import {
   checkPattern,
+  checkPin,
   loadLock,
   lockEnabled,
   isBiometricActive,
+  isWebAuthnSupported,
   authenticateWithBiometrics,
 } from '../lib/applock'
 import {
@@ -66,16 +68,17 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
   const [again, setAgain] = useState('')
   const [code, setCode] = useState('')
   const [pattern, setPattern] = useState<number[]>([])
+  const [pinInput, setPinInput] = useState('')
   const [error, setError] = useState<string | null>(recovery?.error ? 'لینک بازیابی منقضی شده است. کد بازیابی را وارد کنید.' : null)
   const [info, setInfo] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const lock = loadLock()
 
-  const biometricAvailable = isBiometricActive(lock)
+  const biometricAvailable = isBiometricActive(lock) && isWebAuthnSupported()
   const [biometricStatus, setBiometricStatus] = useState<'idle' | 'prompting' | 'success' | 'error'>('idle')
   const [biometricMsg, setBiometricMsg] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'biometric' | 'password' | 'pattern'>(() =>
-    isBiometricActive(lock) ? 'biometric' : lock.patternHash ? 'pattern' : 'password',
+  const [activeTab, setActiveTab] = useState<'biometric' | 'pin' | 'password' | 'pattern'>(() =>
+    biometricAvailable ? 'biometric' : lock.pinHash ? 'pin' : lock.patternHash ? 'pattern' : 'password',
   )
 
   async function adopt(session: CloudSession, _kind: 'in' | 'up') {
@@ -197,6 +200,26 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
     }
   }
 
+  async function unlockWithPin() {
+    if (!store.ready) return
+    setError(null)
+    if (!pinInput.trim()) {
+      setError('پین ورود را وارد کنید')
+      return
+    }
+    setBusy(true)
+    try {
+      if (await checkPin(pinInput.trim())) {
+        await enterApp()
+        return
+      }
+      setError('پین واردشده نادرست است')
+      setPinInput('')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function finishPattern(next: number[]) {
     if (!store.ready) return
     if (next.length < 4) return
@@ -211,13 +234,13 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
   async function triggerBiometricPrompt(isAuto = false) {
     if (!store.ready) return
     setBiometricStatus('prompting')
-    setBiometricMsg('در حال فراخوانی حسگر اثر انگشت یا چهره...')
+    setBiometricMsg('در حال فراخوانی حسگر اثر انگشت یا تشخیص چهره...')
     setError(null)
     try {
-      const result = await authenticateWithBiometrics({ allowRegistration: true })
+      const result = await authenticateWithBiometrics({ allowRegistration: false })
       if (result.ok) {
         setBiometricStatus('success')
-        setBiometricMsg(result.registered ? 'قفل بیومتریک با موفقیت ثبت و تأیید شد ✨' : 'هویت بیومتریک تأیید شد ✨')
+        setBiometricMsg('هویت بیومتریک توسط دستگاه تأیید شد ✨')
         notifyUser('ورود با موفقیت انجام شد')
         await enterApp()
         return
@@ -325,7 +348,21 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
                 }}
               >
                 <span>👆</span>
-                <span>ورود بیومتریک</span>
+                <span>اثر انگشت / چهره</span>
+              </button>
+            ) : null}
+
+            {lock.pinHash ? (
+              <button
+                type="button"
+                className={`unlock-tab-btn ${activeTab === 'pin' ? 'active' : ''}`}
+                onClick={() => {
+                  setActiveTab('pin')
+                  setError(null)
+                }}
+              >
+                <span>🔢</span>
+                <span>پین سریع</span>
               </button>
             ) : null}
 
@@ -356,14 +393,14 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
             ) : null}
           </div>
 
-          {/* 1. Passkey-Free Biometric / Quick Device Unlock View */}
+          {/* 1. Real Hardware Biometric Unlock View */}
           {activeTab === 'biometric' && biometricAvailable ? (
             <div className="biometric-prompt-card">
               <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--hy-text)', marginBottom: 2 }}>
-                ورود سریع و بیومتریک
+                ورود با اثر انگشت یا تشخیص چهره
               </div>
               <p className="sheet-sub" style={{ fontSize: 11, margin: '2px 0 10px', lineHeight: 1.5 }}>
-                احراز هویت امن محلی دستگاه بدون نیاز به Passkey
+                تأیید هویت واقعی از طریق حسگر بیومتریک دستگاه
               </p>
 
               {/* Scanner with Animated Ripple */}
@@ -375,7 +412,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
                   disabled={busy || booting || biometricStatus === 'prompting' || biometricStatus === 'success'}
                   onClick={() => void triggerBiometricPrompt(false)}
                   aria-label="احراز هویت بیومتریک"
-                  title="لمس حسگر بیومتریک"
+                  title="لمس برای اسکن اثر انگشت یا چهره"
                 >
                   {biometricStatus === 'success' ? (
                     <span style={{ fontSize: 36 }}>✅</span>
@@ -394,7 +431,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
                 {biometricStatus === 'prompting' ? (
                   <>
                     <span className="live-dot" style={{ background: '#38bdf8' }} />
-                    <span>{biometricMsg || 'در حال تأیید هویت دستگاه...'}</span>
+                    <span>{biometricMsg || 'در انتظار تأیید اثر انگشت یا چهره...'}</span>
                   </>
                 ) : biometricStatus === 'success' ? (
                   <>
@@ -409,7 +446,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
                 ) : (
                   <>
                     <span>🔒</span>
-                    <span>{biometricMsg || 'برای ورود سریع لمس کنید'}</span>
+                    <span>{biometricMsg || 'برای اسکن اثر انگشت یا چهره لمس کنید'}</span>
                   </>
                 )}
               </div>
@@ -423,14 +460,42 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
                 onClick={() => void triggerBiometricPrompt(false)}
               >
                 {biometricStatus === 'error'
-                  ? '🔄 تلاش مجدد ورود بیومتریک'
-                  : '👆 ورود سریع با اثر انگشت / بیومتریک'}
+                  ? '🔄 تلاش مجدد اسکن اثر انگشت / چهره'
+                  : '👆 اسکن اثر انگشت یا تشخیص چهره'}
               </button>
             </div>
           ) : null}
 
-          {/* 2. Password View */}
-          {activeTab === 'password' || (!biometricAvailable && activeTab !== 'pattern') ? (
+          {/* 2. Quick PIN View */}
+          {activeTab === 'pin' && lock.pinHash ? (
+            <div className="field-stack" style={{ width: '100%' }}>
+              <input
+                className="field-input"
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="پین ورود (۴ تا ۶ رقم)"
+                dir="ltr"
+                style={{ textAlign: 'center', letterSpacing: 6, fontSize: 18 }}
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void unlockWithPin()
+                }}
+              />
+              <button
+                className="cta-confirm"
+                type="button"
+                disabled={busy || booting || pinInput.length < 4}
+                onClick={() => void unlockWithPin()}
+              >
+                ورود با پین
+              </button>
+            </div>
+          ) : null}
+
+          {/* 3. Password View */}
+          {activeTab === 'password' || (!biometricAvailable && activeTab !== 'pattern' && activeTab !== 'pin') ? (
             <div className="field-stack" style={{ width: '100%' }}>
               <input
                 className="field-input"
@@ -453,7 +518,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
             </div>
           ) : null}
 
-          {/* 3. Pattern View */}
+          {/* 4. Pattern View */}
           {activeTab === 'pattern' && lock.patternHash ? (
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <PatternLock value={pattern} onChange={setPattern} onRelease={(next) => void finishPattern(next)} />

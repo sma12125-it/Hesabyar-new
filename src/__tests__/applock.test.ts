@@ -5,8 +5,10 @@ import {
   lockEnabled,
   setPin,
   checkPin,
+  clearPin,
   setPattern,
   checkPattern,
+  clearPattern,
   clearLock,
   isBiometricActive,
   setBiometricActive,
@@ -48,15 +50,24 @@ function installBrowser() {
       sessionStore.clear()
     },
   }
+  const mockWin = {
+    localStorage,
+    sessionStorage,
+    location: { hostname: 'localhost' },
+    dispatchEvent: () => true,
+  } as Record<string, unknown>
+  mockWin.self = mockWin
+  mockWin.top = mockWin
+
   Object.assign(globalThis, {
     localStorage,
     sessionStorage,
-    window: { localStorage, sessionStorage, dispatchEvent: () => true },
+    window: mockWin,
   })
   return { store }
 }
 
-describe('applock and passkey-free biometrics', () => {
+describe('applock and real hardware biometrics', () => {
   beforeEach(() => {
     installBrowser()
     vi.restoreAllMocks()
@@ -66,7 +77,7 @@ describe('applock and passkey-free biometrics', () => {
     vi.unstubAllGlobals()
   })
 
-  it('checks and persists PIN and pattern hashes', async () => {
+  it('checks, persists, and clears PIN and pattern hashes', async () => {
     expect(lockEnabled()).toBe(false)
 
     await setPin('1234')
@@ -74,78 +85,178 @@ describe('applock and passkey-free biometrics', () => {
     expect(await checkPin('1234')).toBe(true)
     expect(await checkPin('9999')).toBe(false)
 
+    clearPin()
+    expect(await checkPin('1234')).toBe(false)
+
     await setPattern('0-1-2-5')
     expect(await checkPattern('0-1-2-5')).toBe(true)
     expect(await checkPattern('0-1-2-4')).toBe(false)
+
+    clearPattern()
+    expect(await checkPattern('0-1-2-5')).toBe(false)
 
     clearLock()
     expect(lockEnabled()).toBe(false)
   })
 
-  it('supports biometric login universally without WebAuthn / Passkey APIs', async () => {
-    // Even without PublicKeyCredential or navigator.credentials, biometric unlock is supported
+  it('rejects simulated legacy device-only biometric records and never fake-unlocks', async () => {
     // @ts-expect-error mock
     delete globalThis.window.PublicKeyCredential
-    // @ts-expect-error mock
-    delete globalThis.navigator.credentials
-
-    expect(isWebAuthnSupported()).toBe(true)
-    expect(await isPlatformAuthenticatorAvailable()).toBe(true)
-  })
-
-  it('registers and authenticates locally without ever calling navigator.credentials (Passkey)', async () => {
-    const createSpy = vi.fn().mockRejectedValue(new Error('Should never invoke Passkey create'))
-    const getSpy = vi.fn().mockRejectedValue(new Error('Should never invoke Passkey get'))
-
     Object.defineProperty(globalThis.navigator, 'credentials', {
-      value: { create: createSpy, get: getSpy },
+      value: undefined,
       configurable: true,
       writable: true,
     })
 
-    // Seed a legacy credentialId to confirm registerBiometric clears it
-    saveLock({ credentialId: 'legacy-passkey-id' })
+    // A previously stored fake 'device' token without real credentialId must NOT be treated as active
+    saveLock({
+      biometricEnabled: true,
+      biometricMode: 'device',
+      biometricHash: 'fakehash',
+      biometricSalt: 'fakesalt',
+      biometricToken: 'faketoken',
+    })
+    expect(isBiometricActive()).toBe(false)
+    expect(isWebAuthnSupported()).toBe(false)
+    expect(await isPlatformAuthenticatorAvailable()).toBe(false)
+
+    const res = await authenticateWithBiometrics()
+    expect(res.ok).toBe(false)
+    expect(await verifyBiometric()).toBe(false)
+  })
+
+  it('registers real local device-bound platform biometric (residentKey discouraged, userVerification required)', async () => {
+    const rawIdBuffer = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]).buffer
+    const createSpy = vi.fn().mockResolvedValue({
+      rawId: rawIdBuffer,
+      id: 'platform-cred-id',
+      type: 'public-key',
+    })
+
+    class MockPublicKeyCredential {
+      static isUserVerifyingPlatformAuthenticatorAvailable = vi.fn().mockResolvedValue(true)
+    }
+
+    // @ts-expect-error mock
+    globalThis.window.PublicKeyCredential = MockPublicKeyCredential
+    // @ts-expect-error mock
+    globalThis.PublicKeyCredential = MockPublicKeyCredential
+
+    Object.defineProperty(globalThis.navigator, 'credentials', {
+      value: { create: createSpy, get: vi.fn() },
+      configurable: true,
+      writable: true,
+    })
+
+    expect(isWebAuthnSupported()).toBe(true)
+    expect(await isPlatformAuthenticatorAvailable()).toBe(true)
 
     await registerBiometric()
 
-    expect(createSpy).not.toHaveBeenCalled()
-    expect(getSpy).not.toHaveBeenCalled()
+    expect(createSpy).toHaveBeenCalledTimes(1)
+    const callArg = createSpy.mock.calls[0]![0]
+    expect(callArg.publicKey.authenticatorSelection).toEqual({
+      authenticatorAttachment: 'platform',
+      residentKey: 'discouraged',
+      requireResidentKey: false,
+      userVerification: 'required',
+    })
 
     const saved = loadLock()
+    expect(saved.credentialId).toBeDefined()
+    expect(saved.biometricMode).toBe('platform')
     expect(saved.biometricEnabled).toBe(true)
-    expect(saved.biometricMode).toBe('device')
-    expect(saved.biometricSalt).toBeDefined()
-    expect(saved.biometricToken).toBeDefined()
-    expect(saved.biometricHash).toBeDefined()
-    expect(saved.credentialId).toBeUndefined()
     expect(isBiometricActive(saved)).toBe(true)
     expect(lockEnabled(saved)).toBe(true)
-
-    const authResult = await authenticateWithBiometrics({ allowRegistration: false })
-    expect(authResult.ok).toBe(true)
-    expect(authResult.mode).toBe('device')
-    expect(await verifyBiometric()).toBe(true)
-    expect(createSpy).not.toHaveBeenCalled()
-    expect(getSpy).not.toHaveBeenCalled()
   })
 
-  it('migrates legacy credentialId records seamlessly on authenticate without Passkey', async () => {
-    saveLock({ credentialId: btoa(String.fromCharCode(1, 2, 3, 4)) })
+  it('verifies existing hardware credential via credentials.get and checks UV flag', async () => {
+    saveLock({
+      credentialId: btoa(String.fromCharCode(1, 2, 3, 4)),
+      biometricEnabled: true,
+      biometricMode: 'platform',
+    })
 
-    const result = await authenticateWithBiometrics({ allowRegistration: false })
-    expect(result.ok).toBe(true)
-    expect(result.mode).toBe('device')
+    // AuthenticatorData with User Verified (UV = 0x04) + User Present (UP = 0x01) at byte 32
+    const authDataVerified = new Uint8Array(37)
+    authDataVerified[32] = 0x05
 
-    const updated = loadLock()
-    expect(updated.credentialId).toBeUndefined()
-    expect(updated.biometricEnabled).toBe(true)
-    expect(updated.biometricHash).toBeDefined()
+    const authDataUnverified = new Uint8Array(37)
+    authDataUnverified[32] = 0x01 // UP only, NO UV!
+
+    const getSpy = vi
+      .fn()
+      .mockResolvedValueOnce({
+        rawId: new Uint8Array([1, 2, 3, 4]).buffer,
+        response: { authenticatorData: authDataVerified.buffer },
+      })
+      .mockResolvedValueOnce({
+        rawId: new Uint8Array([1, 2, 3, 4]).buffer,
+        response: { authenticatorData: authDataUnverified.buffer },
+      })
+
+    class MockPublicKeyCredential {
+      static isUserVerifyingPlatformAuthenticatorAvailable = vi.fn().mockResolvedValue(true)
+    }
+
+    // @ts-expect-error mock
+    globalThis.window.PublicKeyCredential = MockPublicKeyCredential
+    // @ts-expect-error mock
+    globalThis.PublicKeyCredential = MockPublicKeyCredential
+
+    Object.defineProperty(globalThis.navigator, 'credentials', {
+      value: { create: vi.fn(), get: getSpy },
+      configurable: true,
+      writable: true,
+    })
+
+    const okRes = await authenticateWithBiometrics()
+    expect(okRes.ok).toBe(true)
+    expect(okRes.mode).toBe('platform')
+    expect(getSpy).toHaveBeenCalledTimes(1)
+    expect(getSpy.mock.calls[0]![0].publicKey.userVerification).toBe('required')
+    expect(getSpy.mock.calls[0]![0].publicKey.allowCredentials[0].transports).toEqual(['internal'])
+
+    // Must reject if UV flag is NOT set
+    const unverifiedRes = await authenticateWithBiometrics()
+    expect(unverifiedRes.ok).toBe(false)
   })
 
-  it('returns error when biometric is not enabled and allowRegistration is false', async () => {
-    const result = await authenticateWithBiometrics({ allowRegistration: false })
-    expect(result.ok).toBe(false)
-    expect(result.error).toContain('فعال نشده')
+  it('handles cancellation and iframe SecurityError honestly without unlocking', async () => {
+    saveLock({
+      credentialId: btoa(String.fromCharCode(9, 8, 7)),
+      biometricEnabled: true,
+      biometricMode: 'platform',
+    })
+
+    const notAllowed = new Error('User cancelled')
+    notAllowed.name = 'NotAllowedError'
+
+    const secErr = new Error('publickey-credentials-get not allowed in this document')
+    secErr.name = 'SecurityError'
+
+    class MockPublicKeyCredential {}
+    // @ts-expect-error mock
+    globalThis.window.PublicKeyCredential = MockPublicKeyCredential
+    // @ts-expect-error mock
+    globalThis.PublicKeyCredential = MockPublicKeyCredential
+
+    Object.defineProperty(globalThis.navigator, 'credentials', {
+      value: {
+        create: vi.fn().mockRejectedValue(secErr),
+        get: vi.fn().mockRejectedValueOnce(notAllowed).mockRejectedValueOnce(secErr),
+      },
+      configurable: true,
+      writable: true,
+    })
+
+    const cancelled = await authenticateWithBiometrics({ allowRegistration: false })
+    expect(cancelled.ok).toBe(false)
+    expect(cancelled.error).toContain('لغو')
+
+    const blocked = await authenticateWithBiometrics({ allowRegistration: false })
+    expect(blocked.ok).toBe(false)
+    expect(blocked.error).toContain('iframe')
   })
 
   it('uses native hardware biometric bridge when present and handles cancel gracefully', async () => {
@@ -156,21 +267,13 @@ describe('applock and passkey-free biometrics', () => {
     await registerBiometric()
     expect(nativeAuth).toHaveBeenCalledTimes(1)
     expect(loadLock().biometricMode).toBe('native')
+    expect(isBiometricActive()).toBe(true)
 
     const cancelled = await authenticateWithBiometrics({ allowRegistration: false })
     expect(cancelled.ok).toBe(false)
     expect(cancelled.error).toContain('لغو')
-  })
-
-  it('clears biometric state cleanly when disabled', async () => {
-    await registerBiometric()
-    expect(isBiometricActive()).toBe(true)
 
     setBiometricActive(false)
-    const saved = loadLock()
-    expect(isBiometricActive(saved)).toBe(false)
-    expect(saved.biometricHash).toBeUndefined()
-    expect(saved.biometricToken).toBeUndefined()
-    expect(saved.credentialId).toBeUndefined()
+    expect(isBiometricActive()).toBe(false)
   })
 })

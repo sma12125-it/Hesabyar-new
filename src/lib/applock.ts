@@ -8,7 +8,7 @@ export interface AppLockRecord {
   patternHash?: string
   credentialId?: string
   biometricEnabled?: boolean
-  biometricMode?: 'native' | 'device'
+  biometricMode?: 'native' | 'platform' | 'device'
   biometricSalt?: string
   biometricHash?: string
   biometricToken?: string
@@ -28,6 +28,71 @@ function getNativeBiometricBridge(): NativeBiometricBridge | null {
   return w.HesabyarBiometric ?? w.AndroidBiometric ?? null
 }
 
+function bytesToBase64(buf: ArrayBuffer | Uint8Array): string {
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf)
+  let raw = ''
+  for (let i = 0; i < bytes.length; i += 1) {
+    raw += String.fromCharCode(bytes[i]!)
+  }
+  return btoa(raw)
+}
+
+function base64ToBytes(value: string): Uint8Array<ArrayBuffer> {
+  const raw = atob(value)
+  const buf = new ArrayBuffer(raw.length)
+  const out = new Uint8Array(buf)
+  for (let i = 0; i < raw.length; i += 1) {
+    out[i] = raw.charCodeAt(i)
+  }
+  return out
+}
+
+function isValidRpId(hostname: string): boolean {
+  if (!hostname) return false
+  if (hostname === 'localhost') return true
+  // Reject IPv4 / IPv6 literals — WebAuthn rpId must be a valid domain or localhost
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) || hostname.includes(':')) return false
+  return hostname.includes('.')
+}
+
+function isInsideIframe(): boolean {
+  try {
+    return typeof window !== 'undefined' && window.self !== window.top
+  } catch {
+    return true
+  }
+}
+
+function mapBiometricError(err: unknown): string {
+  const name = err instanceof Error ? err.name : ''
+  const msg = err instanceof Error ? err.message : String(err || '')
+  const lower = msg.toLowerCase()
+
+  if (
+    name === 'SecurityError' ||
+    lower.includes('permissions policy') ||
+    lower.includes('publickey-credentials') ||
+    lower.includes('iframe') ||
+    lower.includes('not allowed in this document') ||
+    lower.includes('cross-origin')
+  ) {
+    return 'مرورگر در حالت پیش‌نمایش (iframe) اجازه دسترسی به حسگر اثر انگشت/چهره را نمی‌دهد. لطفاً برنامه را در تب مستقل مرورگر باز کنید یا از پین / الگو استفاده کنید.'
+  }
+
+  if (name === 'NotAllowedError' || name === 'AbortError') {
+    if (isInsideIframe()) {
+      return 'درخواست حسگر بیومتریک لغو شد یا در حالت پیش‌نمایش (iframe) توسط مرورگر مسدود است. برنامه را در تب مستقل مرورگر باز کنید یا از پین / الگو استفاده کنید.'
+    }
+    return 'احراز هویت اثر انگشت یا تشخیص چهره توسط کاربر لغو شد یا زمان آن به پایان رسید.'
+  }
+
+  if (name === 'NotSupportedError' || name === 'InvalidStateError') {
+    return 'حسگر اثر انگشت یا تشخیص چهره روی این دستگاه/مرورگر در دسترس نیست. می‌توانید از پین ۴ رقمی یا الگو استفاده کنید.'
+  }
+
+  return msg || 'احراز هویت بیومتریک با خطا مواجه شد.'
+}
+
 export function loadLock(): AppLockRecord {
   try {
     return JSON.parse(localStorage.getItem(KEY) || '{}') as AppLockRecord
@@ -40,9 +105,17 @@ export function saveLock(record: AppLockRecord) {
   localStorage.setItem(KEY, JSON.stringify(record))
 }
 
+/**
+ * True ONLY when real hardware biometric authentication (native BiometricPrompt bridge
+ * or a registered device-bound platform authenticator credentialId) is active.
+ * Legacy/simulated `device` mode without a real hardware credential is intentionally NOT active.
+ */
 export function isBiometricActive(record = loadLock()): boolean {
   if (record.biometricEnabled === false) return false
-  return Boolean(record.biometricEnabled || record.biometricHash || record.credentialId)
+  if (record.biometricMode === 'native' && Boolean(getNativeBiometricBridge()?.authenticate)) {
+    return true
+  }
+  return Boolean(record.credentialId)
 }
 
 export function setBiometricActive(enabled: boolean) {
@@ -63,13 +136,7 @@ export function setBiometricActive(enabled: boolean) {
 }
 
 export function lockEnabled(record = loadLock()): boolean {
-  return Boolean(
-    record.pinHash ||
-      record.patternHash ||
-      record.credentialId ||
-      record.biometricHash ||
-      record.biometricEnabled,
-  )
+  return Boolean(record.pinHash || record.patternHash || isBiometricActive(record))
 }
 
 export function isSessionOpen(): boolean {
@@ -103,6 +170,11 @@ export async function setPin(pin: string) {
   saveLock({ ...loadLock(), pinSalt, pinHash })
 }
 
+export function clearPin() {
+  const current = loadLock()
+  saveLock({ ...current, pinSalt: undefined, pinHash: undefined })
+}
+
 export async function checkPin(pin: string): Promise<boolean> {
   const record = loadLock()
   if (!record.pinHash || !record.pinSalt) return false
@@ -115,6 +187,11 @@ export async function setPattern(pattern: string) {
   saveLock({ ...loadLock(), patternSalt, patternHash })
 }
 
+export function clearPattern() {
+  const current = loadLock()
+  saveLock({ ...current, patternSalt: undefined, patternHash: undefined })
+}
+
 export async function checkPattern(pattern: string): Promise<boolean> {
   const record = loadLock()
   if (!record.patternHash || !record.patternSalt) return false
@@ -122,61 +199,149 @@ export async function checkPattern(pattern: string): Promise<boolean> {
 }
 
 /**
- * Passkey-free biometric / quick device unlock is supported universally across
- * all modern browsers, PWAs, and Android/iOS webviews without requiring Passkeys.
+ * Checks whether the current browser/runtime exposes a real biometric API:
+ * either native Android/WebView BiometricPrompt bridge or WebAuthn platform authenticator.
  */
 export function isWebAuthnSupported(): boolean {
-  return typeof window !== 'undefined' && typeof crypto !== 'undefined' && Boolean(crypto.subtle)
+  if (getNativeBiometricBridge()?.authenticate) return true
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
+  return Boolean(
+    'PublicKeyCredential' in window &&
+      typeof window.PublicKeyCredential !== 'undefined' &&
+      navigator.credentials &&
+      typeof navigator.credentials.create === 'function' &&
+      typeof navigator.credentials.get === 'function',
+  )
 }
 
+/**
+ * Checks whether the device has an actual user-verifying hardware biometric sensor
+ * (Touch ID, Face ID, Android Fingerprint/Face, Windows Hello) or native bridge.
+ */
 export async function isPlatformAuthenticatorAvailable(): Promise<boolean> {
-  return isWebAuthnSupported()
+  const bridge = getNativeBiometricBridge()
+  if (bridge?.authenticate) {
+    if (typeof bridge.isAvailable === 'function') {
+      try {
+        return Boolean(await bridge.isAvailable())
+      } catch {
+        return false
+      }
+    }
+    return true
+  }
+  if (!isWebAuthnSupported()) return false
+  try {
+    const pkc = window.PublicKeyCredential as unknown as {
+      isUserVerifyingPlatformAuthenticatorAvailable?: () => Promise<boolean>
+    }
+    if (typeof pkc?.isUserVerifyingPlatformAuthenticatorAvailable === 'function') {
+      return Boolean(await pkc.isUserVerifyingPlatformAuthenticatorAvailable())
+    }
+    return false
+  } catch {
+    return false
+  }
 }
 
 export interface BiometricResult {
   ok: boolean
   registered?: boolean
-  mode?: 'native' | 'device'
+  mode?: 'native' | 'platform'
   error?: string
 }
 
 /**
- * Enables Passkey-free biometric / quick device unlock.
- * Uses native Android/WebView biometric hardware bridge when available, and otherwise
- * binds a local cryptographic device verification key so EVERY user can activate it
- * without Google/Apple Passkey popups or restrictions.
+ * Enrolls REAL hardware biometric authentication:
+ * 1. Native Android/WebView BiometricPrompt when available.
+ * 2. Device-bound, NON-DISCOVERABLE platform authenticator (residentKey: 'discouraged',
+ *    requireResidentKey: false, authenticatorAttachment: 'platform', userVerification: 'required')
+ *    so the OS invokes the local fingerprint/Face ID/Windows Hello sensor directly without
+ *    requiring a cloud-synced Passkey.
+ *
+ * NEVER falls back to fake/simulated unlock without real hardware verification.
  */
 export async function registerBiometric(): Promise<void> {
   const bridge = getNativeBiometricBridge()
-  let mode: 'native' | 'device' = 'device'
-
   if (bridge?.authenticate) {
-    const ok = await bridge.authenticate('تأیید اثر انگشت یا چهره برای فعال‌سازی ورود سریع حساب‌یار')
+    const ok = await bridge.authenticate('تأیید اثر انگشت یا تشخیص چهره برای فعال‌سازی ورود به حساب‌یار')
     if (!ok) {
-      throw new Error('احراز هویت بیومتریک دستگاه تأیید نشد')
+      throw new Error('احراز هویت اثر انگشت یا چهره تأیید نشد.')
     }
-    mode = 'native'
+    saveLock({
+      ...loadLock(),
+      biometricEnabled: true,
+      biometricMode: 'native',
+      credentialId: undefined,
+      biometricSalt: undefined,
+      biometricHash: undefined,
+      biometricToken: undefined,
+    })
+    return
   }
 
-  const biometricSalt = randomHex(16)
-  const biometricToken = randomHex(32)
-  const biometricHash = await digest(biometricToken, biometricSalt)
+  if (!isWebAuthnSupported()) {
+    throw new Error('مرورگر این دستگاه از احراز هویت بیومتریک (اثر انگشت / چهره) پشتیبانی نمی‌کند. لطفاً از پین سریع یا الگو استفاده کنید.')
+  }
 
-  saveLock({
-    ...loadLock(),
-    biometricEnabled: true,
-    biometricMode: mode,
-    biometricSalt,
-    biometricHash,
-    biometricToken,
-    // Ensure legacy passkey credentialId is cleared so OS Passkey popups never appear
-    credentialId: undefined,
-  })
+  const available = await isPlatformAuthenticatorAvailable()
+  if (!available) {
+    throw new Error('حسگر اثر انگشت، تشخیص چهره یا قفل بیومتریک روی این دستگاه فعال نیست. ابتدا قفل اثر انگشت/چهره گوشی را فعال کنید یا از پین سریع استفاده کنید.')
+  }
+
+  try {
+    const challenge = crypto.getRandomValues(new Uint8Array(32))
+    const userId = crypto.getRandomValues(new Uint8Array(16))
+    const hostname = typeof window !== 'undefined' ? window.location?.hostname || '' : ''
+
+    const credential = (await navigator.credentials.create({
+      publicKey: {
+        challenge,
+        rp: {
+          name: 'حساب‌یار',
+          ...(isValidRpId(hostname) ? { id: hostname } : {}),
+        },
+        user: {
+          id: userId,
+          name: 'hesabyar-device-user',
+          displayName: 'کاربر حساب‌یار',
+        },
+        pubKeyCredParams: [
+          { alg: -7, type: 'public-key' },
+          { alg: -257, type: 'public-key' },
+        ],
+        authenticatorSelection: {
+          authenticatorAttachment: 'platform',
+          residentKey: 'discouraged',
+          requireResidentKey: false,
+          userVerification: 'required',
+        },
+        attestation: 'none',
+        timeout: 60000,
+      },
+    })) as PublicKeyCredential | null
+
+    if (!credential || !credential.rawId || credential.rawId.byteLength === 0) {
+      throw new Error('ثبت حسگر اثر انگشت/چهره تکمیل نشد.')
+    }
+
+    saveLock({
+      ...loadLock(),
+      credentialId: bytesToBase64(credential.rawId),
+      biometricEnabled: true,
+      biometricMode: 'platform',
+      biometricSalt: undefined,
+      biometricHash: undefined,
+      biometricToken: undefined,
+    })
+  } catch (err) {
+    throw new Error(mapBiometricError(err))
+  }
 }
 
 /**
- * Authenticates the user with Passkey-free biometric / quick device verification.
- * Never invokes WebAuthn Passkey dialogs (navigator.credentials.create/get).
+ * Performs REAL hardware biometric verification (fingerprint / Face ID / Windows Hello).
+ * NEVER succeeds without actual OS/hardware user verification.
  */
 export async function authenticateWithBiometrics(options?: {
   allowRegistration?: boolean
@@ -184,64 +349,97 @@ export async function authenticateWithBiometrics(options?: {
   const record = loadLock()
   const bridge = getNativeBiometricBridge()
 
-  // 1. Native hardware biometric bridge (Android APK / WebView) if present
+  // 1. Native hardware biometric bridge (Android APK / WebView)
   if (bridge?.authenticate) {
     try {
-      const approved = await bridge.authenticate('ورود به حساب‌یار')
+      const approved = await bridge.authenticate('تأیید اثر انگشت یا چهره برای ورود به حساب‌یار')
       if (!approved) {
-        return { ok: false, error: 'احراز هویت بیومتریک توسط کاربر لغو شد.' }
+        return { ok: false, error: 'احراز هویت اثر انگشت یا چهره لغو شد.' }
       }
-      if (!record.biometricHash) {
-        const biometricSalt = randomHex(16)
-        const biometricToken = randomHex(32)
-        const biometricHash = await digest(biometricToken, biometricSalt)
+      if (record.biometricMode !== 'native' || !record.biometricEnabled) {
         saveLock({
           ...record,
           biometricEnabled: true,
           biometricMode: 'native',
-          biometricSalt,
-          biometricHash,
-          biometricToken,
           credentialId: undefined,
+          biometricSalt: undefined,
+          biometricHash: undefined,
+          biometricToken: undefined,
         })
         return { ok: true, registered: true, mode: 'native' }
       }
       return { ok: true, mode: 'native' }
-    } catch {
-      return { ok: false, error: 'احراز هویت بیومتریک دستگاه لغو یا با خطا مواجه شد.' }
+    } catch (err) {
+      return { ok: false, error: mapBiometricError(err) }
     }
   }
 
-  // 2. Verify existing Passkey-free device-local cryptographic binding
-  if (record.biometricHash && record.biometricSalt && record.biometricToken) {
-    const valid = (await digest(record.biometricToken, record.biometricSalt)) === record.biometricHash
-    if (valid) {
-      return { ok: true, mode: 'device' }
+  // 2. Real hardware platform authenticator (WebAuthn local device biometric)
+  if (!isWebAuthnSupported()) {
+    return {
+      ok: false,
+      error: 'مرورگر این دستگاه از احراز هویت بیومتریک پشتیبانی نمی‌کند. لطفاً با رمز حساب، پین یا الگو وارد شوید.',
     }
-    return { ok: false, error: 'کلید احراز هویت محلی دستگاه نامعتبر است. لطفاً مجدداً فعال کنید.' }
   }
 
-  // 3. Migrate older enabled biometric records (previously saved with legacy credentialId) seamlessly
-  if (record.biometricEnabled || record.credentialId || options?.allowRegistration !== false) {
-    const biometricSalt = randomHex(16)
-    const biometricToken = randomHex(32)
-    const biometricHash = await digest(biometricToken, biometricSalt)
-    saveLock({
-      ...record,
-      biometricEnabled: true,
-      biometricMode: 'device',
-      biometricSalt,
-      biometricHash,
-      biometricToken,
-      credentialId: undefined,
-    })
-    return { ok: true, registered: !record.biometricEnabled, mode: 'device' }
+  // If not yet enrolled with a real hardware credential
+  if (!record.credentialId) {
+    if (options?.allowRegistration) {
+      try {
+        await registerBiometric()
+        return { ok: true, registered: true, mode: 'platform' }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : 'ثبت بیومتریک ناموفق بود.' }
+      }
+    }
+    return {
+      ok: false,
+      error: 'ورود با اثر انگشت یا چهره هنوز روی این دستگاه ثبت نشده است. لطفاً ابتدا از تنظیمات امنیت آن را فعال کنید.',
+    }
   }
 
-  return { ok: false, error: 'ورود بیومتریک روی این دستگاه هنوز فعال نشده است.' }
+  try {
+    const challenge = crypto.getRandomValues(new Uint8Array(32))
+    const hostname = typeof window !== 'undefined' ? window.location?.hostname || '' : ''
+    const credIdBytes = base64ToBytes(record.credentialId)
+
+    const assertion = (await navigator.credentials.get({
+      publicKey: {
+        challenge,
+        ...(isValidRpId(hostname) ? { rpId: hostname } : {}),
+        allowCredentials: [
+          {
+            id: credIdBytes,
+            type: 'public-key',
+            transports: ['internal'],
+          },
+        ],
+        userVerification: 'required',
+        timeout: 60000,
+      },
+    })) as PublicKeyCredential | null
+
+    if (!assertion) {
+      return { ok: false, error: 'احراز هویت اثر انگشت یا چهره تأیید نشد.' }
+    }
+
+    // When AuthenticatorAssertionResponse provides authenticatorData, verify User Verified (UV) flag (bit 2 = 0x04)
+    const resp = assertion.response as AuthenticatorAssertionResponse | undefined
+    if (resp?.authenticatorData && resp.authenticatorData.byteLength >= 33) {
+      const flags = new Uint8Array(resp.authenticatorData)[32]!
+      const userVerified = (flags & 0x04) !== 0
+      if (!userVerified) {
+        return { ok: false, error: 'تأیید اثر انگشت یا چهره توسط دستگاه انجام نشد.' }
+      }
+    }
+
+    return { ok: true, mode: 'platform' }
+  } catch (err) {
+    return { ok: false, error: mapBiometricError(err) }
+  }
 }
 
 export async function verifyBiometric(): Promise<boolean> {
-  const result = await authenticateWithBiometrics({ allowRegistration: true })
+  const result = await authenticateWithBiometrics({ allowRegistration: false })
   return result.ok
 }
