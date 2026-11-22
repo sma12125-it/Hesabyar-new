@@ -414,7 +414,11 @@ function ItemRow({
             <span style={{ color: 'var(--hy-income)', fontWeight: 600, display: 'inline-flex', flexWrap: 'wrap', gap: 4 }}>
               <span>✓ تاریخ پرداخت:</span>
               <strong>{formatPersianDateFull(effectivePaidDate)}</strong>
-              {accountName ? <span style={{ color: 'var(--hy-text-tertiary)', fontWeight: 400 }}>· حساب: {accountName}</span> : null}
+              {accountName ? (
+                <span style={{ color: 'var(--hy-text-tertiary)', fontWeight: 400 }}>· حساب: {accountName}</span>
+              ) : (
+                <span style={{ color: 'var(--hy-text-tertiary)', fontWeight: 400 }}>· بدون کسر از حساب</span>
+              )}
             </span>
           ) : status === 'overdue' ? (
             <span style={{ color: 'var(--hy-expense)', fontWeight: 600 }}>

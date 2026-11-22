@@ -512,13 +512,14 @@ export async function replaceInstallmentItemsAtomic(
 }
 
 export async function payInstallmentAtomic(
-  expense: Transaction,
+  expense: Transaction | null,
   item: InstallmentItem,
   plan: InstallmentPlan,
 ): Promise<void> {
   const db = await openDb()
-  const tx = db.transaction(['transactions', 'installmentItems', 'installmentPlans'], 'readwrite')
-  tx.objectStore('transactions').put(expense)
+  const stores = expense ? ['transactions', 'installmentItems', 'installmentPlans'] : ['installmentItems', 'installmentPlans']
+  const tx = db.transaction(stores, 'readwrite')
+  if (expense) tx.objectStore('transactions').put(expense)
   tx.objectStore('installmentItems').put(item)
   tx.objectStore('installmentPlans').put(plan)
   await txDone(tx)

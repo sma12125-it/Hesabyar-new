@@ -116,8 +116,10 @@ export function validatePlanInput(input: CreateInstallmentPlanInput, accounts: A
   if (!Number.isInteger(input.totalCount) || input.totalCount < 1) return 'تعداد اقساط باید حداقل ۱ باشد'
   if (input.totalCount > MAX_INSTALLMENT_COUNT) return 'تعداد اقساط خیلی زیاد است'
   if (!isValidIsoDate(input.startDate)) return 'تاریخ شروع نامعتبر است'
-  const account = accounts.find((a) => a.id === input.defaultAccountId)
-  if (!account || account.archived) return 'حساب پرداخت معتبر نیست'
+  if (input.defaultAccountId && input.defaultAccountId.trim()) {
+    const account = accounts.find((a) => a.id === input.defaultAccountId)
+    if (!account || account.archived) return 'حساب پرداخت معتبر نیست'
+  }
   if (input.kind === 'loan') {
     try {
       buildLoanSchedule(input.principal ?? 0, input.annualRatePercent ?? -1, input.totalCount)
@@ -169,7 +171,7 @@ export function validatePlanUpdate(
     if (patch.totalCount > MAX_INSTALLMENT_COUNT) return 'تعداد اقساط خیلی زیاد است'
   }
   if (patch.startDate != null && !isValidIsoDate(patch.startDate)) return 'تاریخ شروع نامعتبر است'
-  if (patch.defaultAccountId != null) {
+  if (patch.defaultAccountId && patch.defaultAccountId.trim()) {
     const account = accounts.find((a) => a.id === patch.defaultAccountId)
     if (!account || account.archived) return 'حساب پرداخت معتبر نیست'
   }

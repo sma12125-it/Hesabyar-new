@@ -912,7 +912,7 @@ export function createInstallmentPlan(
     installmentAmount: built.installmentAmount,
     totalCount: input.totalCount,
     startDate: input.startDate,
-    defaultAccountId: input.defaultAccountId,
+    defaultAccountId: input.defaultAccountId?.trim() || undefined,
     categoryId: INSTALLMENT_CATEGORY_ID,
     status: 'active',
     kind: built.kind,
@@ -949,7 +949,10 @@ export function updateInstallmentPlan(
   const nextPlan: InstallmentPlan = {
     ...plan,
     name: patch.name ? patch.name.trim() : plan.name,
-    defaultAccountId: patch.defaultAccountId ?? plan.defaultAccountId,
+    defaultAccountId:
+      'defaultAccountId' in patch
+        ? patch.defaultAccountId?.trim() || undefined
+        : plan.defaultAccountId,
     updatedAt: now,
   }
 
@@ -994,9 +997,9 @@ export function deleteInstallmentItem(data: AppData, id: string): { nextData: Ap
 export function payInstallment(
   data: AppData,
   itemId: string,
-  accountId: string,
+  accountId?: string,
   note?: string,
-): { expense: Transaction; item: InstallmentItem; plan: InstallmentPlan; nextData: AppData } {
+): { expense?: Transaction; item: InstallmentItem; plan: InstallmentPlan; nextData: AppData } {
   const item = data.items.find((i) => i.id === itemId)
   if (!item) throw new Error('قسط پیدا نشد')
   const plan = data.plans.find((p) => p.id === item.planId)
@@ -1006,30 +1009,58 @@ export function payInstallment(
   const today = todayIso()
   if (itemEffectiveStatus(item, today) === 'paid') throw new Error('این قسط قبلاً پرداخت شده است')
 
-  const hydrated = hydrateAccounts(data.accounts, data.transactions)
-  const account = hydrated.find((a) => a.id === accountId) || findAccount(hydrated, accountId)
-  if (!account || account.archived) throw new Error('حساب پرداخت معتبر نیست')
-  if (item.amount > account.balance) throw new Error('موجودی حساب برای پرداخت این قسط کافی نیست')
-
+  const targetAccountId = accountId?.trim() || ''
   const now = Date.now()
-  const expense: Transaction = {
-    id: createId('tx'),
-    kind: 'expense',
-    amount: item.amount,
-    accountId: account.id,
-    categoryId: INSTALLMENT_CATEGORY_ID,
-    installmentItemId: item.id,
-    note: (note ?? defaultPayNote(plan.name, item.index, plan.totalCount)).trim(),
-    date: today,
-    createdAt: now,
-    ...actorStamp(now),
+
+  if (targetAccountId) {
+    const hydrated = hydrateAccounts(data.accounts, data.transactions)
+    const account = hydrated.find((a) => a.id === targetAccountId) || findAccount(hydrated, targetAccountId)
+    if (!account || account.archived) throw new Error('حساب پرداخت معتبر نیست')
+    if (item.amount > account.balance) throw new Error('موجودی حساب برای پرداخت این قسط کافی نیست')
+
+    const expense: Transaction = {
+      id: createId('tx'),
+      kind: 'expense',
+      amount: item.amount,
+      accountId: account.id,
+      categoryId: INSTALLMENT_CATEGORY_ID,
+      installmentItemId: item.id,
+      note: (note ?? defaultPayNote(plan.name, item.index, plan.totalCount)).trim(),
+      date: today,
+      createdAt: now,
+      ...actorStamp(now),
+    }
+
+    const paidItem: InstallmentItem = {
+      ...item,
+      status: 'paid',
+      paidAt: today,
+      transactionId: expense.id,
+    }
+
+    const allItems = data.items.map((row) => (row.id === paidItem.id ? paidItem : row))
+    const planItems = allItems.filter((row) => row.planId === plan.id)
+    const nextPlan: InstallmentPlan = {
+      ...plan,
+      status: nextPlanStatus({ ...plan, status: 'active' }, planItems, today),
+      updatedAt: now,
+    }
+
+    const nextData: AppData = {
+      ...data,
+      transactions: [expense, ...data.transactions],
+      items: allItems,
+      plans: data.plans.map((row) => (row.id === plan.id ? nextPlan : row)),
+    }
+
+    return { expense, item: paidItem, plan: nextPlan, nextData }
   }
 
   const paidItem: InstallmentItem = {
     ...item,
     status: 'paid',
     paidAt: today,
-    transactionId: expense.id,
+    transactionId: undefined,
   }
 
   const allItems = data.items.map((row) => (row.id === paidItem.id ? paidItem : row))
@@ -1042,12 +1073,11 @@ export function payInstallment(
 
   const nextData: AppData = {
     ...data,
-    transactions: [expense, ...data.transactions],
     items: allItems,
     plans: data.plans.map((row) => (row.id === plan.id ? nextPlan : row)),
   }
 
-  return { expense, item: paidItem, plan: nextPlan, nextData }
+  return { item: paidItem, plan: nextPlan, nextData }
 }
 
 export function unpayInstallment(data: AppData, itemId: string): { nextData: AppData } {

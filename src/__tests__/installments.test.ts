@@ -11,6 +11,8 @@ import {
   validatePlanUpdate,
 } from '../lib/installments'
 import { isoToJalali, jalaliToIso, jalaaliMonthLength } from '../lib/jalaali'
+import { createInstallmentPlan, payInstallment, unpayInstallment } from '../lib/business/hesabyarBusiness'
+import { computeBalance } from '../lib/balance'
 import type { Account, InstallmentPlan } from '../types'
 
 const today = '2026-09-15'
@@ -152,3 +154,60 @@ describe('installment status badges', () => {
     expect(hints.map((h) => h.kind)).toEqual(['overdue', 'upcoming'])
   })
 })
+
+describe('optional payment account for installment plans', () => {
+  it('allows creating a plan without a payment account and deducts only when specified', () => {
+    expect(
+      validatePlanInput(
+        { name: 'قسط بدون حساب', installmentAmount: 2_000_000, totalCount: 2, startDate: today },
+        [account],
+      ),
+    ).toBeNull()
+
+    expect(
+      validatePlanUpdate(
+        { name: 'قسط ویرایش‌شده', defaultAccountId: '' },
+        generateInstallmentItems('p', 2_000_000, 2, today),
+        [account],
+      ),
+    ).toBeNull()
+
+    const initialData = {
+      accounts: [account],
+      transactions: [],
+      plans: [],
+      items: [],
+    }
+
+    const created = createInstallmentPlan(initialData, {
+      name: 'قسط خانگی',
+      installmentAmount: 5_000_000,
+      totalCount: 2,
+      startDate: today,
+    })
+    expect(created.plan.defaultAccountId).toBeUndefined()
+    expect(created.items).toHaveLength(2)
+
+    // Pay first item WITHOUT specifying a payment account -> no transaction or balance deduction
+    const paidWithoutAccount = payInstallment(created.nextData, created.items[0]!.id)
+    expect(paidWithoutAccount.expense).toBeUndefined()
+    expect(paidWithoutAccount.item.status).toBe('paid')
+    expect(paidWithoutAccount.item.transactionId).toBeUndefined()
+    expect(paidWithoutAccount.nextData.transactions).toHaveLength(0)
+    expect(computeBalance(account.openingBalance, paidWithoutAccount.nextData.transactions, account.id)).toBe(90_000_000)
+
+    // Unpay restores pending state cleanly
+    const reverted = unpayInstallment(paidWithoutAccount.nextData, created.items[0]!.id)
+    expect(reverted.nextData.items[0]!.status).toBe('pending')
+
+    // Pay first item WITH a payment account -> creates expense and deducts from balance
+    const paidWithAccount = payInstallment(created.nextData, created.items[0]!.id, account.id)
+    expect(paidWithAccount.expense).toBeDefined()
+    expect(paidWithAccount.expense?.accountId).toBe(account.id)
+    expect(paidWithAccount.item.status).toBe('paid')
+    expect(paidWithAccount.item.transactionId).toBe(paidWithAccount.expense?.id)
+    expect(paidWithAccount.nextData.transactions).toHaveLength(1)
+    expect(computeBalance(account.openingBalance, paidWithAccount.nextData.transactions, account.id)).toBe(85_000_000)
+  })
+})
+

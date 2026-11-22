@@ -246,7 +246,7 @@ export function deleteAccountCascade(accountId: string, data: AppData, today = t
   const { items, plans: unpaidPlans } = unpayItemsForRemovedTxs(data.items, data.plans, removedTxIds, today)
   const plans = unpaidPlans.map((plan) =>
     plan.defaultAccountId === accountId
-      ? { ...plan, defaultAccountId: fallback?.id ?? plan.defaultAccountId, updatedAt: Date.now() }
+      ? { ...plan, defaultAccountId: fallback?.id, updatedAt: Date.now() }
       : plan,
   )
   return rebalance({ accounts, transactions, items, plans })

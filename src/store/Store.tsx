@@ -90,7 +90,7 @@ interface StoreValue {
   restoreInstallmentPlan: (id: string) => Promise<void>
   deleteInstallmentPlan: (id: string) => Promise<void>
   deleteInstallmentItem: (id: string) => Promise<void>
-  payInstallment: (itemId: string, accountId: string, note?: string) => Promise<void>
+  payInstallment: (itemId: string, accountId?: string, note?: string, categoryId?: string) => Promise<void>
   unpayInstallment: (itemId: string) => Promise<void>
   resetDemo: () => Promise<void>
   wipeAll: () => Promise<void>
@@ -639,7 +639,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       installmentAmount: built.installmentAmount,
       totalCount: input.totalCount,
       startDate: input.startDate,
-      defaultAccountId: input.defaultAccountId,
+      defaultAccountId: input.defaultAccountId?.trim() || undefined,
       categoryId: INSTALLMENT_CATEGORY_ID,
       status: 'active',
       kind: built.kind,
@@ -668,7 +668,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const next: InstallmentPlan = {
       ...plan,
       name: patch.name?.trim() ?? plan.name,
-      defaultAccountId: patch.defaultAccountId ?? plan.defaultAccountId,
+      defaultAccountId:
+        'defaultAccountId' in patch
+          ? patch.defaultAccountId?.trim() || undefined
+          : plan.defaultAccountId,
       updatedAt: Date.now(),
     }
     const scheduleChanged =
@@ -769,7 +772,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await persistSnapshot(prev, deleteInstallmentItemCascade(id, prev))
   }, [persistSnapshot])
 
-  const payInstallment = useCallback(async (itemId: string, accountId: string, note?: string) => {
+  const payInstallment = useCallback(async (itemId: string, accountId?: string, note?: string, categoryId?: string) => {
     const prev = dataRef.current
     const item = prev.items.find((i) => i.id === itemId)
     if (!item) throw new Error('قسط پیدا نشد')
@@ -778,27 +781,52 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (plan.status !== 'active') throw new Error('این برنامه قابل پرداخت نیست')
     const today = todayIso()
     if (itemEffectiveStatus(item, today) === 'paid') throw new Error('این قسط قبلاً پرداخت شده')
-    const account = prev.accounts.find((a) => a.id === accountId)
-    if (!account || account.archived) throw new Error('حساب پرداخت معتبر نیست')
-    if (item.amount > account.balance) throw new Error('موجودی حساب برای پرداخت این قسط کافی نیست')
+    const targetAccountId = accountId?.trim() || ''
     const now = Date.now()
-    const expense: Transaction = {
-      id: createId('tx'),
-      kind: 'expense',
-      amount: item.amount,
-      accountId: account.id,
-      categoryId: INSTALLMENT_CATEGORY_ID,
-      installmentItemId: item.id,
-      note: (note ?? defaultPayNote(plan.name, item.index, plan.totalCount)).trim(),
-      date: today,
-      createdAt: now,
-      ...actorStamp(now),
+
+    if (targetAccountId) {
+      const account = prev.accounts.find((a) => a.id === targetAccountId)
+      if (!account || account.archived) throw new Error('حساب پرداخت معتبر نیست')
+      if (item.amount > account.balance) throw new Error('موجودی حساب برای پرداخت این قسط کافی نیست')
+      const expense: Transaction = {
+        id: createId('tx'),
+        kind: 'expense',
+        amount: item.amount,
+        accountId: account.id,
+        categoryId: categoryId || plan.categoryId || INSTALLMENT_CATEGORY_ID,
+        installmentItemId: item.id,
+        note: (note ?? defaultPayNote(plan.name, item.index, plan.totalCount)).trim(),
+        date: today,
+        createdAt: now,
+        ...actorStamp(now),
+      }
+      const paidItem: InstallmentItem = {
+        ...item,
+        status: 'paid',
+        paidAt: today,
+        transactionId: expense.id,
+      }
+      const allItems = prev.items.map((row) => (row.id === paidItem.id ? paidItem : row))
+      const planItems = allItems.filter((row) => row.planId === plan.id)
+      const nextPlan: InstallmentPlan = {
+        ...plan,
+        status: nextPlanStatus({ ...plan, status: 'active' }, planItems, today),
+        updatedAt: now,
+      }
+      await persistSnapshot(prev, {
+        ...prev,
+        transactions: [expense, ...prev.transactions],
+        items: allItems,
+        plans: prev.plans.map((row) => (row.id === plan.id ? nextPlan : row)),
+      })
+      return
     }
+
     const paidItem: InstallmentItem = {
       ...item,
       status: 'paid',
       paidAt: today,
-      transactionId: expense.id,
+      transactionId: undefined,
     }
     const allItems = prev.items.map((row) => (row.id === paidItem.id ? paidItem : row))
     const planItems = allItems.filter((row) => row.planId === plan.id)
@@ -809,7 +837,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }
     await persistSnapshot(prev, {
       ...prev,
-      transactions: [expense, ...prev.transactions],
       items: allItems,
       plans: prev.plans.map((row) => (row.id === plan.id ? nextPlan : row)),
     })

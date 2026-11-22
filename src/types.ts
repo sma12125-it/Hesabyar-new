@@ -106,7 +106,7 @@ export interface InstallmentPlan {
   installmentAmount: number
   totalCount: number
   startDate: string
-  defaultAccountId: string
+  defaultAccountId?: string
   categoryId: 'installments'
   status: InstallmentPlanStatus
   /** Default `fixed` for Sprint 2 plans. `loan` uses declining-balance amortization. */
@@ -177,7 +177,7 @@ export interface CreateInstallmentPlanInput {
   installmentAmount: number
   totalCount: number
   startDate: string
-  defaultAccountId: string
+  defaultAccountId?: string
   kind?: InstallmentPlanKind
   principal?: number
   annualRatePercent?: number

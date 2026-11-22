@@ -698,7 +698,7 @@ apiRouter.post('/installments/plans', requireAuth, async (req: Request, res: Res
       installmentAmount: Number(body.installmentAmount),
       totalCount: Number(body.totalCount),
       startDate: String(body.startDate),
-      defaultAccountId: String(body.defaultAccountId),
+      defaultAccountId: body.defaultAccountId ? String(body.defaultAccountId) : undefined,
       kind: body.kind,
       principal: body.principal != null ? Number(body.principal) : undefined,
       annualRatePercent: body.annualRatePercent != null ? Number(body.annualRatePercent) : undefined,
@@ -719,7 +719,9 @@ apiRouter.patch('/installments/plans/:id', requireAuth, async (req: Request, res
     const data = await loadUserData(req.user!)
     const result = updateInstallmentPlan(data, String(req.params.id), {
       name: body.name ? String(body.name) : undefined,
-      defaultAccountId: body.defaultAccountId ? String(body.defaultAccountId) : undefined,
+      ...('defaultAccountId' in body
+        ? { defaultAccountId: body.defaultAccountId ? String(body.defaultAccountId) : undefined }
+        : {}),
     })
     await saveUserData(req.user!, result.nextData)
     res.json({ success: true, data: result.plan })
@@ -790,14 +792,11 @@ apiRouter.get('/installments/items', requireAuth, async (req: Request, res: Resp
 apiRouter.post('/installments/items/:id/pay', requireAuth, async (req: Request, res: Response): Promise<void> => {
   try {
     const body = req.body || {}
-    if (!body.accountId) {
-      res.status(400).json({ success: false, error: 'حساب پرداخت الزامی است (accountId)' })
-      return
-    }
     const data = await loadUserData(req.user!)
-    const result = payInstallment(data, String(req.params.id), String(body.accountId), body.note)
+    const targetAccountId = body.accountId ? String(body.accountId) : undefined
+    const result = payInstallment(data, String(req.params.id), targetAccountId, body.note)
     await saveUserData(req.user!, result.nextData)
-    res.json({ success: true, message: 'قسط با موفقیت پرداخت شد', data: result.item, expense: result.expense })
+    res.json({ success: true, message: 'قسط با موفقیت پرداخت شد', data: result.item, expense: result.expense ?? null })
   } catch (err) {
     res.status(400).json({ success: false, error: err instanceof Error ? err.message : 'خطا در پرداخت قسط' })
   }

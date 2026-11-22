@@ -33,7 +33,7 @@ export function InstallmentPlanSheet({
   const [rateRaw, setRateRaw] = useState(plan?.annualRatePercent != null ? String(plan.annualRatePercent) : '')
   const [countRaw, setCountRaw] = useState(plan ? String(plan.totalCount) : '')
   const [startDate, setStartDate] = useState(plan?.startDate ?? todayIso())
-  const [accountId, setAccountId] = useState(plan?.defaultAccountId ?? activeAccounts[0]?.id ?? '')
+  const [accountId, setAccountId] = useState(plan?.defaultAccountId ?? '')
   const [categoryId, setCategoryId] = useState<string>(plan?.categoryId ?? INSTALLMENT_CATEGORY_ID)
   const [picker, setPicker] = useState<'account' | 'category' | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -58,7 +58,7 @@ export function InstallmentPlanSheet({
       if (plan) {
         await updateInstallmentPlan(plan.id, {
           name,
-          defaultAccountId: accountId,
+          defaultAccountId: accountId || undefined,
           ...(locked
             ? {}
             : kind === 'loan'
@@ -81,7 +81,7 @@ export function InstallmentPlanSheet({
           installmentAmount: schedule?.monthlyPayment ?? 1,
           totalCount: count,
           startDate,
-          defaultAccountId: accountId,
+          defaultAccountId: accountId || undefined,
         })
       } else {
         await createInstallmentPlan({
@@ -90,7 +90,7 @@ export function InstallmentPlanSheet({
           installmentAmount: amount,
           totalCount: count,
           startDate,
-          defaultAccountId: accountId,
+          defaultAccountId: accountId || undefined,
         })
       }
       notifyUser(plan ? 'برنامه اقساط به‌روزرسانی شد' : 'برنامه جدید اقساط ساخته شد')
@@ -123,12 +123,26 @@ export function InstallmentPlanSheet({
 
   if (picker === 'account') {
     return (
-      <PickerSheet title="حساب پرداخت" onClose={() => setPicker(null)}>
+      <PickerSheet title="حساب پرداخت (اختیاری)" onClose={() => setPicker(null)}>
+        <button
+          type="button"
+          className={`option-item lg-row${!accountId ? ' active' : ''}`}
+          onClick={() => {
+            setAccountId('')
+            setPicker(null)
+          }}
+        >
+          <span className="oico">🚫</span>
+          <div>
+            <div className="otitle">بدون حساب پرداخت (کسر نشود)</div>
+            <div className="osub">در صورت عدم انتخاب حساب، هنگام پرداخت قسط از موجودی حسابی کسر نمی‌شود</div>
+          </div>
+        </button>
         {activeAccounts.map((a) => (
           <button
             key={a.id}
             type="button"
-            className="option-item lg-row"
+            className={`option-item lg-row${a.id === accountId ? ' active' : ''}`}
             onClick={() => {
               setAccountId(a.id)
               setPicker(null)
@@ -187,14 +201,14 @@ export function InstallmentPlanSheet({
 
   const lastDiffers = Boolean(schedule && schedule.amounts[0] !== schedule.amounts[schedule.amounts.length - 1])
   const invalid = locked
-    ? validatePlanUpdate({ name, defaultAccountId: accountId }, planItems, activeAccounts)
+    ? validatePlanUpdate({ name, defaultAccountId: accountId || undefined }, planItems, activeAccounts)
     : validatePlanInput(
         {
           name,
           installmentAmount: kind === 'loan' ? (schedule?.monthlyPayment ?? 0) : amount,
           totalCount: count,
           startDate,
-          defaultAccountId: accountId,
+          defaultAccountId: accountId || undefined,
           kind,
           principal: kind === 'loan' ? principal : undefined,
           annualRatePercent: kind === 'loan' ? rate : undefined,
@@ -392,9 +406,14 @@ export function InstallmentPlanSheet({
           <button className="field-chip" type="button" onClick={() => setPicker('account')}>
             <span className="ficon">💳</span>
             <div style={{ flex: 1 }}>
-              <div className="flabel">حساب پرداخت</div>
+              <div className="flabel">حساب پرداخت (اختیاری)</div>
               <div className={account ? 'fvalue' : 'fvalue placeholder-val'}>
-                {account?.name ?? 'انتخاب حساب…'}
+                {account?.name ?? 'بدون حساب پرداخت (کسر نشود)'}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--hy-text-tertiary)', marginTop: 2 }}>
+                {account
+                  ? 'هنگام پرداخت قسط، مبلغ قسط از این حساب کسر می‌شود'
+                  : 'اختیاری — در صورت تعیین حساب، هنگام پرداخت از آن کسر خواهد شد'}
               </div>
             </div>
             <span className="fchev">‹</span>

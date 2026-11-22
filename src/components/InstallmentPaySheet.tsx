@@ -23,24 +23,28 @@ export function InstallmentPaySheet({
   onMinimize?: () => void
 }) {
   const { activeAccounts, customCategories, payInstallment } = useStore()
-  const [accountId, setAccountId] = useState(plan.defaultAccountId)
+  const [accountId, setAccountId] = useState(plan.defaultAccountId ?? '')
   const [categoryId, setCategoryId] = useState<string>(plan.categoryId ?? INSTALLMENT_CATEGORY_ID)
   const [note, setNote] = useState(defaultPayNote(plan.name, item.index, plan.totalCount))
   const [picker, setPicker] = useState<'account' | 'category' | 'note' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
-  const account = activeAccounts.find((a) => a.id === accountId)
+  const account = accountId ? activeAccounts.find((a) => a.id === accountId) : undefined
   const category = getCategory(categoryId, customCategories) || getCategory(INSTALLMENT_CATEGORY_ID)
   const insufficient = Boolean(account && item.amount > account.balance)
-  const disabled = saving || !account || insufficient
+  const disabled = saving || insufficient
 
   async function submit() {
     setError(null)
     setSaving(true)
     try {
-      await payInstallment(item.id, accountId, note)
-      notifyUser(`قسط ${toFaDigits(item.index)} پرداخت شد`)
+      await payInstallment(item.id, account ? account.id : undefined, note, categoryId)
+      notifyUser(
+        account
+          ? `قسط ${toFaDigits(item.index)} پرداخت و از «${account.name}» کسر شد`
+          : `پرداخت قسط ${toFaDigits(item.index)} ثبت شد`,
+      )
       onClose()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'پرداخت نشد'
@@ -53,12 +57,26 @@ export function InstallmentPaySheet({
 
   if (picker === 'account') {
     return (
-      <PickerSheet title="حساب پرداخت" onClose={() => setPicker(null)}>
+      <PickerSheet title="حساب پرداخت (اختیاری)" onClose={() => setPicker(null)}>
+        <button
+          type="button"
+          className={`option-item lg-light${!accountId ? ' active' : ''}`}
+          onClick={() => {
+            setAccountId('')
+            setPicker(null)
+          }}
+        >
+          <span className="oico">🚫</span>
+          <div>
+            <div className="otitle">بدون حساب پرداخت (کسر نشود)</div>
+            <div className="osub">قسط به‌عنوان پرداخت‌شده ثبت می‌شود بدون کسر از موجودی حساب</div>
+          </div>
+        </button>
         {activeAccounts.map((a) => (
           <button
             key={a.id}
             type="button"
-            className="option-item lg-light"
+            className={`option-item lg-light${a.id === accountId ? ' active' : ''}`}
             onClick={() => {
               setAccountId(a.id)
               setPicker(null)
@@ -139,9 +157,9 @@ export function InstallmentPaySheet({
           >
             <span className="ficon">💳</span>
             <div style={{ flex: 1 }}>
-              <div className="flabel">حساب پرداخت</div>
+              <div className="flabel">حساب پرداخت (اختیاری)</div>
               <div className={account ? 'fvalue' : 'fvalue placeholder-val'}>
-                {account?.name ?? 'انتخاب حساب…'}
+                {account?.name ?? 'بدون حساب پرداخت (کسر نشود)'}
               </div>
               {account ? (
                 <div className="avail-hint">
@@ -150,7 +168,11 @@ export function InstallmentPaySheet({
                     {formatRial(account.balance)} ریال
                   </strong>
                 </div>
-              ) : null}
+              ) : (
+                <div className="avail-hint">
+                  در صورت انتخاب حساب، مبلغ قسط از موجودی آن حساب کسر می‌شود
+                </div>
+              )}
             </div>
             <span className="fchev">‹</span>
           </button>
@@ -197,7 +219,11 @@ export function InstallmentPaySheet({
             disabled={disabled}
             onClick={() => void submit()}
           >
-            {saving ? 'در حال پرداخت…' : `پرداخت و ثبت هزینه (${formatRial(item.amount)} ریال)`}
+            {saving
+              ? 'در حال پرداخت…'
+              : account
+                ? `پرداخت و کسر از حساب (${formatRial(item.amount)} ریال)`
+                : `ثبت پرداخت قسط (بدون کسر از حساب)`}
           </button>
         </div>
       </div>
