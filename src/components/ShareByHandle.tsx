@@ -144,7 +144,7 @@ export function IncomingShares() {
     <section className="lg report-card share-incoming" style={{ margin: '14px 0' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0, color: 'var(--hy-text)' }}>
-          🤝 با شناسهٔ من به اشتراک گذاشته شده (حساب‌ها و کارت‌های مشترک)
+          👥 با شناسهٔ من به اشتراک گذاشته شده (حساب‌ها و کارت‌های مشترک)
         </h2>
         <span
           style={{
@@ -188,7 +188,8 @@ export function IncomingShares() {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>{item.assetKind === 'card' ? '💳 کارت مشترک' : '🏦 حساب مشترک'}</span>
+                <span>{item.assetKind === 'card' ? '💳' : '🏦'}</span>
+                <span>{item.assetKind === 'card' ? 'کارت مشترک' : 'حساب مشترک'}</span>
                 <span style={{ color: 'var(--hy-accent)' }}>· {item.assetName}</span>
               </div>
               <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)', fontWeight: 600 }}>

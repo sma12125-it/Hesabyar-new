@@ -10,12 +10,12 @@ export function AboutContent({ onClose }: { onClose?: () => void }) {
 
   const features = [
     {
-      icon: '⚡',
+      icon: '💳',
       title: 'کیف کارت و حساب سریع با فهرست کرکره‌ای و کپی انتخابی',
       desc: 'دسترسی تک‌لمسی از صفحه خانه، منوی ثبت سریع (+)، نوار کناری دسکتاپ و کلید Alt+C؛ نمایش فهرست کارت‌ها به‌صورت کرکره‌ای همراه با تصویر کارت بانکی، منوی یکپارچه کپی انتخابی (کارت، شبا، حساب، CVV یا مشخصات کامل) و اشتراک‌گذاری فوری اطلاعات کارت.',
     },
     {
-      icon: '🛡️',
+      icon: '🔐',
       title: 'امنیت یکپارچه، اثر انگشت / چهره واقعی، پین سریع و دسترسی خودکار به کارت‌ها',
       desc: 'حذف کامل بخش و رمز جداگانه گاوصندوق؛ به محض ورود به حساب‌یار با رمز عبور، حسگر واقعی اثر انگشت/تشخیص چهره (محلی روی دستگاه بدون نیاز به Passkey ابری)، پین عددی یا الگو، کارت‌های شما به‌طور خودکار در دسترس هستند.',
     },
@@ -27,21 +27,21 @@ export function AboutContent({ onClose }: { onClose?: () => void }) {
     {
       icon: '✨',
       title: 'منوی ثبت سریع چندمنظوره (+) با دسترسی سراسری',
-      desc: 'دسترسی فوری از تمام صفحات به کیف کارت سریع، ثبت تراکنش درآمد و هزینه، قسط و وام، بدهی و طلب شخصی، چک صیادی، دونگ سفر و دستیار صوتی هوشمند.',
+      desc: 'دسترسی فوری از تمام صفحات به کیف کارت سریع، ثبت تراکنش درآمد و هزینه، قسط و وام، بدهی و طلب شخصی، چک صیادی، دونگ سفر و ثبت صوتی.',
     },
     {
       icon: '🎙️',
-      title: 'دستیار صوتی هوشمند با نمایش زنده امواج صدا',
-      desc: 'ثبت بدون تایپ تراکنش‌ها از طریق گفتار زنده، سازگاری کامل با میکروفن در وب‌اپ، PWA و مرورگرهای موبایل، استخراج خودکار مبالغ و تشخیص هوشمند دسته‌بندی.',
+      title: 'ثبت صوتی تراکنش با نمایش زنده امواج صدا',
+      desc: 'ثبت بدون تایپ تراکنش‌ها از طریق گفتار زنده، سازگاری کامل با میکروفن در وب‌اپ، PWA و مرورگرهای موبایل، استخراج خودکار مبالغ و تشخیص دسته‌بندی.',
     },
     {
-      icon: '💳',
+      icon: '🏦',
       title: 'مدیریت حساب‌ها، کارت‌ها و جیب‌های مالی تفکیک‌شده',
-      desc: 'تفکیک حساب‌های نقدی و جاری، اعتباری و پس‌انداز/سرمایه‌گذاری، تعریف جیب‌های مستقل برای حساب‌ها و تشخیص هوشمند نام و رنگ بانک از شماره کارت.',
+      desc: 'تفکیک حساب‌های نقدی و جاری، اعتباری و پس‌انداز/سرمایه‌گذاری، تعریف جیب‌های مستقل برای حساب‌ها و تشخیص نام و رنگ بانک از شماره کارت.',
     },
     {
       icon: '📩',
-      title: 'هوشمندسازی پیامک‌های بانکی و صف تأیید تراکنش‌ها',
+      title: 'پردازش پیامک‌های بانکی و صف تأیید تراکنش‌ها',
       desc: 'شناسایی واریز و برداشت از پیامک‌های بانکی کشور، صف تراکنش‌های در انتظار تأیید با نشانگر زنده در هدر، و خواندن سریع از کلیپ‌بورد.',
     },
     {
@@ -50,7 +50,7 @@ export function AboutContent({ onClose }: { onClose?: () => void }) {
       desc: 'تعیین مادرخرج و سهم صندوق، تسویه خودکار نفر به نفر و گروه به گروه، مدیریت دسترسی مدیر رویداد و همگام‌سازی لحظه‌ای بین اعضا.',
     },
     {
-      icon: '📅',
+      icon: '🗓️',
       title: 'مدیریت اقساط، وام‌ها، چک‌های صیادی و بدهی/طلب',
       desc: 'پیگیری وام‌های بانکی با جدول اقساط و بایگانی خودکار پس از تسویه، دفتر ثبت چک‌های دریافتی و صادره با یادآوری سررسید، و ثبت طلب و بدهی شخصی.',
     },
@@ -61,7 +61,7 @@ export function AboutContent({ onClose }: { onClose?: () => void }) {
     },
     {
       icon: '📊',
-      title: 'بودجه‌بندی ماهانه هوشمند و اهداف پس‌انداز مالی',
+      title: 'بودجه‌بندی ماهانه و اهداف پس‌انداز مالی',
       desc: 'تعریف سقف هزینه برای هر دسته‌بندی با نمودارهای تحلیلی مقایسه‌ای، تعیین هدف‌های مالی کوتاه‌مدت و بلندمدت و پیگیری پیشرفت.',
     },
     {
@@ -80,23 +80,22 @@ export function AboutContent({ onClose }: { onClose?: () => void }) {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: '4px 2px 16px' }}>
-      {/* Brand Hero */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '4px 2px 16px' }}>
       <div
         style={{
           padding: '20px 16px',
-          borderRadius: 18,
-          background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.18) 0%, rgba(15, 118, 110, 0.22) 100%)',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
+          borderRadius: 20,
+          background: 'linear-gradient(135deg, rgba(13, 148, 136, 0.18), rgba(56, 189, 248, 0.12))',
+          border: '1px solid rgba(13, 148, 136, 0.35)',
           textAlign: 'center',
         }}
       >
-        <div style={{ fontSize: 44, marginBottom: 6 }}>💎</div>
+        <div style={{ fontSize: 42, lineHeight: 1, marginBottom: 8 }}>💰</div>
         <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0, color: 'var(--hy-text)' }}>
           حساب‌یار (HesabYar)
         </h2>
         <p style={{ fontSize: 13, color: 'var(--hy-text-secondary)', marginTop: 4 }}>
-          دستیار هوشمند و جامع مدیریت مالی شخصی، کارت‌ها، پس‌انداز و سرمایه‌گذاری
+          دستیار جامع و یکپارچه مدیریت مالی شخصی، حساب‌ها، کارت‌ها، اقساط و سرمایه‌گذاری
         </p>
 
         <div
@@ -104,30 +103,33 @@ export function AboutContent({ onClose }: { onClose?: () => void }) {
             display: 'inline-flex',
             alignItems: 'center',
             gap: 10,
-            marginTop: 10,
-            fontSize: 12,
+            marginTop: 8,
+            padding: '4px 12px',
+            borderRadius: 99,
+            background: 'rgba(13, 148, 136, 0.2)',
+            border: '1px solid rgba(13, 148, 136, 0.35)',
+            fontSize: 11.5,
             fontWeight: 700,
-            color: 'var(--hy-text)',
+            color: 'var(--hy-teal)',
           }}
         >
           <span>نسخه {toFaDigits(version)}</span>
-          <span aria-hidden="true" style={{ opacity: 0.4 }}>·</span>
+          <span aria-hidden="true">•</span>
           <span>آخرین بروزرسانی: {toFaDigits(updateDate)}</span>
         </div>
       </div>
 
-      {/* Changelog v0.4.0 */}
       <div
         style={{
           padding: '14px 16px',
           borderRadius: 16,
-          background: 'rgba(16, 185, 129, 0.14)',
-          border: '1.5px solid rgba(16, 185, 129, 0.45)',
+          background: 'rgba(16, 185, 129, 0.1)',
+          border: '1px solid rgba(16, 185, 129, 0.28)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-          <span style={{ fontSize: 16 }}>🌟</span>
-          <span style={{ fontWeight: 800, fontSize: 14, color: 'var(--hy-income)' }}>
+          <span style={{ fontSize: 16 }}>✨</span>
+          <span style={{ fontWeight: 800, fontSize: 13.5, color: 'var(--hy-income)' }}>
             تغییرات و قابلیت‌های تازه در نسخه {toFaDigits(version)} (نگارش فعلی)
           </span>
         </div>
@@ -138,31 +140,30 @@ export function AboutContent({ onClose }: { onClose?: () => void }) {
         </ul>
       </div>
 
-      {/* All Features Grid */}
       <div>
         <h3 style={{ fontSize: 14, fontWeight: 800, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span>⭐</span>
+          <span>🚀</span>
           <span>امکانات و قابلیت‌های اصلی حساب‌یار</span>
         </h3>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {features.map((f, i) => (
             <div
               key={i}
               style={{
                 padding: '12px 14px',
                 borderRadius: 14,
-                background: 'rgba(255, 255, 255, 0.04)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
+                background: 'var(--hy-input-bg)',
+                border: '1px solid var(--hy-border-color)',
                 display: 'flex',
                 gap: 12,
                 alignItems: 'flex-start',
               }}
             >
-              <span style={{ fontSize: 22, marginTop: 2 }}>{f.icon}</span>
+              <span style={{ fontSize: 22, lineHeight: 1.2, flexShrink: 0 }}>{f.icon}</span>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--hy-text)' }}>{f.title}</div>
-                <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 3, lineHeight: 1.6 }}>
+                <div style={{ fontSize: 11.5, color: 'var(--hy-text-secondary)', marginTop: 3, lineHeight: 1.6 }}>
                   {f.desc}
                 </div>
               </div>
@@ -171,13 +172,12 @@ export function AboutContent({ onClose }: { onClose?: () => void }) {
         </div>
       </div>
 
-      {/* Developer & Project info */}
       <div
         style={{
           padding: '14px 16px',
-          borderRadius: 16,
-          background: 'rgba(255, 255, 255, 0.03)',
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          borderRadius: 14,
+          background: 'var(--hy-input-bg)',
+          border: '1px solid var(--hy-border-color)',
           fontSize: 12,
           lineHeight: 1.8,
           color: 'var(--hy-text-secondary)',
@@ -186,7 +186,7 @@ export function AboutContent({ onClose }: { onClose?: () => void }) {
         <div><strong>سازنده:</strong> محمد احمدی</div>
         <div><strong>محیط توسعه:</strong> React 19 + TypeScript + Vite + PWA Offline First</div>
         <div><strong>نگارش و تاریخ انتشار:</strong> نسخه {toFaDigits(version)} · {toFaDigits(updateDate)}</div>
-        <div style={{ marginTop: 8, fontSize: 11, opacity: 0.7 }}>
+        <div style={{ marginTop: 8, fontSize: 11, opacity: 0.75 }}>
           کلیه حقوق این نرم‌افزار متعلق به توسعه‌دهنده می‌باشد. داده‌های شما با رمزنگاری استاندارد و به‌صورت کاملاً خصوصی ذخیره می‌شوند.
         </div>
       </div>

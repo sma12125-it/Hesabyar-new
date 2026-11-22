@@ -299,18 +299,6 @@ export function AccountsPage({
             onClick={() => window.dispatchEvent(new CustomEvent('hy:open-drawer'))}
             title="منوی ناوبری سایدبار"
             aria-label="منوی ناوبری سایدبار"
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 12,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'var(--hy-input-bg, rgba(255, 255, 255, 0.08))',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 20,
-            }}
           >
             ☰
           </button>
@@ -328,27 +316,27 @@ export function AccountsPage({
           style={{
             margin: '14px 0',
             padding: '12px 14px',
-            borderRadius: 16,
-            background: 'linear-gradient(135deg, rgba(15, 118, 110, 0.16) 0%, rgba(30, 27, 75, 0.25) 100%)',
-            border: '1.5px solid var(--hy-teal)',
+            borderRadius: 14,
+            background: 'color-mix(in srgb, var(--hy-teal) 8%, var(--glass-chrome))',
+            border: '1px solid color-mix(in srgb, var(--hy-teal) 45%, transparent)',
             display: 'flex',
             flexDirection: 'column',
             gap: 10,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, fontSize: 13, color: 'var(--hy-teal)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontWeight: 700, fontSize: 13, color: 'var(--hy-teal)' }}>
               <span>🔔</span>
-              <span>دعوتنامه اشتراک حساب یا کارت جدید</span>
+              <span>دعوت‌نامه اشتراک حساب یا کارت جدید</span>
             </div>
             <span
               style={{
-                fontSize: 10,
+                fontSize: 11,
                 padding: '2px 8px',
                 borderRadius: 6,
-                background: 'rgba(16, 185, 129, 0.2)',
+                background: 'color-mix(in srgb, var(--hy-income) 14%, transparent)',
                 color: 'var(--hy-income, #10b981)',
-                fontWeight: 800,
+                fontWeight: 700,
               }}
             >
               {toFaDigits(pendingShares.length)} مورد
@@ -363,19 +351,20 @@ export function AccountsPage({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
+                  gap: 10,
                   padding: '10px 12px',
                   borderRadius: 12,
                   background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  gap: 10,
+                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  flexWrap: 'wrap',
                 }}
               >
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>
-                    {share.assetKind === 'card' ? '💳 کارت مشترک: ' : '🏦 حساب مشترک: '}
-                    {share.assetName}
+                  <div style={{ fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>{share.assetKind === 'card' ? '💳' : '🏦'}</span>
+                    <span>{share.assetKind === 'card' ? 'کارت مشترک: ' : 'حساب مشترک: '}{share.assetName}</span>
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
+                  <div style={{ fontSize: 11.5, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
                     از طرف: <strong>{share.ownerDisplayName || `کاربر ${share.ownerUserId}`}</strong>
                   </div>
                 </div>
@@ -385,11 +374,14 @@ export function AccountsPage({
                     type="button"
                     className="cat-mini"
                     style={{
-                      background: 'var(--hy-teal, #0ea5e9)',
+                      background: 'var(--hy-teal)',
                       color: '#fff',
                       border: 'none',
-                      fontWeight: 800,
+                      fontWeight: 700,
                       padding: '6px 12px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
                     }}
                     onClick={async () => {
                       await respondIncomingShare(share.id, 'accept')
@@ -427,24 +419,26 @@ export function AccountsPage({
                           recipientUserId: myUserId,
                         })
                       }
-                      notifyUser(`«${share.assetName}» به لیست شما افزوده شد ✨`)
+                      notifyUser(`«${share.assetName}» به لیست شما افزوده شد`)
                       void loadIncoming()
                     }}
                   >
-                    ✅ تأیید و افزودن
+                    <span>✓</span>
+                    <span>تأیید و افزودن</span>
                   </button>
 
                   <button
                     type="button"
                     className="cat-mini danger"
-                    style={{ padding: '6px 10px' }}
+                    style={{ padding: '6px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
                     onClick={async () => {
                       await respondIncomingShare(share.id, 'reject')
-                      notifyUser('دعوتنامه رد شد')
+                      notifyUser('دعوت‌نامه رد شد')
                       void loadIncoming()
                     }}
                   >
-                    ✕ رد
+                    <span>✕</span>
+                    <span>رد</span>
                   </button>
                 </div>
               </div>
@@ -467,21 +461,20 @@ export function AccountsPage({
           onClick={() => setActiveTab('cash')}
           style={{
             padding: '14px 16px',
-            borderRadius: 18,
-            background: activeTab === 'cash' ? 'rgba(15, 118, 110, 0.22)' : 'var(--glass-chrome)',
-            border: activeTab === 'cash' ? '1.5px solid var(--hy-teal)' : 'var(--glass-border)',
+            borderRadius: 14,
+            background: activeTab === 'cash' ? 'color-mix(in srgb, var(--hy-teal) 10%, var(--glass-chrome))' : 'var(--glass-chrome)',
+            border: activeTab === 'cash' ? '1.5px solid var(--hy-teal)' : '1px solid var(--hy-border-color)',
             cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            boxShadow: activeTab === 'cash' ? '0 8px 24px rgba(15, 118, 110, 0.2)' : 'none',
+            transition: 'border-color 0.15s ease, background 0.15s ease',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--hy-text-secondary)' }}>
               مجموع موجودی نقدی
             </span>
-            <span style={{ fontSize: 16 }}>💵</span>
+            <span>💵</span>
           </div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--hy-teal)', margin: '6px 0 4px' }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--hy-teal)', margin: '6px 0 4px' }}>
             {formatMoney(cashTotal)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--hy-subtext)' }}>
@@ -494,21 +487,20 @@ export function AccountsPage({
           onClick={() => setActiveTab('credit')}
           style={{
             padding: '14px 16px',
-            borderRadius: 18,
-            background: activeTab === 'credit' ? 'rgba(56, 189, 248, 0.18)' : 'var(--glass-chrome)',
-            border: activeTab === 'credit' ? '1.5px solid var(--hy-transfer)' : 'var(--glass-border)',
+            borderRadius: 14,
+            background: activeTab === 'credit' ? 'color-mix(in srgb, var(--hy-transfer) 10%, var(--glass-chrome))' : 'var(--glass-chrome)',
+            border: activeTab === 'credit' ? '1.5px solid var(--hy-transfer)' : '1px solid var(--hy-border-color)',
             cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            boxShadow: activeTab === 'credit' ? '0 8px 24px color-mix(in srgb, var(--hy-transfer) 28%, transparent)' : 'none',
+            transition: 'border-color 0.15s ease, background 0.15s ease',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--hy-text-secondary)' }}>
               مجموع موجودی اعتباری
             </span>
-            <span style={{ fontSize: 16 }}>💳</span>
+            <span>💳</span>
           </div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--hy-transfer)', margin: '6px 0 4px' }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--hy-transfer)', margin: '6px 0 4px' }}>
             {formatMoney(creditTotal)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--hy-subtext)' }}>
@@ -521,21 +513,20 @@ export function AccountsPage({
           onClick={() => setActiveTab('investment')}
           style={{
             padding: '14px 16px',
-            borderRadius: 18,
-            background: activeTab === 'investment' ? 'rgba(192, 132, 252, 0.18)' : 'var(--glass-chrome)',
-            border: activeTab === 'investment' ? '1.5px solid var(--hy-violet)' : 'var(--glass-border)',
+            borderRadius: 14,
+            background: activeTab === 'investment' ? 'color-mix(in srgb, var(--hy-violet) 10%, var(--glass-chrome))' : 'var(--glass-chrome)',
+            border: activeTab === 'investment' ? '1.5px solid var(--hy-violet)' : '1px solid var(--hy-border-color)',
             cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            boxShadow: activeTab === 'investment' ? '0 8px 24px rgba(192, 132, 252, 0.2)' : 'none',
+            transition: 'border-color 0.15s ease, background 0.15s ease',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--hy-text-secondary)' }}>
               پس‌انداز و سرمایه‌گذاری
             </span>
-            <span style={{ fontSize: 16 }}>📈</span>
+            <span>📈</span>
           </div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: 'var(--hy-violet)', margin: '6px 0 4px' }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--hy-violet)', margin: '6px 0 4px' }}>
             {formatMoney(investmentTotal)}
           </div>
           <div style={{ fontSize: 11, color: 'var(--hy-subtext)' }}>
@@ -550,29 +541,32 @@ export function AccountsPage({
           type="button"
           className={`seg-btn${activeTab === 'cash' ? ' active' : ''}`}
           onClick={() => setActiveTab('cash')}
-          style={{ padding: '8px 10px', fontSize: 12, fontWeight: 700 }}
+          style={{ padding: '8px 10px', fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
         >
-          💵 نقدی و جاری ({toFaDigits(cashAccounts.length)})
+          <span>💵</span>
+          <span>نقدی و جاری ({toFaDigits(cashAccounts.length)})</span>
         </button>
         <button
           type="button"
           className={`seg-btn${activeTab === 'credit' ? ' active' : ''}`}
           onClick={() => setActiveTab('credit')}
-          style={{ padding: '8px 10px', fontSize: 12, fontWeight: 700 }}
+          style={{ padding: '8px 10px', fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
         >
-          💳 اعتباری و خرید ({toFaDigits(creditAccounts.length)})
+          <span>💳</span>
+          <span>اعتباری و خرید ({toFaDigits(creditAccounts.length)})</span>
         </button>
         <button
           type="button"
           className={`seg-btn${activeTab === 'investment' ? ' active' : ''}`}
           onClick={() => setActiveTab('investment')}
-          style={{ padding: '8px 10px', fontSize: 12, fontWeight: 700 }}
+          style={{ padding: '8px 10px', fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
         >
-          📈 پس‌انداز و سرمایه ({toFaDigits(investmentAccounts.length)})
+          <span>📈</span>
+          <span>پس‌انداز و سرمایه ({toFaDigits(investmentAccounts.length)})</span>
         </button>
       </div>
 
-      {/* Request 3: Two Separate Tabs (حساب‌ها و کارت‌ها) for the Active Classification */}
+      {/* Two Separate Tabs (حساب‌ها و کارت‌ها) for the Active Classification */}
       <div
         style={{
           display: 'flex',
@@ -580,52 +574,67 @@ export function AccountsPage({
           justifyContent: 'space-between',
           flexWrap: 'wrap',
           gap: 10,
-          margin: '12px 0 16px',
+          margin: '12px 0 14px',
           padding: '8px 12px',
-          background: 'rgba(255, 255, 255, 0.04)',
-          borderRadius: 16,
-          border: '1px solid rgba(255, 255, 255, 0.08)',
+          background: 'var(--hy-input-bg)',
+          borderRadius: 14,
+          border: '1px solid var(--hy-border-color)',
         }}
       >
-        {/* Two Tabs: Accounts vs Cards */}
         <div style={{ display: 'flex', gap: 6 }}>
           <button
             type="button"
             className={`cat-mini${subTab === 'accounts' ? ' active' : ''}`}
             onClick={() => setSubTab('accounts')}
             style={{
-              padding: '6px 14px',
+              padding: '6px 12px',
               fontSize: 12,
               fontWeight: 700,
-              borderRadius: 12,
+              borderRadius: 10,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
             }}
           >
-            🏦 حساب‌ها ({toFaDigits(currentTabAccounts.length)})
+            <span>🏦</span>
+            <span>حساب‌ها ({toFaDigits(currentTabAccounts.length)})</span>
           </button>
           <button
             type="button"
             className={`cat-mini${subTab === 'cards' ? ' active' : ''}`}
             onClick={() => setSubTab('cards')}
             style={{
-              padding: '6px 14px',
+              padding: '6px 12px',
               fontSize: 12,
               fontWeight: 700,
-              borderRadius: 12,
+              borderRadius: 10,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
             }}
           >
-            💳 کارت‌ها ({toFaDigits(currentTabCards.length)})
+            <span>💳</span>
+            <span>کارت‌ها ({toFaDigits(currentTabCards.length)})</span>
           </button>
         </div>
 
-        {/* Action Buttons for both creating accounts and cards (Request 1) */}
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <button
             type="button"
             className="cat-mini"
             onClick={() => window.dispatchEvent(new CustomEvent('hy-new-account'))}
-            style={{ fontSize: 11, padding: '6px 12px', background: 'rgba(15, 118, 110, 0.2)', color: 'var(--hy-teal)' }}
+            style={{
+              fontSize: 11.5,
+              padding: '6px 12px',
+              background: 'color-mix(in srgb, var(--hy-teal) 14%, transparent)',
+              color: 'var(--hy-teal)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+            }}
           >
-            ＋ ایجاد حساب جدید
+            <span>＋</span>
+            <span>حساب جدید</span>
           </button>
           <button
             type="button"
@@ -634,14 +643,23 @@ export function AccountsPage({
               setSubTab('cards')
               setCardId(null)
             }}
-            style={{ fontSize: 11, padding: '6px 12px', background: 'color-mix(in srgb, var(--hy-transfer) 20%, transparent)', color: 'var(--hy-transfer)' }}
+            style={{
+              fontSize: 11.5,
+              padding: '6px 12px',
+              background: 'color-mix(in srgb, var(--hy-transfer) 14%, transparent)',
+              color: 'var(--hy-transfer)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 5,
+            }}
           >
-            ＋ ایجاد کارت جدید
+            <span>＋</span>
+            <span>کارت جدید</span>
           </button>
         </div>
       </div>
 
-      {/* Request 13: Sorting Bar for Accounts or Cards */}
+      {/* Sorting Bar */}
       <div
         style={{
           display: 'flex',
@@ -650,109 +668,99 @@ export function AccountsPage({
           flexWrap: 'wrap',
           gap: 8,
           marginBottom: 14,
-          padding: '6px 10px',
+          padding: '4px 6px',
         }}
       >
-        <div style={{ fontSize: 12, color: 'var(--hy-text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span>🔄 ترتیب و مرتب‌سازی:</span>
+        <div style={{ fontSize: 12, color: 'var(--hy-text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span>⇅</span>
+          <span>مرتب‌سازی:</span>
         </div>
 
         {subTab === 'accounts' ? (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginLeft: 4 }}>ترتیب:</span>
             <button
               type="button"
               className={`cat-mini${accountSort === 'balance-desc' ? ' active' : ''}`}
               onClick={() => setAccountSort('balance-desc')}
-              title="بیشترین موجودی"
-              aria-label="بیشترین موجودی"
-              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
+              style={{ fontSize: 11.5, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
             >
-              💰↓
+              <span>🔽</span>
+              <span>بیشترین موجودی</span>
             </button>
             <button
               type="button"
               className={`cat-mini${accountSort === 'balance-asc' ? ' active' : ''}`}
               onClick={() => setAccountSort('balance-asc')}
-              title="کمترین موجودی"
-              aria-label="کمترین موجودی"
-              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
+              style={{ fontSize: 11.5, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
             >
-              💰↑
+              <span>🔼</span>
+              <span>کمترین موجودی</span>
             </button>
             <button
               type="button"
               className={`cat-mini${accountSort === 'usage' ? ' active' : ''}`}
               onClick={() => setAccountSort('usage')}
-              title="بیشترین استفاده (تعداد تراکنش)"
-              aria-label="بیشترین استفاده"
-              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
+              style={{ fontSize: 11.5, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
             >
-              🔥
+              <span>🔥</span>
+              <span>پرتراکنش‌ترین</span>
             </button>
             <button
               type="button"
               className={`cat-mini${accountSort === 'name' ? ' active' : ''}`}
               onClick={() => setAccountSort('name')}
-              title="مرتب‌سازی بر اساس الفبا"
-              aria-label="مرتب‌سازی بر اساس الفبا"
-              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
+              style={{ fontSize: 11.5, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
             >
-              🔤
+              <span>🔤</span>
+              <span>نام</span>
             </button>
             <button
               type="button"
               className={`cat-mini${accountSort === 'manual' ? ' active' : ''}`}
               onClick={() => setAccountSort('manual')}
-              title="دست‌چین (جابجایی دستی)"
-              aria-label="جابجایی دستی"
-              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
+              style={{ fontSize: 11.5, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
             >
-              ↕️
+              <span>↕️</span>
+              <span>دستی</span>
             </button>
           </div>
         ) : (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-            <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginLeft: 4 }}>ترتیب:</span>
             <button
               type="button"
               className={`cat-mini${cardSort === 'default' ? ' active' : ''}`}
               onClick={() => setCardSort('default')}
-              title="پیش‌فرض سیستم"
-              aria-label="پیش‌فرض"
-              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
+              style={{ fontSize: 11.5, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
             >
-              ⚡
+              <span>📑</span>
+              <span>پیش‌فرض</span>
             </button>
             <button
               type="button"
               className={`cat-mini${cardSort === 'expiry' ? ' active' : ''}`}
               onClick={() => setCardSort('expiry')}
-              title="تاریخ انقضا"
-              aria-label="تاریخ انقضا"
-              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
+              style={{ fontSize: 11.5, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
             >
-              📅
+              <span>📅</span>
+              <span>انقضا</span>
             </button>
             <button
               type="button"
               className={`cat-mini${cardSort === 'name' ? ' active' : ''}`}
               onClick={() => setCardSort('name')}
-              title="نام بانک و دارنده"
-              aria-label="نام بانک و دارنده"
-              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
+              style={{ fontSize: 11.5, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
             >
-              👤
+              <span>👤</span>
+              <span>دارنده / بانک</span>
             </button>
             <button
               type="button"
               className={`cat-mini${cardSort === 'manual' ? ' active' : ''}`}
               onClick={() => setCardSort('manual')}
-              title="دست‌چین (جابجایی دستی)"
-              aria-label="جابجایی دستی"
-              style={{ fontSize: 13, padding: '4px 10px', minWidth: 36, display: 'inline-flex', justifyContent: 'center' }}
+              style={{ fontSize: 11.5, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}
             >
-              ↕️
+              <span>↕️</span>
+              <span>دستی</span>
             </button>
           </div>
         )}
@@ -767,7 +775,9 @@ export function AccountsPage({
 
           {currentTabAccounts.length === 0 ? (
             <div className="empty-state" style={{ padding: '24px 16px', margin: '8px 0' }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>{tabLabels[activeTab].icon}</div>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>
+                {tabLabels[activeTab].icon}
+              </div>
               <h3 style={{ fontSize: 14, margin: '0 0 4px', fontWeight: 700 }}>
                 حسابی در بخش {tabLabels[activeTab].title} ثبت نشده است
               </h3>
@@ -832,9 +842,10 @@ export function AccountsPage({
                           width: 26,
                           height: 22,
                           borderRadius: 6,
-                          border: '1px solid rgba(255, 255, 255, 0.2)',
-                          background: 'rgba(255, 255, 255, 0.08)',
-                          color: idx === currentTabAccounts.length - 1 ? 'rgba(255, 255, 255, 0.2)' : 'var(--hy-text)',
+                          border: '1px solid var(--hy-border-color)',
+                          background: 'var(--hy-hover)',
+                          color: idx === currentTabAccounts.length - 1 ? 'var(--hy-text-tertiary)' : 'var(--hy-text)',
+                          opacity: idx === currentTabAccounts.length - 1 ? 0.35 : 1,
                           cursor: idx === currentTabAccounts.length - 1 ? 'default' : 'pointer',
                           display: 'grid',
                           placeItems: 'center',
@@ -862,16 +873,20 @@ export function AccountsPage({
                         padding: '6px 10px',
                         fontSize: 11,
                         fontWeight: 700,
-                        background: 'rgba(16, 185, 129, 0.15)',
+                        background: 'rgba(16, 185, 129, 0.14)',
                         color: 'var(--hy-income, #10b981)',
                         border: '1px solid rgba(16, 185, 129, 0.3)',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
                       }}
                       onClick={(e) => {
                         e.stopPropagation()
                         setSelectedSharedAsset({ kind: 'account', account })
                       }}
                     >
-                      ℹ️ مشخصات اشتراک
+                      <span>ℹ️</span>
+                      <span>مشخصات اشتراک</span>
                     </button>
                   ) : null}
                 </div>
@@ -909,7 +924,9 @@ export function AccountsPage({
               ) : null}
               {currentTabCards.length === 0 && !((vaultConfigured && !unlocked) || hasRecoverableBackup) ? (
                 <div className="empty-state" style={{ padding: '24px 16px', margin: '8px 0' }}>
-                  <div style={{ fontSize: 32, marginBottom: 8 }}>💳</div>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>
+                    💳
+                  </div>
                   <h3 style={{ fontSize: 14, margin: '0 0 4px', fontWeight: 700 }}>
                     کارتی در بخش {tabLabels[activeTab].title} ذخیره نشده است
                   </h3>
@@ -940,9 +957,10 @@ export function AccountsPage({
                       type="button"
                       className="cta-confirm"
                       onClick={() => setCardId(null)}
-                      style={{ fontSize: 12, padding: '8px 16px', width: 'auto' }}
+                      style={{ fontSize: 12, padding: '8px 16px', width: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5 }}
                     >
-                      ＋ ایجاد کارت جدید
+                      <span>＋</span>
+                      <span>ایجاد کارت جدید</span>
                     </button>
                   </div>
                 </div>
@@ -979,34 +997,44 @@ export function AccountsPage({
                               onClick={() => moveCardUp(card.id)}
                               disabled={idx === 0}
                               style={{
-                                padding: '2px 8px',
+                                padding: '3px 8px',
                                 borderRadius: 6,
-                                border: '1px solid rgba(255, 255, 255, 0.2)',
-                                background: 'rgba(255, 255, 255, 0.08)',
-                                color: idx === 0 ? 'rgba(255, 255, 255, 0.2)' : 'var(--hy-text)',
+                                border: '1px solid var(--hy-border-color)',
+                                background: 'var(--hy-hover)',
+                                color: idx === 0 ? 'var(--hy-text-tertiary)' : 'var(--hy-text)',
+                                opacity: idx === 0 ? 0.35 : 1,
                                 cursor: idx === 0 ? 'default' : 'pointer',
                                 fontSize: 11,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3,
                               }}
                               title="انتقال کارت به بالا"
                             >
-                              ▲ بالا
+                              <span>▲</span>
+                              <span>بالا</span>
                             </button>
                             <button
                               type="button"
                               onClick={() => moveCardDown(card.id)}
                               disabled={idx === currentTabCards.length - 1}
                               style={{
-                                padding: '2px 8px',
+                                padding: '3px 8px',
                                 borderRadius: 6,
-                                border: '1px solid rgba(255, 255, 255, 0.2)',
-                                background: 'rgba(255, 255, 255, 0.08)',
-                                color: idx === currentTabCards.length - 1 ? 'rgba(255, 255, 255, 0.2)' : 'var(--hy-text)',
+                                border: '1px solid var(--hy-border-color)',
+                                background: 'var(--hy-hover)',
+                                color: idx === currentTabCards.length - 1 ? 'var(--hy-text-tertiary)' : 'var(--hy-text)',
+                                opacity: idx === currentTabCards.length - 1 ? 0.35 : 1,
                                 cursor: idx === currentTabCards.length - 1 ? 'default' : 'pointer',
                                 fontSize: 11,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 3,
                               }}
                               title="انتقال کارت به پایین"
                             >
-                              ▼ پایین
+                              <span>▼</span>
+                              <span>پایین</span>
                             </button>
                           </div>
                         </div>
@@ -1036,16 +1064,21 @@ export function AccountsPage({
                               background: 'rgba(16, 185, 129, 0.15)',
                               color: 'var(--hy-income, #10b981)',
                               border: '1px solid rgba(16, 185, 129, 0.3)',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 4,
                             }}
                             onClick={() => setSelectedSharedAsset({ kind: 'card', card })}
                           >
-                            ℹ️ مشخصات اشتراک
+                            <span>ℹ️</span>
+                            <span>مشخصات اشتراک</span>
                           </button>
                         ) : (
                           <>
                             <button
                               className="cat-mini"
                               type="button"
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
                               onClick={() =>
                                 window.dispatchEvent(
                                   new CustomEvent('hy-open-share', {
@@ -1063,7 +1096,8 @@ export function AccountsPage({
                                 )
                               }
                             >
-                              🤝 اشتراک
+                              <span>👥</span>
+                              <span>اشتراک</span>
                             </button>
                             <button className="cat-mini" type="button" onClick={() => setCardId(card.id)}>
                               ویرایش

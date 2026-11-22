@@ -186,7 +186,7 @@ export function AccountDetailPage({
           disabled={disabled}
           onClick={onTransfer}
         >
-          <span className="aico">⇄</span>انتقال
+          <span className="aico">🔄</span>انتقال
         </button>
         <button
           className={`action-chip lg-light${disabled ? ' disabled' : ''}`}
@@ -201,11 +201,11 @@ export function AccountDetailPage({
         </button>
         {account.archived ? (
           <button className="action-chip lg-light" type="button" onClick={() => void restoreAccount(account.id)}>
-            <span className="aico">↩</span>بازگردانی
+            <span className="aico">↩️</span>بازگردانی
           </button>
         ) : (
           <button className="action-chip lg-light" type="button" onClick={onEdit}>
-            <span className="aico">✎</span>ویرایش
+            <span className="aico">✏️</span>ویرایش
           </button>
         )}
       </div>
@@ -224,9 +224,11 @@ export function AccountDetailPage({
               <button
                 type="button"
                 className="cat-mini"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
                 onClick={() => setPocketTransferOpen(true)}
               >
-                ⇄ انتقال بین جیب‌ها
+                <span>🔄</span>
+                <span>انتقال بین جیب‌ها</span>
               </button>
             ) : null}
           </div>
@@ -270,8 +272,8 @@ export function AccountDetailPage({
                   tabIndex={0}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div className="tx-ico" style={{ fontSize: 20 }}>
-                      {p.isMain ? '⭐' : p.isOwn ? '👛' : '🤝'}
+                    <div className="tx-ico" style={{ color: p.isMain ? 'var(--hy-teal)' : p.isOwn ? 'var(--hy-text)' : '#ea580c' }}>
+                      {p.isMain ? '💰' : p.isOwn ? '👛' : '🤝'}
                     </div>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -305,8 +307,9 @@ export function AccountDetailPage({
                       <span className="unit">{unitLabel}</span>
                     </div>
                     {isNegative ? (
-                      <div style={{ fontSize: 10, color: '#ef4444', fontWeight: 600 }}>
-                        ⚠️ موجودی منفی
+                      <div style={{ fontSize: 10, color: '#ef4444', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                        <span>⚠️</span>
+                        <span>موجودی منفی</span>
                       </div>
                     ) : null}
                   </div>
@@ -348,7 +351,7 @@ export function AccountDetailPage({
           className="home-card lg"
           style={{
             margin: '12px 0',
-            background: linkedCard.color || 'linear-gradient(135deg, #0f766e 0%, #1e1b4b 100%)',
+            background: linkedCard.color || 'linear-gradient(135deg, #0f766e 0%, #134e4a 100%)',
             color: '#fff',
           }}
         >
@@ -356,26 +359,28 @@ export function AccountDetailPage({
             <span style={{ fontWeight: 700, fontSize: 14 }}>{linkedCard.bankName}</span>
             <span style={{ fontSize: 12, opacity: 0.85 }}>{linkedCard.holder}</span>
           </div>
-          <div style={{ fontSize: 17, letterSpacing: 2, direction: 'ltr', textAlign: 'center', marginBottom: 14, fontFamily: 'monospace' }}>
+          <div style={{ fontSize: 17, letterSpacing: 2, direction: 'ltr', textAlign: 'center', marginBottom: 14, fontWeight: 700 }}>
             {linkedCard.pan ? linkedCard.pan.replace(/(\d{4})/g, '$1 ').trim() : ''}
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
             <button
               type="button"
               className="cat-mini"
-              style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }}
+              style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}
               onClick={() => copyText(linkedCard.pan, 'شماره کارت')}
             >
-              📋 کپی شماره کارت
+              <span>📋</span>
+              <span>کپی شماره کارت</span>
             </button>
             {linkedCard.sheba ? (
               <button
                 type="button"
                 className="cat-mini"
-                style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none' }}
+                style={{ background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', display: 'inline-flex', alignItems: 'center', gap: 5 }}
                 onClick={() => copyText(linkedCard.sheba, 'شماره شبا')}
               >
-                📋 کپی شبا
+                <span>📋</span>
+                <span>کپی شبا</span>
               </button>
             ) : null}
           </div>
@@ -397,9 +402,9 @@ export function AccountDetailPage({
             right: 12,
             top: '50%',
             transform: 'translateY(-50%)',
-            fontSize: 15,
             opacity: 0.6,
             pointerEvents: 'none',
+            display: 'inline-flex',
           }}
         >
           🔍
@@ -427,7 +432,6 @@ export function AccountDetailPage({
               height: 22,
               display: 'grid',
               placeItems: 'center',
-              fontSize: 11,
               color: 'var(--hy-text-secondary)',
               cursor: 'pointer',
             }}

@@ -101,29 +101,29 @@ function Shell() {
     setMinimizedSheets((prev) => prev.filter((_, i) => i !== index))
   }, [])
 
-  const getSheetMeta = useCallback((s: Sheet) => {
+  const getSheetMeta = useCallback((s: Sheet): { icon: string; title: string } => {
     switch (s.type) {
       case 'quick':
         return {
-          icon: s.kind === 'income' ? '🟢' : '🔴',
+          icon: s.kind === 'income' ? '💰' : '💸',
           title: s.kind === 'income' ? 'ثبت سریع درآمد' : 'ثبت سریع هزینه',
         }
       case 'account':
-        return { icon: '💳', title: s.accountId ? 'ویرایش حساب' : 'حساب جدید' }
+        return { icon: '🏦', title: s.accountId ? 'ویرایش حساب' : 'حساب جدید' }
       case 'transfer':
         return { icon: '🔄', title: 'انتقال وجه بین حساب‌ها' }
       case 'installment-plan':
-        return { icon: '📅', title: s.planId ? 'ویرایش برنامه اقساط' : 'برنامه اقساط جدید' }
+        return { icon: '🗓️', title: s.planId ? 'ویرایش برنامه اقساط' : 'برنامه اقساط جدید' }
       case 'installment-item':
         return { icon: '🗓️', title: 'ویرایش قسط' }
       case 'installment-pay':
-        return { icon: '💰', title: 'پرداخت قسط' }
+        return { icon: '💳', title: 'پرداخت قسط' }
       case 'tx-edit':
         return { icon: '✏️', title: 'ویرایش تراکنش' }
       case 'all-tx':
-        return { icon: '📒', title: 'دفتر کل تمام تراکنش‌ها' }
+        return { icon: '📄', title: 'دفتر کل تمام تراکنش‌ها' }
       case 'voice':
-        return { icon: '🎙️', title: 'دستیار صوتی' }
+        return { icon: '🎙️', title: 'ثبت صوتی' }
       case 'cheque':
         return { icon: '🧾', title: 'چک صیادی جدید' }
       case 'debt':
@@ -609,9 +609,9 @@ function Shell() {
                 key={idx}
                 className="minimized-window-pill"
                 onClick={() => restoreMinimizedSheet(idx)}
-                title="کلیک برای بازگشت پنجره (ری‌استور)"
+                title="کلیک برای بازگردانی پنجره"
               >
-                <span style={{ fontSize: 18, lineHeight: 1 }}>{meta.icon}</span>
+                <span style={{ fontSize: 18 }}>{meta.icon}</span>
                 <span
                   style={{
                     fontSize: 13,
@@ -632,8 +632,7 @@ function Shell() {
                     restoreMinimizedSheet(idx)
                   }}
                 >
-                  <span>🗖</span>
-                  <span>باز کردن</span>
+                  <span>⛶ باز کردن</span>
                 </button>
                 <button
                   type="button"

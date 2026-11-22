@@ -81,7 +81,7 @@ export function SharedAssetDetailSheet({
         {/* Header */}
         <div className="sheet-header" style={{ paddingBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 26 }}>{kind === 'card' ? '💳' : '🏦'}</span>
+            <span style={{ fontSize: '26px' }}>{kind === 'card' ? '💳' : '🏦'}</span>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <h1 style={{ fontSize: 16, margin: 0, fontWeight: 800 }}>{title}</h1>
@@ -90,13 +90,13 @@ export function SharedAssetDetailSheet({
                     fontSize: 10,
                     padding: '2px 8px',
                     borderRadius: 6,
-                    background: 'rgba(16, 185, 129, 0.16)',
+                    background: 'rgba(16, 185, 129, 0.14)',
                     color: 'var(--hy-income, #10b981)',
                     fontWeight: 800,
-                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    border: '1px solid rgba(16, 185, 129, 0.28)',
                   }}
                 >
-                  🤝 حساب مشترک
+                  👥 حساب مشترک
                 </span>
               </div>
               <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
@@ -133,7 +133,7 @@ export function SharedAssetDetailSheet({
               ) : null}
             </div>
             <div style={{ fontSize: 11, color: 'var(--hy-income, #10b981)', marginTop: 4 }}>
-              ✓ وضعیت دسترسی: فعال و تأیید شده
+              ✅ وضعیت دسترسی: فعال و تأیید شده
             </div>
           </div>
 
@@ -265,14 +265,18 @@ export function SharedAssetDetailSheet({
               marginTop: 14,
               padding: '10px 12px',
               borderRadius: 12,
-              background: 'rgba(56, 189, 248, 0.08)',
-              border: '1px solid rgba(56, 189, 248, 0.2)',
+              background: 'color-mix(in srgb, var(--hy-teal) 8%, transparent)',
+              border: '1px solid var(--hy-border-subtle)',
               fontSize: 11,
               color: 'var(--hy-text-secondary)',
               lineHeight: 1.6,
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 8,
             }}
           >
-            💡 این مورد از طریق اشتراک هوشمند حسابیار در دسترس شما قرار گرفته است. در صورت نیاز به لغو اتصال، می‌توانید از دکمه زیر استفاده کنید.
+            <span>ℹ️</span>
+            <span>این مورد از طریق اشتراک‌گذاری حسابیار در دسترس شما قرار گرفته است. در صورت نیاز به لغو اتصال، می‌توانید از دکمه زیر استفاده کنید.</span>
           </div>
         </div>
 
@@ -292,7 +296,7 @@ export function SharedAssetDetailSheet({
             onClick={() => void handleLeaveShare()}
             style={{ flex: 1, height: 42, fontSize: 12, fontWeight: 700 }}
           >
-            {leaving ? 'در حال خروج…' : '✕ خروج از اشتراک'}
+            🚪 {leaving ? 'در حال خروج…' : 'خروج از اشتراک'}
           </button>
           <button
             type="button"

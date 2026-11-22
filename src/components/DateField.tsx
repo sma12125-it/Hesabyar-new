@@ -35,7 +35,7 @@ export function DateField({
           if (!readOnly) setOpen(true)
         }}
       >
-        <span className="ficon">📆</span>
+        <span className="ficon">🗓️</span>
         <div>
           <div className="flabel">{label}</div>
           <div className={value ? 'fvalue' : 'fvalue placeholder-val'}>

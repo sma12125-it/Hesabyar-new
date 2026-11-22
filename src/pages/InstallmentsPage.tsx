@@ -409,18 +409,6 @@ export function InstallmentsPage({
             onClick={() => window.dispatchEvent(new CustomEvent('hy:open-drawer'))}
             title="منوی ناوبری سایدبار"
             aria-label="منوی ناوبری سایدبار"
-            style={{
-              width: 38,
-              height: 38,
-              borderRadius: 12,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'var(--hy-input-bg, rgba(255, 255, 255, 0.08))',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 20,
-            }}
           >
             ☰
           </button>
@@ -439,25 +427,28 @@ export function InstallmentsPage({
           className={`seg-btn${activeTab === 'plans' ? ' active' : ''}`}
           type="button"
           onClick={() => setActiveTab('plans')}
-          style={{ fontSize: '11px', padding: '7px 4px', fontWeight: 700 }}
+          style={{ fontSize: '11px', padding: '7px 4px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
         >
-          📅 اقساط ({toFaDigits(plans.length)})
+          <span>📅</span>
+          <span>اقساط ({toFaDigits(plans.length)})</span>
         </button>
         <button
           className={`seg-btn${activeTab === 'debts' ? ' active' : ''}`}
           type="button"
           onClick={() => setActiveTab('debts')}
-          style={{ fontSize: '11px', padding: '7px 4px', fontWeight: 700 }}
+          style={{ fontSize: '11px', padding: '7px 4px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
         >
-          🤝 بدهی و طلب ({toFaDigits(debts.filter((d) => d.status === 'active').length)})
+          <span>🤝</span>
+          <span>بدهی و طلب ({toFaDigits(debts.filter((d) => d.status === 'active').length)})</span>
         </button>
         <button
           className={`seg-btn${activeTab === 'cheques' ? ' active' : ''}`}
           type="button"
           onClick={() => setActiveTab('cheques')}
-          style={{ fontSize: '11px', padding: '7px 4px', fontWeight: 700 }}
+          style={{ fontSize: '11px', padding: '7px 4px', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
         >
-          🧾 چک‌ها ({toFaDigits(activeCheques.length)})
+          <span>🧾</span>
+          <span>چک‌ها ({toFaDigits(activeCheques.length)})</span>
         </button>
       </div>
 
@@ -556,8 +547,9 @@ export function InstallmentsPage({
                   border: '1px solid rgba(255, 255, 255, 0.06)',
                 }}
               >
-                <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
-                  🔄 سورت اقساط:
+                <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <span>⇅</span>
+                  <span>مرتب‌سازی اقساط:</span>
                 </span>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   <button
@@ -654,9 +646,10 @@ export function InstallmentsPage({
                               width: 26,
                               height: 24,
                               borderRadius: 6,
-                              border: '1px solid rgba(255, 255, 255, 0.2)',
-                              background: 'rgba(255, 255, 255, 0.08)',
-                              color: idx === arr.length - 1 ? 'rgba(255, 255, 255, 0.2)' : 'var(--hy-text)',
+                              border: '1px solid var(--hy-border-color)',
+                              background: 'var(--hy-hover)',
+                              color: idx === arr.length - 1 ? 'var(--hy-text-tertiary)' : 'var(--hy-text)',
+                              opacity: idx === arr.length - 1 ? 0.35 : 1,
                               cursor: idx === arr.length - 1 ? 'default' : 'pointer',
                               display: 'grid',
                               placeItems: 'center',
@@ -762,8 +755,9 @@ export function InstallmentsPage({
                 border: '1px solid rgba(255, 255, 255, 0.06)',
               }}
             >
-              <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
-                🔄 سورت بدهی و طلب:
+              <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <span>⇅</span>
+                <span>مرتب‌سازی بدهی و طلب:</span>
               </span>
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                 <button
@@ -871,9 +865,10 @@ export function InstallmentsPage({
                             width: 26,
                             height: 24,
                             borderRadius: 6,
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                            background: 'rgba(255, 255, 255, 0.08)',
-                            color: idx === arr.length - 1 ? 'rgba(255, 255, 255, 0.2)' : 'var(--hy-text)',
+                            border: '1px solid var(--hy-border-color)',
+                            background: 'var(--hy-hover)',
+                            color: idx === arr.length - 1 ? 'var(--hy-text-tertiary)' : 'var(--hy-text)',
+                            opacity: idx === arr.length - 1 ? 0.35 : 1,
                             cursor: idx === arr.length - 1 ? 'default' : 'pointer',
                             display: 'grid',
                             placeItems: 'center',
@@ -941,13 +936,14 @@ export function InstallmentsPage({
                               <button
                                 type="button"
                                 className="cat-mini"
-                                style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#2563eb', fontSize: 11, padding: '4px 10px' }}
+                                style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#2563eb', fontSize: 11, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   void handleUnsettleDebtQuick(d.id)
                                 }}
                               >
-                                ↩️ بازگردانی به وضعیت پرداخت‌نشده (جاری)
+                                <span>↩️</span>
+                                <span>بازگردانی به وضعیت پرداخت‌نشده (جاری)</span>
                               </button>
                             </div>
                           ) : null}
@@ -1008,9 +1004,13 @@ export function InstallmentsPage({
                 style={{
                   background: chequeFilter === 'cleared' ? 'rgba(16, 185, 129, 0.25)' : undefined,
                   borderColor: chequeFilter === 'cleared' ? '#10b981' : undefined,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
                 }}
               >
-                🗄️ بایگانی چک‌های پاس‌شده ({toFaDigits(clearedCheques.length)})
+                <span>📦</span>
+                <span>بایگانی چک‌های پاس‌شده ({toFaDigits(clearedCheques.length)})</span>
               </button>
             </div>
 
@@ -1043,8 +1043,9 @@ export function InstallmentsPage({
                 border: '1px solid rgba(255, 255, 255, 0.06)',
               }}
             >
-              <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
-                🔄 سورت چک‌ها:
+              <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <span>⇅</span>
+                <span>مرتب‌سازی چک‌ها:</span>
               </span>
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                 <button
@@ -1161,9 +1162,10 @@ export function InstallmentsPage({
                             width: 26,
                             height: 24,
                             borderRadius: 6,
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                            background: 'rgba(255, 255, 255, 0.08)',
-                            color: idx === arr.length - 1 ? 'rgba(255, 255, 255, 0.2)' : 'var(--hy-text)',
+                            border: '1px solid var(--hy-border-color)',
+                            background: 'var(--hy-hover)',
+                            color: idx === arr.length - 1 ? 'var(--hy-text-tertiary)' : 'var(--hy-text)',
+                            opacity: idx === arr.length - 1 ? 0.35 : 1,
                             cursor: idx === arr.length - 1 ? 'default' : 'pointer',
                             display: 'grid',
                             placeItems: 'center',
@@ -1196,7 +1198,9 @@ export function InstallmentsPage({
                           <div className="plan-top">
                             <div>
                               <div className="plan-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <span>{c.direction === 'payable' ? '📤' : '📥'}</span>
+                                <span style={{ color: c.direction === 'payable' ? 'var(--hy-expense)' : 'var(--hy-income)', display: 'inline-flex' }}>
+                                  {c.direction === 'payable' ? '📤' : '📥'}
+                                </span>
                                 <span>{c.party}</span>
                                 <span style={{ fontSize: 11, color: 'var(--hy-text-tertiary)', fontWeight: 'normal' }}>
                                   ({c.bankName})
@@ -1230,13 +1234,14 @@ export function InstallmentsPage({
                               <button
                                 type="button"
                                 className="cat-mini"
-                                style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#2563eb', fontSize: 11, padding: '4px 10px' }}
+                                style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#2563eb', fontSize: 11, padding: '4px 10px', display: 'inline-flex', alignItems: 'center', gap: 5 }}
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   void handleRestoreChequeToPending(c)
                                 }}
                               >
-                                ↩️ بازگردانی به چک‌های جاری (معلق)
+                                <span>↩️</span>
+                                <span>بازگردانی به چک‌های جاری (معلق)</span>
                               </button>
                             </div>
                           ) : null}
@@ -1316,10 +1321,14 @@ export function PlanCard({
                     background: 'rgba(220, 38, 38, 0.16)',
                     color: 'var(--hy-expense)',
                     border: '0.5px solid rgba(220, 38, 38, 0.35)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
                   }}
                   title="تعداد اقساط معوق"
                 >
-                  ⚠️ {toFaDigits(overdue)} معوق
+                  <span>⚠️</span>
+                  <span>{toFaDigits(overdue)} معوق</span>
                 </span>
               ) : null}
             </div>

@@ -32,7 +32,6 @@ export function TabBar({
   const settingsActive = pathname.startsWith('/settings')
   const profileActive = pathname.startsWith('/profile')
 
-  // وضعیت باز یا بسته بودن ناوبری همبرگری دسکتاپ در سمت راست
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem('hy_sidebar_collapsed') === 'true'
@@ -48,10 +47,10 @@ export function TabBar({
     {
       id: 'quick-cards',
       title: 'کیف کارت و حساب سریع',
-      desc: 'مشاهده و کپی آنی شماره کارت، شبا و CVV با بیومتریک',
+      desc: 'مشاهده سریع کارت‌ها، کپی انتخابی و اشتراک اطلاعات کارت',
       icon: '💳',
-      color: 'linear-gradient(135deg, #0f766e 0%, #0d9488 100%)',
-      badge: 'دسترسی سریع',
+      color: '#14b8a6',
+      badge: 'Alt+C',
       onClick: () => {
         if (onQuickCards) {
           onQuickCards()
@@ -61,20 +60,11 @@ export function TabBar({
       },
     },
     {
-      id: 'tx',
-      title: 'تراکنش جدید (درآمد / هزینه)',
-      desc: 'ثبت سریع درآمد، مخارج روزمره و واریزی‌ها',
-      icon: '💸',
-      color: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-      badge: 'پراستفاده',
-      onClick: onQuickEntry,
-    },
-    {
       id: 'voice',
-      title: 'ورود صوتی هوشمند تراکنش',
-      desc: 'ثبت خودکار با گفتار زنده میکروفن مانند دستیار هوشمند',
+      title: 'ثبت صوتی تراکنش',
+      desc: 'ثبت درآمد یا هزینه با صدای شما و تشخیص هوشمند',
       icon: '🎙️',
-      color: 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+      color: '#8b5cf6',
       badge: 'هوشمند',
       onClick: () => {
         if (onVoiceEntry) {
@@ -85,11 +75,19 @@ export function TabBar({
       },
     },
     {
+      id: 'tx',
+      title: 'تراکنش جدید (درآمد / هزینه)',
+      desc: 'ثبت مخارج روزمره، خرید، واریز و دریافتی‌ها',
+      icon: '💸',
+      color: '#10b981',
+      onClick: onQuickEntry,
+    },
+    {
       id: 'installment',
       title: 'قسط و وام جدید',
-      desc: 'افزودن وام بانکی، اقساط ثابت یا متغیر با سررسید',
-      icon: '📅',
-      color: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+      desc: 'تعریف وام بانکی یا اقساط دوره‌ای با سررسید ماهانه',
+      icon: '🗓️',
+      color: '#f59e0b',
       onClick: () => {
         if (onInstallmentEntry) {
           onInstallmentEntry()
@@ -101,9 +99,9 @@ export function TabBar({
     {
       id: 'debt',
       title: 'بدهی و طلب جدید',
-      desc: 'ثبت قرض، قرض‌دادن و طلب شخصی از اشخاص',
+      desc: 'ثبت حساب‌کتاب شخصی، قرض و طلب از افراد',
       icon: '🤝',
-      color: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+      color: '#ec4899',
       onClick: () => {
         if (onDebtEntry) {
           onDebtEntry()
@@ -115,9 +113,9 @@ export function TabBar({
     {
       id: 'cheque',
       title: 'چک جدید (صیادی / عادی)',
-      desc: 'ثبت چک دریافتی یا صادره همراه با یادآوری سررسید',
+      desc: 'ثبت چک دریافتی یا پرداختی همراه با تاریخ سررسید',
       icon: '🧾',
-      color: 'linear-gradient(135deg, #06b6d4 0%, #0891b2 100%)',
+      color: '#0ea5e9',
       onClick: () => {
         if (onChequeEntry) {
           onChequeEntry()
@@ -129,9 +127,9 @@ export function TabBar({
     {
       id: 'dong',
       title: 'دونگ و سفر جدید',
-      desc: 'ایجاد رویداد گروهی جدید، مادرخرج و محاسبه تقسیم دُنگ',
+      desc: 'ساخت رویداد گروهی، تعیین مادرخرج و محاسبه سهم اعضا',
       icon: '👥',
-      color: 'linear-gradient(135deg, #ec4899 0%, #db2777 100%)',
+      color: '#6366f1',
       onClick: () => {
         if (onDongEntry) {
           onDongEntry()
@@ -157,55 +155,55 @@ export function TabBar({
 
   return (
     <>
-      {/* ─────────────────────────────────────────────────────────────
-          ۱. نسخه ناوبری دسکتاپ: منوی کناری سمت راست (RTL) همراه با دکمه همبرگری
-          ───────────────────────────────────────────────────────────── */}
+      {/* 1. نوار ناوبری کنار در دسکتاپ */}
       <aside
         className={`desktop-sidebar${isCollapsed ? ' is-collapsed' : ''}`}
         aria-label="منوی ناوبری دسکتاپ حسابیار"
       >
-        {/* هدر سایدبار با لوگو و دکمه همبرگری */}
         <div className="desk-nav-header">
           <button
             type="button"
             className="desk-hamburger-btn"
             onClick={() => setIsCollapsed(!isCollapsed)}
             title={isCollapsed ? 'گسترش منوی ناوبری' : 'جمع کردن منو'}
-            aria-label="تغییر وضعیت منوی همبرگری"
+            aria-label="تغییر وضعیت منو"
           >
-            <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round">
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
+            ☰
           </button>
 
           {!isCollapsed && (
             <div className="desk-brand-info">
-              <div className="desk-brand-logo">💰</div>
+              <span className="desk-brand-logo">💰</span>
               <div className="desk-brand-text">
-                <span className="desk-brand-title">حسابیار</span>
-                <span className="desk-brand-sub">مدیریت هوشمند مالی</span>
+                <span className="desk-brand-title">حساب‌یار</span>
+                <span className="desk-brand-sub">مدیریت مالی شخصی</span>
               </div>
             </div>
           )}
         </div>
 
-        {/* دکمه برجسته ثبت تراکنش جدید در دسکتاپ */}
         <button
           type="button"
           className="desk-action-btn"
           onClick={() => setIsActionMenuOpen(true)}
-          title="ثبت سریع و منوی افزودن (+)"
+          title="ثبت سریع و منوی افزودن"
         >
           <span className="desk-action-icon">＋</span>
-          {!isCollapsed && <span className="desk-action-label">ثبت جدید (+)</span>}
+          {!isCollapsed && <span className="desk-action-label">ثبت جدید</span>}
         </button>
 
-        {/* شورتکات کیف کارت سریع */}
         <button
           type="button"
-          className="desk-nav-item"
+          className="desk-action-btn"
+          style={{
+            background: 'rgba(20, 184, 166, 0.14)',
+            color: 'var(--hy-teal)',
+            border: '1px solid rgba(20, 184, 166, 0.35)',
+            boxShadow: 'none',
+            marginTop: -6,
+            marginBottom: 14,
+            height: 40,
+          }}
           onClick={() => {
             if (onQuickCards) {
               onQuickCards()
@@ -214,22 +212,12 @@ export function TabBar({
             }
           }}
           title="کیف کارت سریع (Alt+C)"
-          style={{
-            marginTop: 6,
-            marginBottom: 4,
-            background: 'rgba(15, 118, 110, 0.14)',
-            border: '1px solid rgba(15, 118, 110, 0.3)',
-            width: '100%',
-            textAlign: 'right',
-          }}
         >
-          <span className="desk-nav-icon">💳</span>
-          {!isCollapsed && <span className="desk-nav-label">کیف کارت سریع</span>}
+          <span className="desk-action-icon">💳</span>
+          {!isCollapsed && <span className="desk-action-label">کیف کارت سریع</span>}
         </button>
 
-        {/* پیوندهای ناوبری اصلی */}
         <nav className="desk-nav-links">
-          {/* ۱. پروفایل و شناسه کاربری (اولین گزینه بعد از ثبت تراکنش) */}
           <NavLink
             to="/profile"
             className={() => `desk-nav-item${profileActive ? ' active' : ''}`}
@@ -239,7 +227,6 @@ export function TabBar({
             {!isCollapsed && <span className="desk-nav-label">پروفایل و شناسه</span>}
           </NavLink>
 
-          {/* ۲. خانه و داشبورد */}
           <NavLink
             to="/"
             end
@@ -250,27 +237,24 @@ export function TabBar({
             {!isCollapsed && <span className="desk-nav-label">خانه و داشبورد</span>}
           </NavLink>
 
-          {/* ۳. حساب‌ها و کارت‌ها */}
           <NavLink
             to="/accounts"
             className={() => `desk-nav-item${accountsActive ? ' active' : ''}`}
             title="حساب‌های بانکی و کارت‌ها"
           >
-            <span className="desk-nav-icon">💳</span>
+            <span className="desk-nav-icon">🏦</span>
             {!isCollapsed && <span className="desk-nav-label">حساب‌ها و کارت‌ها</span>}
           </NavLink>
 
-          {/* ۴. اقساط و وام‌ها */}
           <NavLink
             to="/installments"
             className={() => `desk-nav-item${installmentsActive ? ' active' : ''}`}
             title="مدیریت اقساط، چک‌ها و بدهی‌ها"
           >
-            <span className="desk-nav-icon">📅</span>
+            <span className="desk-nav-icon">🗓️</span>
             {!isCollapsed && <span className="desk-nav-label">اقساط، وام و چک</span>}
           </NavLink>
 
-          {/* ۵. دونگ و سفر */}
           <NavLink
             to="/dong"
             className={() => `desk-nav-item${dongActive ? ' active' : ''}`}
@@ -280,7 +264,6 @@ export function TabBar({
             {!isCollapsed && <span className="desk-nav-label">محاسبه دونگ</span>}
           </NavLink>
 
-          {/* ۶. بودجه‌بندی و اهداف */}
           <NavLink
             to="/reports"
             className={() => `desk-nav-item${reportsActive ? ' active' : ''}`}
@@ -290,7 +273,6 @@ export function TabBar({
             {!isCollapsed && <span className="desk-nav-label">بودجه و اهداف</span>}
           </NavLink>
 
-          {/* ۷. تنظیمات */}
           <NavLink
             to="/settings"
             className={() => `desk-nav-item${settingsActive ? ' active' : ''}`}
@@ -301,71 +283,57 @@ export function TabBar({
           </NavLink>
         </nav>
 
-        {/* فوتر سایدبار با ابزارهای سریع */}
         <div className="desk-nav-footer">
           <button
             type="button"
             className="desk-theme-toggle"
             onClick={toggleTheme}
-            title={isDark ? 'تغییر به تم شیشه‌ای روشن' : 'تغییر به تم تیره'}
+            title={isDark ? 'تغییر به نمای روشن' : 'تغییر به نمای تیره'}
           >
             <span className="desk-nav-icon">{isDark ? '☀️' : '🌙'}</span>
             {!isCollapsed && (
               <span className="desk-nav-label">
-                {isDark ? 'تم شیشه‌ای روشن' : 'تم تیره تخصصی'}
+                {isDark ? 'نمای روشن' : 'نمای تیره'}
               </span>
             )}
           </button>
         </div>
       </aside>
 
-      {/* ─────────────────────────────────────────────────────────────
-          ۲. نسخه ناوبری موبایل: نوار استاندارد و باثبات پایین صفحه
-          ترتیب دقیق درخواستی: خانه، حساب‌ها، ثبت (وسط)، اقساط، دونگ
-          ───────────────────────────────────────────────────────────── */}
+      {/* 2. نوار پایین موبایل */}
       <nav className="tab-bar mobile-tab-bar" aria-label="ناوبری اصلی">
-        {/* ۱. خانه */}
         <NavLink to="/" end className={({ isActive }) => `tab${isActive ? ' active' : ''}`}>
           <span className="ico" aria-hidden="true">🏠</span>
           <span className="lbl">خانه</span>
         </NavLink>
 
-        {/* ۲. حساب‌ها */}
         <NavLink to="/accounts" className={() => `tab${accountsActive ? ' active' : ''}`}>
-          <span className="ico" aria-hidden="true">💳</span>
+          <span className="ico" aria-hidden="true">🏦</span>
           <span className="lbl">حساب‌ها</span>
         </NavLink>
 
-        {/* ۳. دکمه گرد مثبت (+) وسط */}
         <button
           className="tab tab-center-action"
           type="button"
           onClick={() => setIsActionMenuOpen(true)}
-          title="منوی افزودن (+)"
+          title="منوی افزودن"
           aria-label="منوی افزودن"
         >
-          <span className="center-action-circle" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" />
-              <line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
-          </span>
+          <span className="center-action-circle" aria-hidden="true">＋</span>
+          <span className="lbl">ثبت</span>
         </button>
 
-        {/* ۴. اقساط */}
         <NavLink to="/installments" className={() => `tab${installmentsActive ? ' active' : ''}`}>
-          <span className="ico" aria-hidden="true">📅</span>
+          <span className="ico" aria-hidden="true">🗓️</span>
           <span className="lbl">اقساط</span>
         </NavLink>
 
-        {/* ۵. دونگ */}
         <NavLink to="/dong" className={() => `tab${dongActive ? ' active' : ''}`}>
           <span className="ico" aria-hidden="true">👥</span>
           <span className="lbl">دونگ</span>
         </NavLink>
       </nav>
 
-      {/* مودال گرافیکی جذاب اکشن‌منوی ثبت چندگانه */}
       <ActionMenuModal
         isOpen={isActionMenuOpen}
         onClose={() => setIsActionMenuOpen(false)}

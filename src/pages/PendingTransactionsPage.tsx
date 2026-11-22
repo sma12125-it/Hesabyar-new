@@ -34,26 +34,26 @@ export function PendingTransactionsPage({ onScroll }: { onScroll: (compact: bool
         style={{
           padding: '12px 14px',
           borderRadius: 14,
-          background: 'linear-gradient(135deg, rgba(37,99,235,0.12), rgba(15,118,110,0.12))',
-          border: '1px solid rgba(56, 189, 248, 0.25)',
+          background: 'color-mix(in srgb, var(--hy-teal) 8%, var(--glass-chrome))',
+          border: '1px solid color-mix(in srgb, var(--hy-teal) 26%, transparent)',
           marginBottom: 12,
           fontSize: 12,
           lineHeight: 1.8,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, color: 'var(--hy-teal)' }}>
-          <span>✨</span>
-          <span>شناسایی خودکار و هوشمند پیامک بانکی در اندروید و iOS</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700, color: 'var(--hy-teal)' }}>
+          <span>📩</span>
+          <span>شناسایی خودکار پیامک بانکی در اندروید و iOS</span>
         </div>
         <p style={{ margin: '4px 0 0', color: 'var(--hy-text-secondary)', fontSize: 11.5 }}>
-          در هر دو سیستم‌عامل اندروید و آیفون، به محض کپی (Copy) کردن هر پیامک بانکی و بازگشت به حساب‌یار، پیامک به صورت کاملاً خودکار شناسایی شده و در این لیست قرار می‌گیرد.
+          در اندروید و آیفون، به محض کپی کردن متن پیامک بانکی و بازگشت به حساب‌یار، پیامک به‌صورت خودکار شناسایی و در این فهرست قرار می‌گیرد.
         </p>
       </div>
       <div className="sms-actions" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button
           className="cta-confirm"
           type="button"
-          style={{ height: 40, fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+          style={{ height: 40, fontSize: 13, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
           onClick={async () => {
             try {
               if (!navigator.clipboard?.readText) {
@@ -87,7 +87,7 @@ export function PendingTransactionsPage({ onScroll }: { onScroll: (compact: bool
           }}
         >
           <span>📋</span>
-          <span>خواندن هوشمند از کلیپ‌بورد</span>
+          <span>خواندن خودکار از کلیپ‌بورد</span>
         </button>
 
         <button className="home-pill ghost" type="button" onClick={() => setPasteOpen(true)}>
@@ -98,7 +98,7 @@ export function PendingTransactionsPage({ onScroll }: { onScroll: (compact: bool
         <p className="sheet-sub">در حال بارگذاری…</p>
       ) : pending.length === 0 ? (
         <div className="empty-state lg">
-          <div className="empty-ico">✉️</div>
+          <div className="empty-ico">📩</div>
           <h2>تراکنش در انتظار تأییدی وجود ندارد.</h2>
           <p>وقتی پیامک بانکی جدیدی شناسایی شود، تراکنش اینجا نمایش داده خواهد شد.</p>
         </div>
@@ -107,7 +107,10 @@ export function PendingTransactionsPage({ onScroll }: { onScroll: (compact: bool
           {pending.map((draft) => (
             <button key={draft.id} className="sms-card lg" type="button" onClick={() => setOpenId(draft.id)}>
               <header>
-                <strong>🏦 {draft.bankLabel}</strong>
+                <strong style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <span>🏦</span>
+                  <span>{draft.bankLabel}</span>
+                </strong>
                 <span>{directionLabel(draft.direction)}</span>
               </header>
               <b className={draft.direction === 'INCOME' ? 'up' : draft.direction === 'EXPENSE' ? 'down' : ''}>
@@ -143,7 +146,7 @@ function SmsPasteSheet({ onClose }: { onClose: () => void }) {
       if (body.includes('\n') && body.trim().length > 100) {
         const batch = await ingestMultipleBankSms(body)
         if (batch.added > 0) {
-          notifyUser(`${batch.added} پیامک بانکی با موفقیت به صف تأیید اضافه شد ✨`)
+          notifyUser(`${batch.added} پیامک بانکی به صف تأیید اضافه شد`)
           onClose()
           return
         }

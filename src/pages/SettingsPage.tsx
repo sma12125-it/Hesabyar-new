@@ -108,11 +108,13 @@ function SettingsSubHeader({
         onClick={onBack}
         aria-label="بازگشت به فهرست تنظیمات"
       >
-        <span className="back-arrow" aria-hidden="true">›</span>
+        <span aria-hidden="true">›</span>
         <span>بازگشت به تنظیمات</span>
       </button>
       <div className="settings-sub-title-row">
-        <span className="settings-sub-icon" aria-hidden="true">{icon}</span>
+        <span className="settings-sub-icon" aria-hidden="true">
+          {icon}
+        </span>
         <div>
           <h1>{title}</h1>
           <p>{subtitle}</p>
@@ -226,7 +228,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
       const res = await warmOfflineCache()
       setOfflineReady(true)
       setCachedAssetsCount(res.cachedCount)
-      notifyUser('کلیه فایل‌ها و وابستگی‌های برنامه برای اجرای آفلاین در حافظه دستگاه ذخیره شدند ✨')
+      notifyUser('کلیه فایل‌ها و وابستگی‌های برنامه برای اجرای آفلاین در حافظه دستگاه ذخیره شدند')
     } catch {
       notifyUser('خطا در ذخیره‌سازی فایل‌های آفلاین')
     } finally {
@@ -274,7 +276,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
       }
       const json = JSON.stringify(payload, null, 2)
       downloadFile(json, `hesabyar-backup-full-${dateStr}.json`, 'application/json;charset=utf-8')
-      notifyUser('پشتیبان جامع کلیه اطلاعات حساب‌یار با موفقیت دانلود شد ✨')
+      notifyUser('پشتیبان جامع کلیه اطلاعات حساب‌یار با موفقیت دانلود شد')
     } catch {
       notifyUser('خطا در ایجاد فایل پشتیبان')
     }
@@ -336,7 +338,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
       })
       setRestoreTarget('local')
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'خطا در بارگذاری فایل پشتیبان')
+      notifyUser(err instanceof Error ? err.message : 'خطا در بارگذاری فایل پشتیبان')
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
@@ -377,20 +379,20 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
       if (target === 'cloud') {
         if (syncReady()) {
           await restorePayload(data)
-          notifyUser('اطلاعات با موفقیت در حافظه محلی ذخیره شد و نسخه آنلاین (Mirror) روی سرور قرار گرفت ✨')
+          notifyUser('اطلاعات در حافظه محلی ذخیره شد و نسخه آنلاین (Mirror) روی سرور قرار گرفت')
         } else {
           localStorage.setItem('hy-cloud-dirty', '1')
-          notifyUser('اطلاعات روی حافظه محلی ذخیره شد. به محض اتصال، میرور ابری تکمیل می‌شود ✨')
+          notifyUser('اطلاعات روی حافظه محلی ذخیره شد. به محض اتصال، همگام‌سازی ابری تکمیل می‌شود')
         }
       } else {
         // Local only: clear cloud dirty to guarantee completely isolated offline execution
         localStorage.removeItem('hy-cloud-dirty')
-        notifyUser('اطلاعات با موفقیت در حافظه محلی ذخیره شد و بدون نیاز به اینترنت اجرا می‌شود ✨')
+        notifyUser('اطلاعات در حافظه محلی ذخیره شد و بدون نیاز به اینترنت اجرا می‌شود')
       }
 
       setPendingRestore(null)
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'خطا در بازیابی اطلاعات')
+      notifyUser(err instanceof Error ? err.message : 'خطا در بازیابی اطلاعات')
     } finally {
       setRestoring(false)
     }
@@ -424,7 +426,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
       }
       setAccountNewPass('')
       setAccountAgainPass('')
-      setSecurityInfo('رمز عبور حساب‌یار با موفقیت به‌روزرسانی شد و دسترسی کارت‌ها نیز همگام گردید ✨')
+      setSecurityInfo('رمز عبور حساب‌یار به‌روزرسانی شد و دسترسی کارت‌ها نیز همگام گردید')
       notifyUser('رمز عبور حساب تغییر یافت')
     } catch (err) {
       setSecurityInfo(err instanceof Error ? err.message : 'خطا در تغییر رمز عبور')
@@ -461,19 +463,8 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                 onClick={() => setShowThemeGallery((v) => !v)}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 12,
-                      background: 'rgba(255, 255, 255, 0.08)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 20,
-                    }}
-                  >
-                    {currentTheme?.icon || '🎨'}
+                  <div className="settings-nav-icon-wrap" aria-hidden="true">
+                    {currentTheme?.icon ?? '🎨'}
                   </div>
                   <div>
                     <h2 style={{ fontSize: '14px', fontWeight: 800, margin: 0 }}>تم ظاهری برنامه</h2>
@@ -496,16 +487,15 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
               </div>
 
               {showThemeGallery && (
-                <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--hy-border-color)' }}>
                   <ThemeGallery />
                 </div>
               )}
             </section>
 
             <section className="lg settings-block" style={{ marginTop: 14 }}>
-              <h2 style={{ fontSize: '14px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>💰</span>
-                <span>واحد پول پیش‌فرض برنامه</span>
+              <h2 style={{ fontSize: '14px', fontWeight: 800 }}>
+                💰 واحد پول پیش‌فرض برنامه
               </h2>
               <p className="sheet-sub" style={{ marginTop: 4 }}>
                 نحوه نمایش مبالغ در تمام حساب‌ها، تراکنش‌ها، بودجه و گزارش‌ها
@@ -543,18 +533,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
             <section className="lg settings-block" style={{ marginTop: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 14,
-                      background: 'rgba(15, 118, 110, 0.2)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 22,
-                    }}
-                  >
+                  <div className="settings-nav-icon-wrap" aria-hidden="true">
                     ☁️
                   </div>
                   <div>
@@ -565,7 +544,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                   </div>
                 </div>
                 <span className={`badge ${session ? 'ok' : 'pending'}`}>
-                  {session ? '● آنلاین' : '○ محلی'}
+                  {session ? 'آنلاین' : 'محلی'}
                 </span>
               </div>
 
@@ -574,7 +553,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                   className="cta-confirm"
                   type="button"
                   onClick={() => setCloudPopup('cloud')}
-                  style={{ height: 44, justifyContent: 'center' }}
+                  style={{ height: 42, justifyContent: 'center' }}
                 >
                   👤 {session ? 'مدیریت حساب و خروج' : 'ورود / ثبت‌نام حساب ابری'}
                 </button>
@@ -583,9 +562,9 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                   className="home-pill ghost"
                   type="button"
                   onClick={() => setCloudPopup('supabase')}
-                  style={{ height: 42, justifyContent: 'center' }}
+                  style={{ height: 40, justifyContent: 'center' }}
                 >
-                  ⚡ {supabaseSettings.isCustom ? 'تنظیمات دیتابیس اختصاصی (شخصی)' : 'تنظیم اتصال Supabase'}
+                  🗄️ {supabaseSettings.isCustom ? 'تنظیمات دیتابیس اختصاصی (شخصی)' : 'تنظیم اتصال Supabase'}
                 </button>
               </div>
             </section>
@@ -617,14 +596,14 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                 type="button"
                 onClick={() => setSecurityTab('lock')}
               >
-                🛡️ رمز و بیومتریک
+                🔐 رمز و بیومتریک
               </button>
               <button
                 className={`seg-btn${securityTab === 'share' ? ' active' : ''}`}
                 type="button"
                 onClick={() => setSecurityTab('share')}
               >
-                🤝 کارت مشترک
+                👥 کارت مشترک
               </button>
             </div>
 
@@ -635,15 +614,10 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div
+                        className="settings-nav-icon-wrap"
                         style={{
-                          width: 42,
-                          height: 42,
-                          borderRadius: 14,
-                          background: isBiometricActive(lock) ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.08)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 22,
+                          background: isBiometricActive(lock) ? 'rgba(16, 185, 129, 0.14)' : undefined,
+                          color: isBiometricActive(lock) ? 'var(--hy-income)' : 'var(--hy-teal)',
                         }}
                       >
                         👆
@@ -660,11 +634,11 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                       </div>
                     </div>
                     <span className={`badge ${isBiometricActive(lock) ? 'ok' : 'pending'}`}>
-                      {isBiometricActive(lock) ? '● فعال' : '○ غیرفعال'}
+                      {isBiometricActive(lock) ? 'فعال' : 'غیرفعال'}
                     </span>
                   </div>
 
-                  <p className="sheet-sub" style={{ marginTop: 10, fontSize: 11, lineHeight: 1.7 }}>
+                  <p className="sheet-sub" style={{ marginTop: 10, fontSize: 11.5, lineHeight: 1.7 }}>
                     با فعال‌سازی این گزینه، هنگام ورود به حساب‌یار <strong>حسگر واقعی اثر انگشت، تشخیص چهره (Face ID) یا Windows Hello</strong> دستگاه فراخوانی می‌شود و بدون تأیید واقعی دستگاه ورود انجام نخواهد شد (به‌صورت محلی روی همین دستگاه بدون نیاز به Passkey ابری).
                   </p>
 
@@ -695,7 +669,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                           void registerBiometric()
                             .then(() => {
                               setLock(loadLock())
-                              setSecurityInfo('حسگر اثر انگشت / تشخیص چهره دستگاه با موفقیت ثبت و فعال شد ✨')
+                              setSecurityInfo('حسگر اثر انگشت / تشخیص چهره دستگاه با موفقیت ثبت و فعال شد')
                               notifyUser('ورود با اثر انگشت / چهره فعال شد')
                             })
                             .catch((err) =>
@@ -704,26 +678,21 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                             .finally(() => setBioRegistering(false))
                         }}
                       >
-                        {bioRegistering ? 'در حال فراخوانی حسگر اثر انگشت / چهره…' : '👆 ثبت و فعال‌سازی اثر انگشت / چهره'}
+                        👆 {bioRegistering ? 'در حال فراخوانی حسگر اثر انگشت / چهره…' : 'ثبت و فعال‌سازی اثر انگشت / چهره'}
                       </button>
                     )}
                   </div>
                 </section>
 
-                {/* 2. Quick 4-6 Digit PIN Lock (Real Auth on Every Device) */}
+                {/* 2. Quick 4-6 Digit PIN Lock */}
                 <section className="lg settings-block" style={{ marginTop: 14 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <div
+                        className="settings-nav-icon-wrap"
                         style={{
-                          width: 42,
-                          height: 42,
-                          borderRadius: 14,
-                          background: lock.pinHash ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.08)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 20,
+                          background: lock.pinHash ? 'rgba(16, 185, 129, 0.14)' : undefined,
+                          color: lock.pinHash ? 'var(--hy-income)' : 'var(--hy-teal)',
                         }}
                       >
                         🔢
@@ -736,7 +705,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                       </div>
                     </div>
                     <span className={`badge ${lock.pinHash ? 'ok' : 'pending'}`}>
-                      {lock.pinHash ? '● فعال' : '○ غیرفعال'}
+                      {lock.pinHash ? 'فعال' : 'غیرفعال'}
                     </span>
                   </div>
 
@@ -752,7 +721,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                         notifyUser('پین ورود سریع حذف شد')
                       }}
                     >
-                      ✕ حذف پین ورود سریع
+                      🗑️ حذف پین ورود سریع
                     </button>
                   ) : (
                     <div className="field-stack" style={{ marginTop: 10 }}>
@@ -786,7 +755,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                             setLock(loadLock())
                             setNewPin('')
                             setConfirmPin('')
-                            setSecurityInfo('پین عددی ورود سریع با موفقیت فعال شد ✨')
+                            setSecurityInfo('پین عددی ورود سریع با موفقیت فعال شد')
                             notifyUser('پین ورود سریع فعال شد')
                           })
                         }}
@@ -797,21 +766,10 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                   )}
                 </section>
 
-                {/* 2. Change Account Password */}
+                {/* 3. Change Account Password */}
                 <section className="lg settings-block" style={{ marginTop: 14 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                    <div
-                      style={{
-                        width: 42,
-                        height: 42,
-                        borderRadius: 14,
-                        background: 'rgba(37, 99, 235, 0.15)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 22,
-                      }}
-                    >
+                    <div className="settings-nav-icon-wrap">
                       🔑
                     </div>
                     <div>
@@ -841,7 +799,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                       className="cta-confirm"
                       type="button"
                       disabled={passUpdating || accountNewPass.length < 6 || accountNewPass !== accountAgainPass}
-                      style={{ height: 44, marginTop: 4 }}
+                      style={{ height: 42, marginTop: 4 }}
                       onClick={() => void handleChangeAccountPassword()}
                     >
                       {passUpdating ? 'در حال ثبت…' : 'ثبت رمز عبور تازه'}
@@ -860,19 +818,8 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
             {securityTab === 'share' && (
               <section className="lg settings-block" style={{ marginTop: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                  <div
-                    style={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 14,
-                      background: 'rgba(15, 118, 110, 0.18)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 22,
-                    }}
-                  >
-                    🤝
+                  <div className="settings-nav-icon-wrap">
+                    👥
                   </div>
                   <div>
                     <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>اشتراک کارت بانکی با شناسه کاربر (ID)</h2>
@@ -882,12 +829,12 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                   </div>
                 </div>
 
-                {/* User's Own ID & Handle Card for receiving shared cards */}
+                {/* User's Own ID & Handle Card */}
                 <div
                   style={{
-                    background: 'rgba(37, 99, 235, 0.08)',
-                    border: '1px solid rgba(37, 99, 235, 0.22)',
-                    borderRadius: 14,
+                    background: 'var(--hy-input-bg)',
+                    border: '1px solid var(--hy-border-color)',
+                    borderRadius: 12,
                     padding: '12px 14px',
                     margin: '10px 0 14px',
                   }}
@@ -902,11 +849,10 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                       <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--hy-text)' }}>۱. User ID سیستمی:</span>
                       <code
                         style={{
-                          fontFamily: 'monospace',
-                          fontWeight: 800,
-                          fontSize: 13,
-                          letterSpacing: 1,
-                          color: 'var(--hy-accent)',
+                          fontWeight: 700,
+                          fontSize: 12.5,
+                          letterSpacing: 0.6,
+                          color: 'var(--hy-teal)',
                         }}
                       >
                         {session?.userId ? (session.userId.length > 16 ? session.userId.slice(0, 12) : session.userId) : getStableUserId()}
@@ -915,7 +861,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                     <button
                       type="button"
                       className="home-pill ghost"
-                      style={{ padding: '3px 8px', fontSize: 10, height: 26 }}
+                      style={{ padding: '3px 9px', fontSize: 10.5, height: 26 }}
                       onClick={() => {
                         const idToCopy = session?.userId ? (session.userId.length > 16 ? session.userId.slice(0, 12) : session.userId) : getStableUserId()
                         if (idToCopy && navigator.clipboard) {
@@ -934,9 +880,8 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                       <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--hy-text)' }}>۲. شناسه دستی پروفایل:</span>
                       <code
                         style={{
-                          fontFamily: 'monospace',
-                          fontWeight: 800,
-                          fontSize: 13,
+                          fontWeight: 700,
+                          fontSize: 12.5,
                           color: 'var(--hy-teal)',
                         }}
                       >
@@ -947,7 +892,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                       <button
                         type="button"
                         className="home-pill ghost"
-                        style={{ padding: '3px 8px', fontSize: 10, height: 26 }}
+                        style={{ padding: '3px 9px', fontSize: 10.5, height: 26 }}
                         onClick={() => {
                           if (userProfile.handle && navigator.clipboard) {
                             navigator.clipboard.writeText(`@${userProfile.handle}`)
@@ -963,16 +908,16 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                         style={{
                           fontSize: 11,
                           fontWeight: 700,
-                          color: 'var(--hy-accent)',
+                          color: 'var(--hy-teal)',
                           textDecoration: 'none',
                         }}
                       >
-                        تنظیم شناسه ›
+                        تنظیم شناسه ←
                       </Link>
                     )}
                   </div>
 
-                  <p style={{ fontSize: 10, color: 'var(--hy-text-tertiary)', marginTop: 8, margin: 0, lineHeight: 1.5 }}>
+                  <p style={{ fontSize: 10.5, color: 'var(--hy-text-tertiary)', marginTop: 8, margin: 0, lineHeight: 1.6 }}>
                     می‌توانید هر یک از دو مورد فوق (User ID یا شناسه کاربری پروفایل) را در اختیار دیگران قرار دهید تا حساب یا کارت خود را مستقیماً با شما به اشتراک بگذارند.
                   </p>
                 </div>
@@ -995,20 +940,20 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                     value={shareCode}
                     onChange={(e) => setShareCode(e.target.value.toUpperCase())}
                     aria-label="شناسه کاربر یا کد اشتراک"
-                    style={{ textAlign: 'center', letterSpacing: 1.5, fontFamily: 'monospace', fontWeight: 800 }}
+                    style={{ textAlign: 'center', letterSpacing: 1.5, fontWeight: 700 }}
                   />
                   <button
                     className="cta-confirm"
                     type="button"
                     disabled={joining || shareCode.trim().length < 3}
-                    style={{ height: 44 }}
+                    style={{ height: 42 }}
                     onClick={() => {
                       setJoining(true)
                       setShareError(null)
                       void joinSharedCode(shareCode)
                         .then(() => {
                           setShareCode('')
-                          notifyUser('کارت مشترک با موفقیت با شناسه کاربر متصل شد ✨')
+                          notifyUser('کارت مشترک با موفقیت با شناسه کاربر متصل شد')
                           window.dispatchEvent(new Event('hy-share-refresh'))
                         })
                         .catch((err: unknown) => {
@@ -1017,7 +962,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                         .finally(() => setJoining(false))
                     }}
                   >
-                    {joining ? 'در حال اتصال…' : '🤝 اتصال به کارت مشترک (بدون نیاز به رمز)'}
+                    👥 {joining ? 'در حال اتصال…' : 'اتصال به کارت مشترک (بدون نیاز به رمز)'}
                   </button>
                 </div>
               </section>
@@ -1030,7 +975,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           <div className="settings-sub-screen">
             <SettingsSubHeader
               icon="📩"
-              title="هوشمندسازی پیامک‌های بانکی"
+              title="خواندن خودکار پیامک بانکی"
               subtitle="استخراج خودکار واریز و برداشت از پیامک‌های شتاب"
               onBack={() => setActiveSection(null)}
             />
@@ -1053,29 +998,28 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
 
             {/* Offline PWA Status Card */}
             <section className="lg settings-block" style={{ marginTop: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h2 style={{ fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}>
-                  <span>⚡</span>
-                  <span>وضعیت اجرای آفلاین و وابستگی‌های وب‌اپ (PWA)</span>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>
+                  📱 وضعیت اجرای آفلاین وب‌اپ (PWA)
                 </h2>
                 <span
                   style={{
                     fontSize: 11,
-                    fontWeight: 800,
+                    fontWeight: 700,
                     padding: '3px 10px',
-                    borderRadius: 99,
-                    background: offlineReady ? 'rgba(16, 185, 129, 0.16)' : 'rgba(234, 179, 8, 0.16)',
+                    borderRadius: 8,
+                    background: offlineReady ? 'rgba(16, 185, 129, 0.14)' : 'rgba(234, 179, 8, 0.14)',
                     color: offlineReady ? 'var(--hy-income, #10b981)' : '#eab308',
-                    border: `1px solid ${offlineReady ? 'rgba(16, 185, 129, 0.35)' : 'rgba(234, 179, 8, 0.35)'}`,
+                    border: `1px solid ${offlineReady ? 'rgba(16, 185, 129, 0.3)' : 'rgba(234, 179, 8, 0.3)'}`,
                   }}
                 >
-                  {offlineReady ? '۱۰۰٪ آماده استفاده آفلاین' : 'آماده‌سازی کش'}
+                  {offlineReady ? 'آماده استفاده آفلاین' : 'آماده‌سازی کش'}
                 </span>
               </div>
               <p className="sheet-sub" style={{ marginTop: 6, lineHeight: 1.8 }}>
-                کلیه فایل‌های اسکریپت، استایل‌ها، فونت وزیرمتن و آیکون‌ها در حافظه کش دستگاه ذخیره می‌شوند تا در صورت قطعی اینترنت، اپلیکیشن به صورت لوکال و بدون نیاز به گیت‌هاب مشابه یک نرم‌افزار نیتیو اجرا شود.
+                کلیه فایل‌های اسکریپت، استایل‌ها، فونت وزیرمتن و آیکون‌ها در حافظه کش دستگاه ذخیره می‌شوند تا در صورت قطعی اینترنت، اپلیکیشن به‌صورت لوکال اجرا شود.
               </p>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, fontSize: 11, color: 'var(--hy-text-secondary)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, fontSize: 11.5, color: 'var(--hy-text-secondary)' }}>
                 <span>تعداد فایل‌های ذخیره‌شده در حافظه:</span>
                 <strong>{toFaDigits(cachedAssetsCount || 6)} فایل و کتابخانه</strong>
               </div>
@@ -1084,9 +1028,9 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                 className="home-pill ghost"
                 disabled={warmingCache}
                 onClick={() => void handleWarmCache()}
-                style={{ width: '100%', justifyContent: 'center', height: 42, marginTop: 10, fontWeight: 700 }}
+                style={{ width: '100%', justifyContent: 'center', height: 40, marginTop: 10, fontWeight: 700 }}
               >
-                {warmingCache ? 'در حال بررسی و ذخیره‌سازی فایل‌ها…' : '🔄 بررسی و اطمینان از دانلود کلیه وابستگی‌های آفلاین'}
+                🔄 {warmingCache ? 'در حال بررسی و ذخیره‌سازی فایل‌ها…' : 'بررسی و دانلود وابستگی‌های آفلاین'}
               </button>
             </section>
 
@@ -1094,7 +1038,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
             <section className="lg settings-block" style={{ marginTop: 14 }}>
               <h2 style={{ fontSize: 14, fontWeight: 800 }}>دریافت نسخه پشتیبان (خروجی)</h2>
               <p className="sheet-sub" style={{ marginTop: 4 }}>
-                داده‌های مالی شما کاملاً متعلق به خودتان است و همیشه می‌توانید یک فایل پشتیبان جامع از کل سیستم دانلود کنید.
+                داده‌های مالی شما متعلق به خودتان است و همیشه می‌توانید یک فایل پشتیبان جامع از کل سیستم دانلود کنید.
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
@@ -1102,7 +1046,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                   className="home-pill ghost"
                   type="button"
                   onClick={() => void handleExportBackup()}
-                  style={{ width: '100%', justifyContent: 'center', height: 44, fontWeight: 700 }}
+                  style={{ width: '100%', justifyContent: 'center', height: 42, fontWeight: 700 }}
                 >
                   📥 دانلود فایل پشتیبان کامل و جامع (JSON)
                 </button>
@@ -1110,7 +1054,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                   className="home-pill ghost"
                   type="button"
                   onClick={handleExportCsv}
-                  style={{ width: '100%', justifyContent: 'center', height: 44, fontWeight: 700 }}
+                  style={{ width: '100%', justifyContent: 'center', height: 42, fontWeight: 700 }}
                 >
                   📊 خروجی استاندارد اکسل تمام تراکنش‌ها (CSV)
                 </button>
@@ -1121,23 +1065,24 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
             <section className="lg settings-block" style={{ marginTop: 14 }}>
               <h2 style={{ fontSize: 14, fontWeight: 800 }}>بازیابی اطلاعات از فایل پشتیبان</h2>
               <p className="sheet-sub" style={{ marginTop: 4, lineHeight: 1.7 }}>
-                انتخاب فایل JSON قبلی با امکان انتخاب هوشمند ذخیره روی حافظه محلی (آفلاین) یا میرور آنلاین
+                انتخاب فایل JSON قبلی با امکان ذخیره روی حافظه محلی (آفلاین) یا همگام‌سازی آنلاین
               </p>
 
               <label
                 className="cta-confirm"
                 style={{
                   width: '100%',
-                  height: 44,
+                  height: 42,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  gap: 7,
                   cursor: 'pointer',
                   marginTop: 12,
-                  fontWeight: 800,
+                  fontWeight: 700,
                 }}
               >
-                <span>{restoring ? 'در حال بازیابی اطلاعات…' : '📤 انتخاب و بارگذاری فایل پشتیبان JSON'}</span>
+                <span>📤 {restoring ? 'در حال بازیابی اطلاعات…' : 'انتخاب و بارگذاری فایل پشتیبان JSON'}</span>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -1161,17 +1106,17 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                   style={{
                     maxWidth: 480,
                     width: '94%',
-                    borderRadius: 24,
+                    borderRadius: 18,
                     padding: '20px 18px',
                     maxHeight: '92vh',
                     overflowY: 'auto',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                       <span style={{ fontSize: 22 }}>📥</span>
                       <div>
-                        <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>انتخاب محل بازیابی اطلاعات</h3>
+                        <h3 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>انتخاب محل بازیابی اطلاعات</h3>
                         <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', margin: '2px 0 0' }}>
                           فایل: {pendingRestore.fileName}
                         </p>
@@ -1179,10 +1124,11 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                     </div>
                     <button
                       type="button"
-                      className="home-pill ghost"
-                      style={{ width: 32, height: 32, padding: 0, justifyContent: 'center' }}
+                      className="icon-btn"
+                      style={{ width: 32, height: 32 }}
                       disabled={restoring}
                       onClick={() => setPendingRestore(null)}
+                      aria-label="بستن"
                     >
                       ✕
                     </button>
@@ -1191,9 +1137,9 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                   {/* Summary Chips */}
                   <div
                     style={{
-                      background: 'rgba(255, 255, 255, 0.04)',
-                      border: '1px solid var(--hy-border-color, rgba(255, 255, 255, 0.1))',
-                      borderRadius: 16,
+                      background: 'var(--hy-input-bg)',
+                      border: '1px solid var(--hy-border-color)',
+                      borderRadius: 12,
                       padding: '12px 14px',
                       display: 'grid',
                       gridTemplateColumns: 'repeat(2, 1fr)',
@@ -1202,14 +1148,14 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                       marginBottom: 16,
                     }}
                   >
-                    <div>💳 حساب‌ها: <strong>{toFaDigits(pendingRestore.stats.accountsCount)}</strong></div>
+                    <div>🏦 حساب‌ها: <strong>{toFaDigits(pendingRestore.stats.accountsCount)}</strong></div>
                     <div>🧾 تراکنش‌ها: <strong>{toFaDigits(pendingRestore.stats.transactionsCount)}</strong></div>
-                    <div>📅 اقساط: <strong>{toFaDigits(pendingRestore.stats.plansCount)}</strong></div>
-                    <div>📑 چک‌ها: <strong>{toFaDigits(pendingRestore.stats.chequesCount)}</strong></div>
+                    <div>🗓️ اقساط: <strong>{toFaDigits(pendingRestore.stats.plansCount)}</strong></div>
+                    <div>🎫 چک‌ها: <strong>{toFaDigits(pendingRestore.stats.chequesCount)}</strong></div>
                     <div>🤝 طلب/بدهی: <strong>{toFaDigits(pendingRestore.stats.debtsCount)}</strong></div>
                     <div>👥 دونگ سفر: <strong>{toFaDigits(pendingRestore.stats.dongEventsCount)}</strong></div>
                     <div>📈 سرمایه‌ها: <strong>{toFaDigits(pendingRestore.stats.investmentsCount)}</strong></div>
-                    <div>🕒 تاریخ ایجاد: <strong>{toFaDigits(pendingRestore.stats.backupDate)}</strong></div>
+                    <div>📅 تاریخ: <strong>{toFaDigits(pendingRestore.stats.backupDate)}</strong></div>
                   </div>
 
                   <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: 'var(--hy-text-secondary)' }}>
@@ -1221,30 +1167,30 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                     onClick={() => setRestoreTarget('local')}
                     style={{
                       padding: '14px',
-                      borderRadius: 16,
+                      borderRadius: 12,
                       cursor: 'pointer',
                       marginBottom: 10,
-                      background: restoreTarget === 'local' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-                      border: restoreTarget === 'local' ? '2px solid var(--hy-income, #10b981)' : '1px solid var(--hy-border-color, rgba(255, 255, 255, 0.1))',
-                      transition: 'all 0.18s ease',
+                      background: restoreTarget === 'local' ? 'rgba(16, 185, 129, 0.1)' : 'var(--hy-input-bg)',
+                      border: restoreTarget === 'local' ? '1.5px solid var(--hy-income, #10b981)' : '1px solid var(--hy-border-color)',
+                      transition: 'border-color 0.15s ease, background 0.15s ease',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: 13 }}>
-                        <span style={{ fontSize: 18 }}>📱</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13 }}>
+                        <span>📱</span>
                         <span>بازیابی روی حافظه محلی و آفلاین (Local)</span>
                       </div>
                       <span style={{
-                        width: 18,
-                        height: 18,
+                        width: 16,
+                        height: 16,
                         borderRadius: '50%',
-                        border: restoreTarget === 'local' ? '5px solid var(--hy-income, #10b981)' : '2px solid rgba(255, 255, 255, 0.3)',
+                        border: restoreTarget === 'local' ? '5px solid var(--hy-income, #10b981)' : '2px solid var(--hy-border-color)',
                         background: 'transparent',
                         display: 'inline-block',
                       }} />
                     </div>
                     <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', margin: 0, lineHeight: 1.7 }}>
-                      اطلاعات به طور کامل در حافظه مرورگر و دستگاه ذخیره می‌شود. نرم‌افزار بدون نیاز به اینترنت، به صورت ۱۰۰٪ آفلاین لود شده و اجرا می‌شود.
+                      اطلاعات به طور کامل در حافظه مرورگر و دستگاه ذخیره می‌شود و بدون نیاز به اینترنت اجرا می‌شود.
                     </p>
                   </div>
 
@@ -1253,30 +1199,30 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                     onClick={() => setRestoreTarget('cloud')}
                     style={{
                       padding: '14px',
-                      borderRadius: 16,
+                      borderRadius: 12,
                       cursor: 'pointer',
                       marginBottom: 16,
-                      background: restoreTarget === 'cloud' ? 'rgba(14, 165, 233, 0.12)' : 'rgba(255, 255, 255, 0.03)',
-                      border: restoreTarget === 'cloud' ? '2px solid var(--hy-teal, #0ea5e9)' : '1px solid var(--hy-border-color, rgba(255, 255, 255, 0.1))',
-                      transition: 'all 0.18s ease',
+                      background: restoreTarget === 'cloud' ? 'rgba(14, 165, 233, 0.1)' : 'var(--hy-input-bg)',
+                      border: restoreTarget === 'cloud' ? '1.5px solid var(--hy-teal, #0ea5e9)' : '1px solid var(--hy-border-color)',
+                      transition: 'border-color 0.15s ease, background 0.15s ease',
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: 13 }}>
-                        <span style={{ fontSize: 18 }}>☁️</span>
-                        <span>بازیابی آنلاین و ابری (Mirror - همگام با سرور)</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 13 }}>
+                        <span>☁️</span>
+                        <span>بازیابی آنلاین و ابری (همگام با سرور)</span>
                       </div>
                       <span style={{
-                        width: 18,
-                        height: 18,
+                        width: 16,
+                        height: 16,
                         borderRadius: '50%',
-                        border: restoreTarget === 'cloud' ? '5px solid var(--hy-teal, #0ea5e9)' : '2px solid rgba(255, 255, 255, 0.3)',
+                        border: restoreTarget === 'cloud' ? '5px solid var(--hy-teal, #0ea5e9)' : '2px solid var(--hy-border-color)',
                         background: 'transparent',
                         display: 'inline-block',
                       }} />
                     </div>
                     <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', margin: 0, lineHeight: 1.7 }}>
-                      ابتدا کلیه داده‌ها در حافظه محلی ذخیره شده و همزمان کپی برابر اصل (Mirror) آن روی سرور ابری قرار می‌گیرد تا بین تمام دستگاه‌ها همگام شود.
+                      اطلاعات در حافظه محلی ذخیره و هم‌زمان روی سرور ابری کپی می‌شود تا بین دستگاه‌ها همگام بماند.
                     </p>
                   </div>
 
@@ -1286,16 +1232,16 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                       className="cta-confirm"
                       disabled={restoring}
                       onClick={() => void confirmRestore()}
-                      style={{ flex: 1.4, height: 44, fontWeight: 800 }}
+                      style={{ flex: 1.4, height: 42, fontWeight: 700 }}
                     >
-                      {restoring ? 'در حال بازیابی اطلاعات…' : '✨ تأیید و اجرای بازیابی'}
+                      {restoring ? 'در حال بازیابی اطلاعات…' : 'تأیید و اجرای بازیابی'}
                     </button>
                     <button
                       type="button"
                       className="home-pill ghost"
                       disabled={restoring}
                       onClick={() => setPendingRestore(null)}
-                      style={{ flex: 1, height: 44, justifyContent: 'center' }}
+                      style={{ flex: 1, height: 42, justifyContent: 'center' }}
                     >
                       انصراف
                     </button>
@@ -1314,7 +1260,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
             <SettingsSubHeader
               icon="🤖"
               title="اتصال به ChatGPT و API (MCP)"
-              subtitle="پیکربندی اتصال مستقیم حساب شخصی شما به ChatGPT و ابزارهای هوش مصنوعی"
+              subtitle="پیکربندی اتصال مستقیم حساب شخصی شما به ابزارهای گفت‌وگو و تحلیل"
               onBack={() => setActiveSection(null)}
             />
 
@@ -1352,18 +1298,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
             <section className="lg settings-block" style={{ marginTop: 12 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div
-                    style={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 16,
-                      background: 'rgba(15, 118, 110, 0.2)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 26,
-                    }}
-                  >
+                  <div className="settings-nav-icon-wrap" aria-hidden="true">
                     🔄
                   </div>
                   <div>
@@ -1392,24 +1327,24 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                     type="button"
                     onClick={() => setUpdatePlatform('apk')}
                   >
-                    🤖 نسخه اندروید (APK)
+                    📱 نسخه اندروید (APK)
                   </button>
                 </div>
               </div>
 
               {/* Progress bar when downloading APK */}
               {isDownloadingApk && (
-                <div style={{ marginTop: 14, padding: 12, borderRadius: 12, background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+                <div style={{ marginTop: 14, padding: 12, borderRadius: 12, background: 'var(--hy-input-bg)', border: '1px solid var(--hy-border-color)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
                     <span>در حال دریافت فایل نصبی Hesabyar-Release.apk...</span>
                     <span>{apkProgress}٪</span>
                   </div>
-                  <div style={{ width: '100%', height: 8, background: 'rgba(255, 255, 255, 0.1)', borderRadius: 999, overflow: 'hidden' }}>
+                  <div style={{ width: '100%', height: 6, background: 'var(--hy-hover)', borderRadius: 999, overflow: 'hidden' }}>
                     <div
                       style={{
                         width: `${apkProgress}%`,
                         height: '100%',
-                        background: 'linear-gradient(90deg, #10b981, #06b6d4)',
+                        background: 'var(--hy-teal)',
                         transition: 'width 0.2s ease',
                       }}
                     />
@@ -1426,14 +1361,11 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                       className="cta-confirm"
                       style={{
                         width: '100%',
-                        height: 48,
+                        height: 44,
                         fontSize: 13,
-                        fontWeight: 800,
-                        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 8,
+                        fontWeight: 700,
+                        background: 'var(--hy-income)',
+                        color: '#fff',
                       }}
                       onClick={async () => {
                         const result = await promptPwaInstall()
@@ -1446,15 +1378,14 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                         }
                       }}
                     >
-                      <span>📲</span>
-                      <span>نصب مستقیم و فوری روی گوشی (بدون خطای پکیج)</span>
+                      📲 نصب مستقیم و فوری روی گوشی (PWA)
                     </button>
 
                     <button
                       type="button"
                       className="home-pill ghost"
                       disabled={isDownloadingApk}
-                      style={{ width: '100%', height: 44, fontSize: 12, fontWeight: 700, justifyContent: 'center' }}
+                      style={{ width: '100%', height: 42, fontSize: 12, fontWeight: 700, justifyContent: 'center' }}
                       onClick={() => {
                         setIsDownloadingApk(true)
                         setApkProgress(0)
@@ -1467,7 +1398,6 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                             clearInterval(interval)
                             setIsDownloadingApk(false)
 
-                            // Trigger download of release APK
                             const link = document.createElement('a')
                             link.href = './Hesabyar-Release.apk'
                             link.download = 'Hesabyar-Release.apk'
@@ -1482,16 +1412,16 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                         }, 200)
                       }}
                     >
-                      {isDownloadingApk
+                      📥 {isDownloadingApk
                         ? 'در حال آماده‌سازی و دانلود فایل APK...'
-                        : '⬇️ دانلود فایل بسته خام APK (Hesabyar-Release.apk)'}
+                        : 'دانلود فایل بسته خام APK (Hesabyar-Release.apk)'}
                     </button>
                   </>
                 ) : (
                   <button
                     type="button"
                     className="cta-confirm"
-                    style={{ width: '100%', height: 46, fontSize: 13, fontWeight: 800 }}
+                    style={{ width: '100%', height: 44, fontSize: 13, fontWeight: 700 }}
                     onClick={async () => {
                       notifyUser('در حال نوسازی کش و دریافت آخرین تغییرات وب‌اپ...')
                       try {
@@ -1525,26 +1455,25 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
 
             {/* Guide Section */}
             <section className="lg settings-block" style={{ marginTop: 14 }}>
-              <h2 style={{ fontSize: 14, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>📖</span>
-                <span>راهنمای بروزرسانی و نصب</span>
+              <h2 style={{ fontSize: 14, fontWeight: 800 }}>
+                ℹ️ راهنمای بروزرسانی و نصب
               </h2>
 
               <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <div style={{ padding: 12, borderRadius: 12, background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--hy-accent)' }}>راهنمای وب‌اپلیکیشن (PWA)</div>
-                  <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4, lineHeight: 1.8 }}>
+                <div style={{ padding: 12, borderRadius: 12, background: 'var(--hy-input-bg)', border: '1px solid var(--hy-border-color)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--hy-teal)' }}>راهنمای وب‌اپلیکیشن (PWA)</div>
+                  <p style={{ fontSize: 11.5, color: 'var(--hy-text-secondary)', marginTop: 4, lineHeight: 1.8 }}>
                     در نسخه وب با کلیک بر روی دکمه بروزرسانی، حافظه پنهان مرورگر و سرویس‌ورکر پاکسازی شده و جدیدترین نگارش سرور بارگذاری می‌شود.
                   </p>
                 </div>
 
-                <div style={{ padding: 12, borderRadius: 12, background: 'rgba(255, 255, 255, 0.04)', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--hy-income)' }}>راهنمای نسخه اندروید (APK) و رفع خطای بسته (Parse Error)</div>
-                  <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4, lineHeight: 1.8 }}>
-                    خطای «There was a problem while parsing the package» معمولاً به علت ناسازگاری نسخه اندروید با پکیج نصبی، محدودیت‌های امنیتی نصب برنامه‌های ناشناس (Install Unknown Apps)، یا تفاوت معماری پردازنده گوشی رخ می‌دهد.
+                <div style={{ padding: 12, borderRadius: 12, background: 'var(--hy-input-bg)', border: '1px solid var(--hy-border-color)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--hy-income)' }}>راهنمای نسخه اندروید (APK) و رفع خطای بسته</div>
+                  <p style={{ fontSize: 11.5, color: 'var(--hy-text-secondary)', marginTop: 4, lineHeight: 1.8 }}>
+                    خطای «There was a problem while parsing the package» معمولاً به علت ناسازگاری نسخه اندروید با پکیج نصبی یا محدودیت نصب برنامه‌های ناشناس رخ می‌دهد.
                   </p>
-                  <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4, lineHeight: 1.8 }}>
-                    💡 <strong>روش برتر و بدون خطا (نصب فوری PWA):</strong> حساب‌یار یک وب‌اپلیکیشن پیش‌رونده (PWA) است. در مرورگر گوشی (کروم یا سامسونگ اینترنت) منوی ۳ نقطه را لمس کرده و گزینه <strong>«افزودن به صفحه اصلی» (Add to Home screen)</strong> یا <strong>«نصب برنامه» (Install app)</strong> را بزنید. اپلیکیشن با همان آیکون، بدون نیاز به مجوز فایل و با سرعت بالاتر و به صورت کاملاً آفلاین روی گوشی شما نصب خواهد شد.
+                  <p style={{ fontSize: 11.5, color: 'var(--hy-text-secondary)', marginTop: 4, lineHeight: 1.8 }}>
+                    <strong>نصب فوری بدون خطا (PWA):</strong> در مرورگر گوشی (کروم یا سامسونگ اینترنت) منوی سه نقطه را بزنید و گزینه <strong>«افزودن به صفحه اصلی» (Add to Home screen)</strong> را انتخاب کنید.
                   </p>
                 </div>
               </div>
@@ -1555,8 +1484,8 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
               <div className="sheet-backdrop" onClick={() => setShowRestartConfirm(false)}>
                 <div className="sheet" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
                   <div style={{ textAlign: 'center', padding: '16px 8px 8px' }}>
-                    <div style={{ fontSize: 48, marginBottom: 8 }}>✅</div>
-                    <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>دانلود نسخه جدید به پایان رسید!</h3>
+                    <div style={{ fontSize: 40, marginBottom: 8 }}>✅</div>
+                    <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>دانلود نسخه جدید به پایان رسید</h3>
                     <p style={{ fontSize: 12, color: 'var(--hy-text-secondary)', marginTop: 8, lineHeight: 1.8 }}>
                       فایل نصبی Hesabyar-Release.apk با موفقیت دریافت شد. برای تکمیل مراحل و اعمال تغییرات، یکبار نرم‌افزار را راه‌اندازی مجدد کنید.
                     </p>
@@ -1565,7 +1494,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                       <button
                         type="button"
                         className="cta-confirm"
-                        style={{ flex: 1, height: 44, fontWeight: 800 }}
+                        style={{ flex: 1, height: 42, fontWeight: 700 }}
                         onClick={() => {
                           setShowRestartConfirm(false)
                           notifyUser('در حال راه‌اندازی مجدد حساب‌یار...')
@@ -1577,7 +1506,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                       <button
                         type="button"
                         className="home-pill ghost"
-                        style={{ height: 44, padding: '0 16px' }}
+                        style={{ height: 42, padding: '0 16px' }}
                         onClick={() => setShowRestartConfirm(false)}
                       >
                         بستن
@@ -1596,10 +1525,9 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // MAIN SETTINGS HUB (Clean, categorized list of settings categories)
+  // MAIN SETTINGS HUB
   // ══════════════════════════════════════════════════════════════════════════
 
-  // Set to true whenever developer access to cloud/supabase settings is requested by user
   const SHOW_DEV_CLOUD_SETTINGS = false
 
   const SETTINGS_GROUPS = [
@@ -1630,7 +1558,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
       ],
     },
     {
-      groupTitle: 'اتصال، پیامک و هوش مصنوعی',
+      groupTitle: 'اتصال، پیامک و تحلیل',
       items: [
         ...(SHOW_DEV_CLOUD_SETTINGS
           ? [
@@ -1647,17 +1575,17 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
         {
           id: 'sms' as const,
           icon: '📩',
-          title: 'هوشمندسازی پیامک‌های بانکی',
+          title: 'خواندن خودکار پیامک بانکی',
           subtitle: 'استخراج خودکار تراکنش‌ها از پیامک‌های واریز و برداشت بانک‌های کشور',
-          badge: 'هوشمند',
+          badge: 'خودکار',
           badgeClass: 'accent',
         },
         {
           id: 'api' as const,
           icon: '🤖',
           title: 'اتصال به ChatGPT و API (MCP)',
-          subtitle: 'اتصال هوشمند حسابیار به ChatGPT، دریافت توکن و مشخصات سرور MCP',
-          badge: 'هوش مصنوعی',
+          subtitle: 'اتصال حساب‌یار به ChatGPT، دریافت توکن و مشخصات سرور MCP',
+          badge: 'API',
           badgeClass: 'accent',
         },
       ],
@@ -1677,7 +1605,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
           id: 'update' as const,
           icon: '🔄',
           title: 'بروزرسانی',
-          subtitle: 'بررسی و اعمال آخرین نسخه وب‌اپ و دریافت نسخه جدید نصبی اندروید (APK)',
+          subtitle: 'بررسی و اعمال آخرین نسخه وب‌اپ و دریافت نسخه نصبی اندروید (APK)',
           badge: `نسخه ${toFaDigits(APP_VERSION)}`,
           badgeClass: 'ok',
         },
@@ -1701,11 +1629,22 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
         <div className="settings-hub">
           {/* Main Hub Top Bar */}
           <div className="top-row" style={{ marginBottom: 14 }}>
-            <div>
-              <h1 style={{ fontSize: '20px', fontWeight: 800 }}>تنظیمات حساب‌یار</h1>
-              <p style={{ fontSize: '11px', color: 'var(--hy-text-secondary)', marginTop: 2 }}>
-                شخصی‌سازی تم، امنیت، پشتیبان‌گیری و بروزرسانی نرم‌افزار
-              </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                type="button"
+                className="icon-btn mobile-only-icon"
+                onClick={() => window.dispatchEvent(new CustomEvent('hy:open-drawer'))}
+                title="منوی ناوبری"
+                aria-label="منوی ناوبری"
+              >
+                ☰
+              </button>
+              <div>
+                <h1 style={{ fontSize: '20px', fontWeight: 800 }}>تنظیمات حساب‌یار</h1>
+                <p style={{ fontSize: '11.5px', color: 'var(--hy-text-secondary)', marginTop: 2 }}>
+                  شخصی‌سازی تم، امنیت، پشتیبان‌گیری و بروزرسانی نرم‌افزار
+                </p>
+              </div>
             </div>
           </div>
 
@@ -1717,7 +1656,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                 <div className="hero-theme-sub">مشاهده مشخصات، مدیریت اشتراک و شناسه کاربری</div>
               </div>
             </div>
-            <span className="hero-chevron" aria-hidden="true">‹</span>
+            <span className="hero-chevron">‹</span>
           </Link>
 
           {/* Categorized Settings Navigation List */}
@@ -1751,7 +1690,7 @@ export function SettingsPage({ onScroll }: { onScroll: (compact: boolean) => voi
                         {sec.badge ? (
                           <span className={`badge ${sec.badgeClass}`}>{sec.badge}</span>
                         ) : null}
-                        <span className="fchev" aria-hidden="true">‹</span>
+                        <span className="fchev">‹</span>
                       </div>
                     </div>
                   ))}

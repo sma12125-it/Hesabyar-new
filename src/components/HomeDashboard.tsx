@@ -22,7 +22,6 @@ type CashflowPeriod = 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'sixMonths'
 export function HomeDashboard({ onAll }: { onAll: () => void }) {
   const { transactions, accounts, plans, items, customCategories, activeAccounts } = useStore()
   const { budgets, formatMoney, formatCompactMoney, cheques, debts, currencyUnit, setCurrencyUnit } = useExtras()
-  // Request 10: Default to privacy mode enabled
   const [hideAmounts, setHideAmounts] = useState(true)
   const [showAllObligations, setShowAllObligations] = useState(false)
   const [cashflowPeriod, setCashflowPeriod] = useState<CashflowPeriod>('sixMonths')
@@ -34,7 +33,6 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
   const jalali = isoToJalali(today)
   const [customEnd, setCustomEnd] = useState<number>(() => jalali?.jm ?? 6)
 
-  // Request 1: Segregate cash balance from credit and investment accounts
   const cashAccounts = useMemo(
     () => activeAccounts.filter((a) => (a.classification ?? 'cash') === 'cash'),
     [activeAccounts],
@@ -61,7 +59,6 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
     label: JALALI_MONTHS[Number(point.label) - 1] ?? point.label,
   }))
 
-  // Request 7: Dynamic series calculation for Cashflow Chart
   const activeSeries = useMemo(() => {
     if (cashflowPeriod === 'daily') {
       const days: Array<{ label: string; income: number; expense: number }> = []
@@ -216,7 +213,6 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
   const ringLeft = Math.max(ringLimit - ringSpent, 0)
   const hints = homeInstallmentHints(plans, items, today)
 
-  // Request 2: Combined Upcoming Obligations
   const obligations = useMemo(() => {
     const list: Array<{
       id: string
@@ -281,162 +277,120 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
 
   return (
     <div className="home-board">
-      {/* Quick Utility Strip: Privacy Eye + Currency Switcher */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '4px 6px 10px',
-        }}
-      >
+      {/* Privacy & Currency Controls Row */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 2 }}>
         <button
           type="button"
+          className="cat-mini"
           onClick={() => setHideAmounts((v) => !v)}
-          style={{
-            background: 'rgba(255, 255, 255, 0.12)',
-            border: '0.5px solid rgba(255, 255, 255, 0.5)',
-            borderRadius: 14,
-            padding: '4px 10px',
-            fontSize: 12,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            color: 'var(--hy-text-secondary)',
-            cursor: 'pointer',
-          }}
           title="حفظ حریم خصوصی"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12 }}
         >
-          <span>{hideAmounts ? '🙈' : '👁️'}</span>
-          <span>{hideAmounts ? 'نمایش ارقام' : 'مخفی‌سازی موجودی'}</span>
+          <span>{hideAmounts ? '👁️' : '🙈'}</span>
+          <span>{hideAmounts ? 'نمایش مبالغ' : 'مخفی‌سازی'}</span>
         </button>
 
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'inline-flex', gap: 4 }}>
           <button
             type="button"
+            className={`cat-mini${currencyUnit === 'IRT' ? ' active' : ''}`}
             onClick={() => void setCurrencyUnit('IRT')}
-            style={{
-              padding: '3px 8px',
-              borderRadius: 10,
-              fontSize: 11,
-              fontWeight: 700,
-              border: currencyUnit === 'IRT' ? '1px solid #0f766e' : '0.5px solid rgba(255,255,255,0.4)',
-              background: currencyUnit === 'IRT' ? 'rgba(15, 118, 110, 0.2)' : 'transparent',
-              color: currencyUnit === 'IRT' ? 'var(--hy-text)' : 'var(--hy-text-secondary)',
-              cursor: 'pointer',
-            }}
           >
             تومان
           </button>
           <button
             type="button"
+            className={`cat-mini${currencyUnit === 'IRR' ? ' active' : ''}`}
             onClick={() => void setCurrencyUnit('IRR')}
-            style={{
-              padding: '3px 8px',
-              borderRadius: 10,
-              fontSize: 11,
-              fontWeight: 700,
-              border: currencyUnit === 'IRR' ? '1px solid #0f766e' : '0.5px solid rgba(255,255,255,0.4)',
-              background: currencyUnit === 'IRR' ? 'rgba(15, 118, 110, 0.2)' : 'transparent',
-              color: currencyUnit === 'IRR' ? 'var(--hy-text)' : 'var(--hy-text-secondary)',
-              cursor: 'pointer',
-            }}
           >
             ریال
           </button>
         </div>
       </div>
 
-      {/* Request 1: Segregated KPI Cards (Cash, Credit, Investment, Income, Expense) */}
+      {/* Classic 4-KPI Glass Grid */}
       <div className="home-kpis">
-        <article className="home-kpi lg">
-          <span>موجودی نقدی</span>
-          <strong style={{ color: 'var(--hy-teal)' }}>{displayMoney(cashBalance)}</strong>
-          <small>{toFaDigits(cashAccounts.length)} حساب نقدی و بانکی</small>
-        </article>
-        <article className="home-kpi lg">
-          <span>اعتبار خرید</span>
+        <div className="home-kpi lg">
+          <span>💵 نقدینگی در دسترس</span>
+          <strong>{displayMoney(cashBalance)}</strong>
+          <small>{toFaDigits(cashAccounts.length)} حساب بانکی و نقدی</small>
+        </div>
+
+        <div className="home-kpi lg">
+          <span>💳 اعتبار خرید</span>
           <strong style={{ color: 'var(--hy-transfer)' }}>{displayMoney(creditBalance)}</strong>
-          <small>{toFaDigits(creditAccounts.length)} کارت / حساب اعتباری</small>
-        </article>
-        <article className="home-kpi lg">
-          <span>پس‌انداز و سرمایه</span>
+          <small>{toFaDigits(creditAccounts.length)} حساب اعتباری</small>
+        </div>
+
+        <div className="home-kpi lg">
+          <span>📈 پس‌انداز و سرمایه</span>
           <strong style={{ color: 'var(--hy-violet)' }}>{displayMoney(investmentBalance)}</strong>
-          <small>{toFaDigits(investmentAccounts.length)} حساب پس‌انداز و سرمایه</small>
-        </article>
-        <article className="home-kpi lg">
-          <span>درآمد این ماه</span>
-          <strong className="up">{displayMoney(totals.income)}</strong>
-          <small>{incomeCount === 0 ? 'دریافتی ثبت نشده' : `${toFaDigits(incomeCount)} دریافت`}</small>
-        </article>
-        <article className="home-kpi lg">
-          <span>هزینه این ماه</span>
-          <strong className="down">{displayMoney(totals.expense)}</strong>
-          <small>{totals.income > 0 ? `${toFaDigits(expenseShare)}٪ از درآمد` : 'هنوز درآمدی ثبت نشده'}</small>
-        </article>
+          <small>{toFaDigits(investmentAccounts.length)} صندوق / سپرده</small>
+        </div>
+
+        <div className="home-kpi lg">
+          <span>📊 درآمد و هزینه این ماه</span>
+          <strong className={totals.net >= 0 ? 'up' : 'down'}>{displayMoney(totals.net)}</strong>
+          <small className={totals.net >= 0 ? 'up' : 'down'}>
+            {incomeCount === 0 && totals.expense === 0
+              ? 'بدون تراکنش در این ماه'
+              : totals.income > 0
+                ? `${toFaDigits(expenseShare)}٪ مصرف درآمد`
+                : `هزینه ${displayMoney(totals.expense)}`}
+          </small>
+        </div>
       </div>
 
-      {/* Request 8: Financial Insight placed right below balance and income/expense cards */}
-      <section className="home-card lg home-insight" style={{ margin: '14px 0 16px' }}>
-        <header style={{ marginBottom: 6 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 18 }}>💡</span>
-            <h2 style={{ fontSize: 15, margin: 0, fontWeight: 700 }}>بینش مالی</h2>
+      {/* Classic Monthly Insight Card */}
+      <section className="home-card lg home-insight">
+        <header>
+          <div>
+            <h2>💡 تحلیل سریع وضعیت</h2>
+            <p>
+              درآمد ماه: {displayMoney(totals.income)} · هزینه ماه: {displayMoney(totals.expense)}
+            </p>
           </div>
         </header>
-        <p style={{ margin: 0, fontSize: 13, lineHeight: '1.6', color: 'var(--hy-text-secondary)' }}>
-          {insightText(baseMonthlySeries, totals.income, totals.expense, totals.net, formatCompactMoney)}
-        </p>
+        <p>{insightText(baseMonthlySeries, totals.income, totals.expense, totals.net, formatCompactMoney)}</p>
       </section>
 
-      {/* Request 2: Upcoming Obligations Section (Preview 3 items, expand all) */}
+      {/* Upcoming Obligations */}
       {obligations.length > 0 ? (
-        <section className="home-card lg" style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 20 }}>⏰</span>
-              <h2 style={{ fontSize: 15, margin: 0, fontWeight: 800 }}>تعهدات مالی پیش رو</h2>
-              <span className="badge pending">{toFaDigits(obligations.length)} مورد</span>
+        <section className="home-card lg">
+          <header>
+            <div>
+              <h2>⏳ تعهدات مالی پیش رو ({toFaDigits(obligations.length)})</h2>
+              <p>اقساط نزدیک، چک‌های در جریان و بدهی‌ها</p>
             </div>
             <button
-              className="cat-mini"
+              className="home-chip"
               type="button"
               onClick={() => navigate('/installments')}
-              style={{ fontSize: 11 }}
             >
-              مدیریت اقساط و چک‌ها ‹
+              مدیریت همه
             </button>
-          </div>
+          </header>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div className="home-dues">
             {(showAllObligations ? obligations : obligations.slice(0, 3)).map((item) => (
-              <div
+              <button
                 key={item.id}
+                type="button"
                 onClick={() => navigate('/installments')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  padding: '9px 12px',
-                  borderRadius: 12,
-                  background: item.isOverdue ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.04)',
-                  border: item.isOverdue ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(255, 255, 255, 0.08)',
-                  cursor: 'pointer',
-                }}
               >
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700 }}>
-                    <span>{item.title}</span>
-                    <span className={`badge ${item.badgeClass}`} style={{ fontSize: 10, padding: '2px 6px' }}>
+                <span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                    <strong>{item.title}</strong>
+                    <span className={`badge ${item.badgeClass}`} style={{ fontSize: 10 }}>
                       {item.badge}
                     </span>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--hy-subtext)', marginTop: 2 }}>{item.subtitle}</div>
-                </div>
-                <strong style={{ fontSize: 13, color: item.isOverdue ? '#f87171' : 'var(--hy-text)' }}>
+                  </span>
+                  <small>{item.subtitle}</small>
+                </span>
+                <b style={{ color: item.isOverdue ? 'var(--hy-expense)' : 'var(--hy-text)' }}>
                   {displayMoney(item.amount)}
-                </strong>
-              </div>
+                </b>
+              </button>
             ))}
           </div>
 
@@ -446,9 +400,8 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
                 type="button"
                 className="cat-mini"
                 onClick={() => setShowAllObligations((v) => !v)}
-                style={{ fontSize: 12, padding: '6px 14px', borderRadius: 10 }}
               >
-                {showAllObligations ? 'نمایش کمتر ▴' : `مشاهده همه (${toFaDigits(obligations.length)} مورد) ▾`}
+                {showAllObligations ? '▲ نمایش کمتر' : `▼ مشاهده همه (${toFaDigits(obligations.length)} مورد)`}
               </button>
             </div>
           ) : null}
@@ -457,7 +410,7 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
 
       <Link to="/transactions/pending" className="home-card lg sms-pending-link">
         <div>
-          <h2>تراکنش‌های در انتظار تأیید</h2>
+          <h2>📩 تراکنش‌های در انتظار تأیید</h2>
           <p>{pending.length === 0 ? 'مورد جدیدی نیست' : `${toFaDigits(pending.length)} تراکنش منتظر تأیید`}</p>
         </div>
         <span className="home-chip">مشاهده</span>
@@ -471,8 +424,7 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
               <p>درآمد و هزینه بر اساس دوره انتخابی</p>
             </div>
 
-            {/* Request 7: Cashflow period selector */}
-            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
               {(
                 [
                   { id: 'daily', label: 'روزانه' },
@@ -487,17 +439,9 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
                 <button
                   key={p.id}
                   type="button"
+                  className={`cat-mini${cashflowPeriod === p.id ? ' active' : ''}`}
                   onClick={() => setCashflowPeriod(p.id)}
-                  style={{
-                    padding: '3px 7px',
-                    borderRadius: 8,
-                    fontSize: 10,
-                    fontWeight: cashflowPeriod === p.id ? 700 : 500,
-                    border: cashflowPeriod === p.id ? '1px solid var(--hy-teal)' : '1px solid var(--hy-border-color)',
-                    background: cashflowPeriod === p.id ? 'color-mix(in srgb, var(--hy-teal) 22%, transparent)' : 'transparent',
-                    color: cashflowPeriod === p.id ? 'var(--hy-text)' : 'var(--hy-subtext)',
-                    cursor: 'pointer',
-                  }}
+                  style={{ fontSize: 11 }}
                 >
                   {p.label}
                 </button>
@@ -505,7 +449,6 @@ export function HomeDashboard({ onAll }: { onAll: () => void }) {
             </div>
           </header>
 
-          {/* Request 7: Custom Month Selector */}
           {cashflowPeriod === 'custom' ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '8px 0', fontSize: 11 }}>
               <span>از ماه:</span>

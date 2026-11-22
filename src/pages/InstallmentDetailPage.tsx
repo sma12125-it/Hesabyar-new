@@ -127,7 +127,7 @@ export function InstallmentDetailPage({
 
       {overdueItem && plan.status === 'active' ? (
         <div className="banner error">
-          <span className="bico">⚠</span>
+          <span className="bico">⚠️</span>
           <span>سررسید گذشته — قسط {toFaDigits(overdueItem.index)} معوق است</span>
         </div>
       ) : null}
@@ -226,7 +226,7 @@ export function InstallmentDetailPage({
           {overdueItem ? 'پرداخت قسط معوق' : 'پرداخت قسط'}
         </button>
         <button className="action-chip lg-light" type="button" onClick={onEdit}>
-          <span className="aico">✎</span>ویرایش
+          <span className="aico">✏️</span>ویرایش
         </button>
       </div>
 
@@ -243,8 +243,8 @@ export function InstallmentDetailPage({
           <div
             style={{
               borderRadius: 20,
-              background: 'linear-gradient(155deg, rgba(13, 148, 136, 0.12) 0%, rgba(15, 23, 42, 0.04) 100%)',
-              border: '0.5px solid rgba(13, 148, 136, 0.35)',
+              background: 'color-mix(in srgb, var(--hy-teal) 8%, var(--glass-chrome))',
+              border: '1px solid color-mix(in srgb, var(--hy-teal) 28%, transparent)',
               overflow: 'hidden',
               marginBottom: 4,
             }}
@@ -272,10 +272,11 @@ export function InstallmentDetailPage({
                     width: 34,
                     height: 34,
                     borderRadius: 12,
-                    background: 'rgba(13, 148, 136, 0.2)',
+                    background: 'color-mix(in srgb, var(--hy-teal) 16%, transparent)',
+                    color: 'var(--hy-teal)',
                     display: 'grid',
                     placeItems: 'center',
-                    fontSize: 16,
+                    fontSize: 17,
                   }}
                 >
                   📦
@@ -366,7 +367,7 @@ export function InstallmentDetailPage({
               border: '0.5px solid rgba(13, 148, 136, 0.25)',
             }}
           >
-            <div style={{ fontSize: 28, marginBottom: 8 }}>🎉</div>
+            <div style={{ marginBottom: 8, fontSize: 28 }}>✅</div>
             <h3 style={{ fontSize: 15, fontWeight: 700, margin: '0 0 6px' }}>تمام اقساط پرداخت شده‌اند!</h3>
             <p style={{ margin: 0, fontSize: 12, color: 'var(--hy-text-secondary)' }}>
               تمامی {toFaDigits(plan.totalCount)} قسط این طرح با موفقیت پرداخت و به بایگانی بالا منتقل شده‌اند.
@@ -411,8 +412,11 @@ function ItemRow({
         </div>
         <div className={`sub${status === 'overdue' ? ' danger' : ''}`} style={{ marginTop: 2 }}>
           {status === 'paid' ? (
-            <span style={{ color: 'var(--hy-income)', fontWeight: 600, display: 'inline-flex', flexWrap: 'wrap', gap: 4 }}>
-              <span>✓ تاریخ پرداخت:</span>
+            <span style={{ color: 'var(--hy-income)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                <span>✓</span>
+                <span>تاریخ پرداخت:</span>
+              </span>
               <strong>{formatPersianDateFull(effectivePaidDate)}</strong>
               {accountName ? (
                 <span style={{ color: 'var(--hy-text-tertiary)', fontWeight: 400 }}>· حساب: {accountName}</span>
@@ -421,12 +425,14 @@ function ItemRow({
               )}
             </span>
           ) : status === 'overdue' ? (
-            <span style={{ color: 'var(--hy-expense)', fontWeight: 600 }}>
-              ⚠️ {toFaDigits(lateDays)} روز گذشته از موعد · معوق
+            <span style={{ color: 'var(--hy-expense)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span>⚠️</span>
+              <span>{toFaDigits(lateDays)} روز گذشته از موعد · معوق</span>
             </span>
           ) : daysUntil(item.dueDate, today) <= 7 ? (
-            <span style={{ color: '#d97706', fontWeight: 600 }}>
-              ⏳ موعد سررسید نزدیک است ({daysUntil(item.dueDate, today) === 0 ? 'امروز' : `${toFaDigits(daysUntil(item.dueDate, today))} روز دیگر`})
+            <span style={{ color: '#d97706', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <span>⏳</span>
+              <span>موعد سررسید نزدیک است ({daysUntil(item.dueDate, today) === 0 ? 'امروز' : `${toFaDigits(daysUntil(item.dueDate, today))} روز دیگر`})</span>
             </span>
           ) : (
             <span style={{ color: 'var(--hy-text-tertiary)' }}>در انتظار موعد سررسید</span>

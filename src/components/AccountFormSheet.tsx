@@ -85,7 +85,7 @@ export function AccountFormSheet({
     <WindowPopup
       title={isEdit ? 'ویرایش حساب' : 'حساب جدید'}
       subtitle={`موجودی کل فعلی: ${formatRial(totalBalance)} ریال`}
-      icon="💳"
+      icon="🏦"
       isOpen={true}
       onClose={onClose}
       onMinimize={onMinimize}
@@ -107,7 +107,7 @@ export function AccountFormSheet({
       <div className="sheet-body-scroll" style={{ padding: '6px 0 16px' }}>
         {error ? (
           <div className="banner error">
-            <span className="bico">⚠</span>
+            <span className="bico">⚠️</span>
             <span>{error}</span>
           </div>
         ) : null}
@@ -198,7 +198,7 @@ export function AccountFormSheet({
           </div>
 
           <div className="field-chip">
-            <span className="ficon">🔢</span>
+            <span className="ficon">💳</span>
             <div style={{ flex: 1 }}>
               <div className="flabel">شماره حساب بانکی (اختیاری)</div>
               <input

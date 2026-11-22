@@ -298,12 +298,15 @@ export function CardFormSheet({
                   fontSize: 11,
                   padding: '4px 10px',
                   borderRadius: 8,
-                  background: showCustomBuilder ? 'rgba(15, 118, 110, 0.25)' : 'rgba(255, 255, 255, 0.08)',
+                  background: showCustomBuilder ? 'rgba(15, 118, 110, 0.2)' : 'rgba(255, 255, 255, 0.06)',
                   color: showCustomBuilder ? 'var(--hy-teal)' : 'inherit',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  border: '1px solid var(--hy-border-subtle)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5,
                 }}
               >
-                {showCustomBuilder ? 'بستن رنگ سفارشی ✕' : '✨ ساخت رنگ دلخواه'}
+                {showCustomBuilder ? '✕ بستن رنگ سفارشی' : '🎛️ ساخت رنگ دلخواه'}
               </button>
             </div>
 
