@@ -11,29 +11,6 @@ import { notifyUser } from '../lib/sync'
 import { TSE_INSTRUMENTS, normalizePersian } from '../lib/tseCatalog'
 import { formatPersianDateFull } from '../lib/dates'
 
-function marketEmoji(market: string): string {
-  switch (market) {
-    case 'gold':
-      return '🪙'
-    case 'stock':
-      return '📈'
-    case 'fund':
-      return '🏦'
-    case 'crypto':
-      return '💎'
-    case 'bank':
-      return '💳'
-    case 'cash':
-      return '💵'
-    case 'property':
-      return '🏠'
-    case 'other':
-      return '📦'
-    default:
-      return '🎯'
-  }
-}
-
 
 
 
@@ -602,13 +579,25 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
             onClick={() => window.dispatchEvent(new CustomEvent('hy:open-drawer'))}
             title="منوی ناوبری سایدبار"
             aria-label="منوی ناوبری سایدبار"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'var(--hy-input-bg, rgba(255, 255, 255, 0.08))',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 20,
+            }}
           >
             ☰
           </button>
           <div>
             <h1>مدیریت بودجه و دارایی‌ها</h1>
             <p style={{ margin: '2px 0 0', fontSize: 13, color: 'var(--hy-text-secondary)' }}>
-              بودجه‌بندی دسته‌بندی‌ها و پیگیری اهداف پس‌انداز
+              بودجه‌بندی هوشمند دسته‌بندی‌ها و اهداف پس‌انداز مالی
             </p>
           </div>
         </div>
@@ -620,8 +609,8 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
         style={{
           margin: '12px 0 16px',
           padding: '16px 20px',
-          background: 'color-mix(in srgb, var(--hy-teal) 9%, var(--glass-chrome))',
-          border: '1px solid color-mix(in srgb, var(--hy-teal) 26%, transparent)',
+          background: 'linear-gradient(135deg, rgba(15, 118, 110, 0.22) 0%, rgba(30, 27, 75, 0.35) 100%)',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
           borderRadius: 20,
         }}
       >
@@ -831,7 +820,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {budgets.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '30px 14px', color: 'var(--hy-text-secondary)' }}>
-                  <div style={{ fontSize: 28 }}>📊</div>
+                  <span style={{ fontSize: 32 }}>📊</span>
                   <p style={{ marginTop: 8 }}>هنوز سقفی برای دسته‌بندی‌ها ثبت نشده است.</p>
                   <button
                     className="cat-mini"
@@ -862,12 +851,12 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           <div className="plan-meta" style={{ fontSize: 11, marginTop: 2 }}>
                             {formatMoney(spent)} از {formatMoney(budget.monthlyLimit)}
                             {isOver ? (
-                              <span style={{ color: 'var(--hy-expense)', marginRight: 8, fontWeight: 700 }}>
-                                ⚠️ عبور از سقف
+                              <span style={{ color: 'var(--hy-expense)', fontWeight: 700, marginRight: 6 }}>
+                                ⚠️ عبور از سقف!
                               </span>
                             ) : isWarning ? (
-                              <span style={{ color: '#d97706', marginRight: 8, fontWeight: 600 }}>
-                                ⏳ نزدیک به سقف
+                              <span style={{ color: '#d97706', fontWeight: 600, marginRight: 6 }}>
+                                ⚡ نزدیک به سقف
                               </span>
                             ) : null}
                           </div>
@@ -1064,7 +1053,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                 onClick={() => setGoalsTab('archived')}
                 style={{ fontSize: 12, padding: '4px 14px' }}
               >
-                📦 بایگانی شده ({toFaDigits(archivedGoalsList.length)})
+                🗄️ بایگانی شده ({toFaDigits(archivedGoalsList.length)})
               </button>
             </div>
 
@@ -1086,7 +1075,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
           <section className="lg report-card">
             {((goalsTab === 'active' ? activeGoalsList : archivedGoalsList).length === 0) ? (
               <div style={{ textAlign: 'center', padding: '36px 14px', color: 'var(--hy-text-secondary)' }}>
-                <div style={{ fontSize: 28 }}>🎯</div>
+                <span style={{ fontSize: 32 }}>🎯</span>
                 <p style={{ marginTop: 8 }}>
                   {goalsTab === 'active' ? 'هنوز هدفی برای پس‌انداز ایجاد نکرده‌اید.' : 'هدف بایگانی‌شده‌ای موجود نیست.'}
                 </p>
@@ -1105,6 +1094,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {(goalsTab === 'active' ? activeGoalsList : archivedGoalsList).map((goal) => {
                   const ratio = goal.target > 0 ? Math.min(100, Math.round((goal.saved / goal.target) * 100)) : 0
+                  const marketInfo = DEFAULT_MARKETS.find((m) => m.id === goal.market)
                   const remaining = Math.max(0, goal.target - goal.saved)
 
                   return (
@@ -1121,7 +1111,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                       <div className="plan-top" style={{ marginBottom: 8 }}>
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 16 }}>{marketEmoji(goal.market)}</span>
+                            <span style={{ fontSize: 16 }}>{marketInfo?.icon ?? '🎯'}</span>
                             <span style={{ fontWeight: 800, fontSize: 14 }}>{goal.name}</span>
                             {goal.archived ? (
                               <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 6, background: 'rgba(255,255,255,0.1)' }}>
@@ -1132,10 +1122,10 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           <div className="plan-meta" style={{ fontSize: 11, marginTop: 4 }}>
                             {formatMoney(goal.saved)} از {formatMoney(goal.target)} ({toFaDigits(ratio)}٪)
                             {remaining > 0 ? (
-                              <span style={{ marginRight: 8, opacity: 0.7 }}>· باقیمانده: {formatMoney(remaining)}</span>
+                              <span style={{ opacity: 0.7, marginRight: 6 }}>· باقیمانده: {formatMoney(remaining)}</span>
                             ) : (
-                              <span style={{ marginRight: 8, color: 'var(--hy-income)', fontWeight: 700 }}>
-                                ✓ هدف محقق شد
+                              <span style={{ color: 'var(--hy-income)', fontWeight: 700, marginRight: 6 }}>
+                                🎉 هدف محقق شد!
                               </span>
                             )}
                           </div>
@@ -1151,7 +1141,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                               notifyUser(goal.archived ? 'هدف به لیست فعال بازگردانده شد' : 'هدف بایگانی شد')
                             }}
                           >
-                            {goal.archived ? '↩️ بازگردانی' : '📦 بایگانی'}
+                            {goal.archived ? '↺ بازگردانی' : '🗄️ بایگانی'}
                           </button>
                           <button
                             className="cat-mini danger"
@@ -1364,7 +1354,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                   >
                     {goalMarkets.map((m) => (
                       <option key={m.id} value={m.id}>
-                        {m.label}
+                        {m.icon} {m.label}
                       </option>
                     ))}
                   </select>
@@ -1499,7 +1489,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                     }}
                     style={{ fontSize: 11, background: 'rgba(37, 99, 235, 0.15)', color: 'var(--hy-accent)' }}
                   >
-                    🔄 {isRefreshingTse ? 'در حال دریافت...' : 'به‌روزرسانی قیمت'}
+                    {isRefreshingTse ? 'در حال دریافت...' : '🔄 به‌روزرسانی قیمت'}
                   </button>
                   <button
                     type="button"
@@ -1562,16 +1552,16 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
               <div
                 className="report-card lg"
                 style={{
-                  background: 'color-mix(in srgb, var(--hy-teal) 8%, var(--glass-chrome))',
-                  border: '1px solid color-mix(in srgb, var(--hy-teal) 26%, transparent)',
+                  background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.12) 0%, rgba(15, 118, 110, 0.1) 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.12)',
                   borderRadius: 18,
                   padding: '16px 20px',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 24, padding: 8, borderRadius: 10, background: 'var(--hy-hover)' }}>
-                      {marketEmoji(selectedAsset.market)}
+                    <span style={{ fontSize: 28 }}>
+                      {DEFAULT_INVESTMENT_MARKETS.find((m) => m.id === selectedAsset.market)?.icon || '📈'}
                     </span>
                     <div>
                       <h1 style={{ margin: 0, fontSize: 18, fontWeight: 900 }}>{selectedAsset.name}</h1>
@@ -1760,7 +1750,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                   color: 'var(--hy-text)',
                 }}
               >
-                <strong>خلاصه وضعیت دارایی:</strong> مقدار باقیمانده شما{' '}
+                📊 <strong>خلاصه وضعیت دارایی:</strong> مقدار باقیمانده شما{' '}
                 <strong>{toFaDigits(selectedAsset.quantity || 0)} واحد</strong> با بهای میانگین تمام‌شده{' '}
                 <strong>{formatMoney(selectedAsset.unitPrice || 0)}</strong> است. تاکنون مبلغ{' '}
                 <strong style={{ color: (selectedAsset.realizedProfit || 0) >= 0 ? '#10b981' : '#ef4444' }}>
@@ -1777,7 +1767,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
               <section className="lg report-card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                   <h2 style={{ margin: 0, fontSize: 15, fontWeight: 800 }}>
-                    🧾 سابقه معاملات و تراکنش‌ها ({toFaDigits(selectedAsset.transactions?.length || 0)})
+                    📜 سابقه معاملات و تراکنش‌ها ({toFaDigits(selectedAsset.transactions?.length || 0)})
                   </h2>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button
@@ -1819,7 +1809,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
 
                 {(!selectedAsset.transactions || selectedAsset.transactions.length === 0) ? (
                   <div style={{ textAlign: 'center', padding: '30px 14px', color: 'var(--hy-text-secondary)' }}>
-                    <div style={{ fontSize: 26, opacity: 0.6 }}>🧾</div>
+                    <span style={{ fontSize: 28 }}>📝</span>
                     <p style={{ marginTop: 8 }}>هنوز تراکنش یا معامله‌ای برای این دارایی ثبت نشده است.</p>
                   </div>
                 ) : (
@@ -1935,7 +1925,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                     type="button"
                     onClick={() => setInvMarketFilter(m.id)}
                   >
-                    {m.icon || marketEmoji(m.id)} {m.label} ({toFaDigits(count)})
+                    {m.icon} {m.label} ({toFaDigits(count)})
                   </button>
                 )
               })}
@@ -1950,7 +1940,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                 onClick={() => void refreshTseQuotes(false)}
                 style={{ fontSize: 11, background: 'rgba(37, 99, 235, 0.15)', color: 'var(--hy-accent)' }}
               >
-                🔄 {isRefreshingTse ? 'در حال دریافت...' : 'به‌روزرسانی بورس'}
+                {isRefreshingTse ? 'در حال دریافت...' : '🔄 به‌روزرسانی بورس'}
               </button>
               <button
                 className="cta-confirm"
@@ -1989,7 +1979,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
 
             {filteredInvestments.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '36px 14px', color: 'var(--hy-text-secondary)' }}>
-                <div style={{ fontSize: 28 }}>📈</div>
+                <span style={{ fontSize: 32 }}>📈</span>
                 <p style={{ marginTop: 8 }}>هیچ دارایی در این دسته‌بندی ثبت نشده است.</p>
                 <button
                   className="cat-mini"
@@ -2026,7 +2016,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 8 }}>
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: 18 }}>{marketMeta?.icon || marketEmoji(asset.market)}</span>
+                            <span style={{ fontSize: 17 }}>{marketMeta?.icon ?? '📦'}</span>
                             <span style={{ fontWeight: 800, fontSize: 15 }}>{asset.name}</span>
                             {asset.symbol ? (
                               <span
@@ -2322,7 +2312,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                         >
                           {invMarkets.map((m) => (
                             <option key={m.id} value={m.id}>
-                              {m.label}
+                              {m.icon} {m.label}
                             </option>
                           ))}
                         </select>
@@ -2386,8 +2376,8 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           width: '100%',
                           padding: '10px 12px',
                           borderRadius: 10,
-                          background: 'color-mix(in srgb, var(--hy-teal) 10%, var(--glass-chrome))',
-                          border: '1px dashed var(--hy-accent)',
+                          background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.2) 0%, rgba(15, 118, 110, 0.2) 100%)',
+                          border: '1.5px dashed var(--hy-accent)',
                           color: 'var(--hy-text)',
                           fontSize: 12,
                           fontWeight: 700,
@@ -2398,7 +2388,8 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                           gap: 8,
                         }}
                       >
-                        📄 انتخاب نماد از فهرست رسمی سهام و صندوق‌های بورس
+                        <span>📋</span>
+                        <span>انتخاب نماد از فهرست رسمی سهام و صندوق‌های بورس</span>
                       </button>
 
                       {/* Manual/Search Input & Action Button */}
@@ -2423,7 +2414,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                             fontWeight: 700,
                           }}
                         >
-                          🔍 {tseLoading ? 'در حال دریافت...' : 'استعلام قیمت'}
+                          {tseLoading ? 'در حال دریافت...' : '🔍 استعلام قیمت'}
                         </button>
                       </div>
 
@@ -2638,7 +2629,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                         }}
                       >
                         <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--hy-text)' }}>
-                          📈 برآورد سود / زیان اولیه:
+                          📊 برآورد سود / زیان اولیه:
                         </span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, fontSize: 13, color: isProfit ? '#10b981' : isLoss ? '#ef4444' : 'var(--hy-text-secondary)' }}>
                           <span>{isProfit ? 'سود:' : isLoss ? 'زیان:' : 'سر به سر'}</span>
@@ -2780,7 +2771,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                       }}
                       title="فراخوانی مجدد فهرست نمادها از وب‌سرویس بورس"
                     >
-                      🔄 {isTseLoadingCatalog ? '...' : 'بازخوانی'}
+                      {isTseLoadingCatalog ? '...' : '🔄 بازخوانی'}
                     </button>
                   </div>
                 </div>
@@ -2789,7 +2780,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                 <div style={{ position: 'relative' }}>
                   <input
                     className="field-input"
-                    placeholder="جستجوی نماد، نام شرکت یا گروه (مثلاً: فولاد، خودرو، اهرم، عیار، طلا، شستا)..."
+                    placeholder="🔍 جستجوی نماد، نام شرکت یا گروه (مثلاً: فولاد، خودرو، اهرم، عیار، طلا، شستا)..."
                     value={tseSearchQuery}
                     onChange={(e) => setTseSearchQuery(e.target.value)}
                     autoFocus
@@ -2818,20 +2809,20 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
                 <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
                   {[
                     { id: 'all', label: 'همه نمادها' },
-                    { id: 'mofid', label: 'صندوق‌های کارگزاری مفید' },
-                    { id: 'gold', label: 'صندوق طلا' },
-                    { id: 'leveraged', label: 'اهرمـی' },
-                    { id: 'stock', label: 'سهام بورس و فرابورس' },
-                    { id: 'fund', label: 'صندوق‌های سهامی' },
-                    { id: 'fixed_income', label: 'درآمد ثابت' },
-                    { id: 'metals', label: 'فلزات و معادن' },
-                    { id: 'oil', label: 'پتروپالایشی' },
-                    { id: 'bank', label: 'بانک و مالی' },
-                    { id: 'auto', label: 'خودرو و قطعات' },
-                    { id: 'pharma', label: 'دارویی' },
-                    { id: 'cement', label: 'سیمان و ساختمانی' },
-                    { id: 'food', label: 'غذایی و زراعت' },
-                    { id: 'tech', label: 'فناوری و ارتباطات' },
+                    { id: 'mofid', label: '⭐ صندوق‌های کارگزاری مفید' },
+                    { id: 'gold', label: '🪙 صندوق طلا' },
+                    { id: 'leveraged', label: '⚡ اهرمی' },
+                    { id: 'stock', label: '🏢 سهام بورس و فرابورس' },
+                    { id: 'fund', label: '📈 صندوق‌های سهامی' },
+                    { id: 'fixed_income', label: '💰 درآمد ثابت' },
+                    { id: 'metals', label: '⛏️ فلزات و معادن' },
+                    { id: 'oil', label: '🛢️ پتروپالایشی' },
+                    { id: 'bank', label: '🏦 بانک و مالی' },
+                    { id: 'auto', label: '🚗 خودرو و قطعات' },
+                    { id: 'pharma', label: '💊 دارویی' },
+                    { id: 'cement', label: '🏗️ سیمان و ساختمانی' },
+                    { id: 'food', label: '🌾 غذایی و زراعت' },
+                    { id: 'tech', label: '💻 فناوری و ارتباطات' },
                   ].map((tab) => (
                     <button
                       key={tab.id}
@@ -2972,7 +2963,7 @@ export function ReportsPage({ onScroll }: { onScroll: (compact: boolean) => void
             <WindowPopup
               isOpen={isTxModalOpen}
               title={txType === 'buy' ? `ثبت خرید / صدور نماد ${selectedAsset.name}` : `ثبت فروش / ابطال نماد ${selectedAsset.name}`}
-              icon="📈"
+              icon={txType === 'buy' ? '📈' : '📉'}
               onClose={() => setIsTxModalOpen(false)}
               defaultWidth={460}
               defaultHeight={540}

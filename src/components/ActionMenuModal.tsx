@@ -32,14 +32,15 @@ export function ActionMenuModal({ isOpen, onClose, items }: ActionMenuModalProps
   return createPortal(
     <div className="action-menu-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label="منوی دسترسی سریع ثبت">
       <div className="action-menu-sheet" onClick={(e) => e.stopPropagation()}>
+        {/* Header with decorative badge and close button */}
         <div className="action-menu-header">
           <div className="action-menu-handle" />
           <div className="action-menu-title-row">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span className="action-menu-sparkle">✨</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div className="action-menu-sparkle">✨</div>
               <div>
-                <h2 className="action-menu-title">ثبت سریع و ابزارها</h2>
-                <p className="action-menu-sub">گزینه مورد نظر را انتخاب کنید</p>
+                <h2 className="action-menu-title">ثبت جدید در حساب‌یار</h2>
+                <p className="action-menu-sub">یکی از بخش‌های زیر را برای ایجاد انتخاب فرمایید</p>
               </div>
             </div>
             <button type="button" className="action-menu-close" onClick={onClose} aria-label="بستن منو">
@@ -48,23 +49,23 @@ export function ActionMenuModal({ isOpen, onClose, items }: ActionMenuModalProps
           </div>
         </div>
 
+        {/* Action Grid */}
         <div className="action-menu-grid">
           {items.map((item) => (
             <button
               key={item.id}
               type="button"
               className="action-menu-card"
+              style={{ '--action-color': item.color } as React.CSSProperties}
               onClick={() => {
                 onClose()
                 item.onClick()
               }}
-              style={{ '--action-color': item.color } as React.CSSProperties}
             >
-              <div
-                className="action-menu-icon-wrap"
-                style={{ background: `${item.color}22`, border: `1px solid ${item.color}55` }}
-              >
-                <span className="action-menu-icon">{item.icon}</span>
+              <div className="action-menu-icon-wrap" style={{ background: item.color }}>
+                <span className="action-menu-icon" aria-hidden="true">
+                  {item.icon}
+                </span>
               </div>
               <div className="action-menu-card-text">
                 <div className="action-menu-card-title">

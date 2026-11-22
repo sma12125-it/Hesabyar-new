@@ -886,7 +886,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const category: Category = {
       id: createId('cat'),
       name: name.trim(),
-      icon: kind === 'expense' ? '🏷️' : '💰',
+      icon: kind === 'expense' ? '🏷️' : '✨',
       kind,
     }
     await persistCategories([...customCategories, category])

@@ -1,6 +1,6 @@
 import { memo } from 'react'
 import { formatRelativeFromIso } from '../lib/dates'
-import { getCategory } from '../lib/categories'
+import { accountIcon, getCategory } from '../lib/categories'
 import { toFaDigits } from '../lib/money'
 import { useStore } from '../store/Store'
 import { actorLabel } from '../lib/actor'
@@ -91,7 +91,7 @@ export const TxRow = memo(function TxRow({
         role="button"
         tabIndex={0}
       >
-        <div className="tx-ico" aria-hidden="true">{txIcon(tx, customCategories)}</div>
+        <div className="tx-ico">{txIcon(tx, customCategories)}</div>
         <div className="tx-meta">
           <div className="tx-title" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span>{txTitle(tx, accounts, customCategories)}</span>
@@ -106,10 +106,14 @@ export const TxRow = memo(function TxRow({
                   fontWeight: 600,
                 }}
               >
-                {pocket.isOwn ? '👛' : '👥'} {pocket.name}
+                {pocket.isOwn ? '👛' : '🤝'} {pocket.name}
               </span>
             ) : null}
-            {tx.receiptPhoto ? <span style={{ fontSize: 12 }} title="دارای تصویر رسید">🧾</span> : null}
+            {tx.receiptPhoto ? (
+              <span style={{ fontSize: 11 }} title="دارای تصویر رسید">
+                🧾
+              </span>
+            ) : null}
           </div>
           <div className="tx-sub">{subBits.join(' · ')}</div>
           {tx.tags && tx.tags.length > 0 ? (
@@ -159,7 +163,7 @@ export const AccountRow = memo(function AccountRow({
       onDelete={canSwipe ? () => actions!.deleteAccount(account.id) : undefined}
     >
       <button className="acct-row lg-row" type="button" onClick={onClick}>
-        <div className="acct-ico" aria-hidden="true">{account.type === 'cash' ? '💵' : '🏦'}</div>
+        <div className="acct-ico">{accountIcon(account.type, account.name)}</div>
         <div className="acct-meta">
           <div className="acct-name">{account.name}</div>
           <span className={`badge ${account.type}`}>{account.type === 'cash' ? 'نقد' : 'بانک'}</span>

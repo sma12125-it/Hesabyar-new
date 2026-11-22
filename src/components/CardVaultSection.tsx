@@ -67,7 +67,7 @@ export function CardVaultSection({
                     )
                   }
                 >
-                  🔗 اشتراک
+                  🤝 اشتراک
                 </button>
                 <button className="cat-mini" type="button" onClick={() => onEdit(card.id)}>ویرایش</button>
                 <button className="cat-mini danger" type="button" onClick={() => void deleteCard(card.id)}>حذف</button>

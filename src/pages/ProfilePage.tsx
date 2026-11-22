@@ -164,16 +164,14 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
       <div className="settings-sub-screen">
         <div className="settings-sub-header">
           <Link className="settings-back-btn" to="/settings">
-            <span>›</span>
+            <span className="back-arrow" aria-hidden="true">›</span>
             <span>بازگشت به تنظیمات</span>
           </Link>
           <div className="settings-sub-title-row">
-            <span className="settings-sub-icon" aria-hidden="true">
-              👤
-            </span>
+            <span className="settings-sub-icon" aria-hidden="true">👤</span>
             <div>
               <h1>پروفایل من</h1>
-              <p>نام، تماس، تصویر و شناسه اختصاصی حساب‌یار</p>
+              <p>نام، تماس، تصویر و شناسه اختصاصی حسابیار</p>
             </div>
           </div>
         </div>
@@ -184,18 +182,18 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <div
                   style={{
-                    width: 60,
-                    height: 60,
-                    borderRadius: 14,
-                    background: 'color-mix(in srgb, var(--hy-teal) 14%, transparent)',
-                    border: '1px solid color-mix(in srgb, var(--hy-teal) 35%, transparent)',
-                    color: 'var(--hy-teal)',
+                    width: 64,
+                    height: 64,
+                    borderRadius: 20,
+                    background: 'var(--hy-accent)',
+                    color: '#fff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     fontWeight: 800,
-                    fontSize: 22,
+                    fontSize: 26,
                     overflow: 'hidden',
+                    boxShadow: '0 4px 14px rgba(37, 99, 235, 0.3)',
                     flexShrink: 0,
                   }}
                 >
@@ -207,7 +205,7 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
                 </div>
                 <div>
                   <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: 'var(--hy-text)' }}>{shown}</h2>
-                  <div style={{ fontSize: 12, color: 'var(--hy-teal)', marginTop: 4, direction: 'ltr', textAlign: 'right', fontWeight: 700 }}>
+                  <div style={{ fontSize: 12, color: 'var(--hy-accent)', marginTop: 4, direction: 'ltr', textAlign: 'right', fontWeight: 700 }}>
                     {profile.handle ? `@${profile.handle}` : 'شناسه تنظیم نشده'}
                   </div>
                 </div>
@@ -217,10 +215,9 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
                 type="button"
                 className="cta-confirm"
                 onClick={() => setIsEditing(true)}
-                style={{ padding: '8px 14px', fontSize: 12, fontWeight: 700, height: 36, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                style={{ padding: '8px 16px', fontSize: 12, fontWeight: 800, height: 38 }}
               >
-                <span>✏️</span>
-                <span>ویرایش مشخصات</span>
+                ✏️ ویرایش مشخصات
               </button>
             </div>
 
@@ -272,11 +269,9 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
               <button
                 type="button"
                 className="cat-mini"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}
                 onClick={() => setIsEditing(false)}
               >
-                <span>✕</span>
-                <span>انصراف</span>
+                انصراف ✕
               </button>
             </div>
 
@@ -369,35 +364,30 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
           </section>
         )}
 
-        {/* Subscription & Plans Management Section */}
+        {/* Subscription & Plans Management Section (Item 12) */}
         <section className="profile-form" style={{ marginTop: 14 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span className="action-menu-icon-wrap" style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                👑
-              </span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ fontSize: 24 }}>🌟</span>
               <div>
-                <h2 style={{ fontSize: 15, fontWeight: 800, margin: 0 }}>وضعیت اشتراک و پلن‌های حساب‌یار</h2>
-                <p style={{ fontSize: 11.5, color: 'var(--hy-text-secondary)', margin: '2px 0 0' }}>
-                  انتخاب پلن مناسب برای دفتر مالی شخصی، گروهی و خانوادگی
+                <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>وضعیت اشتراک و پلن‌های حسابیار</h2>
+                <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', margin: '2px 0 0' }}>
+                  انتخاب پلن مناسب برای مدیریت مالی شخصی، گروهی و خانوادگی
                 </p>
               </div>
             </div>
             <span
               style={{
                 fontSize: 11,
-                fontWeight: 700,
-                padding: '4px 10px',
+                fontWeight: 800,
+                padding: '3px 10px',
                 borderRadius: 8,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 5,
                 background:
                   activePlanId === 'vip'
-                    ? 'rgba(234, 179, 8, 0.16)'
+                    ? 'rgba(234, 179, 8, 0.2)'
                     : activePlanId === 'bronze'
-                    ? 'rgba(56, 189, 248, 0.16)'
-                    : 'rgba(16, 185, 129, 0.16)',
+                    ? 'rgba(56, 189, 248, 0.2)'
+                    : 'rgba(16, 185, 129, 0.2)',
                 color:
                   activePlanId === 'vip'
                     ? '#facc15'
@@ -406,19 +396,18 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
                     : 'var(--hy-income)',
               }}
             >
-              <span>{activePlanId === 'vip' ? '👑' : activePlanId === 'bronze' ? '🛡️' : '✅'}</span>
-              <span>{activePlanId === 'vip' ? 'پلن VIP فعال' : activePlanId === 'bronze' ? 'پلن برنزی فعال' : 'نسخه رایگان فعال'}</span>
+              {activePlanId === 'vip' ? '🌟 پلن VIP فعال' : activePlanId === 'bronze' ? '🥉 پلن برنزی فعال' : '🟢 نسخه رایگان فعال'}
             </span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {/* Free Plan Card */}
             <div
               style={{
                 padding: '14px 16px',
-                borderRadius: 12,
-                background: activePlanId === 'free' ? 'color-mix(in srgb, var(--hy-income) 8%, var(--glass-chrome))' : 'var(--hy-input-bg)',
-                border: activePlanId === 'free' ? '1px solid var(--hy-income)' : '1px solid var(--hy-border-color)',
+                borderRadius: 14,
+                background: activePlanId === 'free' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255, 255, 255, 0.03)',
+                border: activePlanId === 'free' ? '1px solid var(--hy-income)' : '1px solid rgba(255, 255, 255, 0.08)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -428,14 +417,14 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
             >
               <div style={{ flex: 1, minWidth: 200 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ color: 'var(--hy-income)' }}>✅</span>
-                  <strong style={{ fontSize: 13.5 }}>نسخه پایه و رایگان</strong>
-                  <span style={{ fontSize: 10.5, padding: '1px 7px', borderRadius: 6, background: 'var(--hy-hover)' }}>
+                  <span style={{ fontSize: 16 }}>🟢</span>
+                  <strong style={{ fontSize: 14 }}>نسخه پایه و رایگان</strong>
+                  <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 6, background: 'rgba(255,255,255,0.1)' }}>
                     دائمی و آفلاین
                   </span>
                 </div>
-                <div style={{ fontSize: 11.5, color: 'var(--hy-text-secondary)', marginTop: 4, lineHeight: 1.65 }}>
-                  حساب‌ها و کارت‌های نامحدود · تراکنش‌های نامحدود · محاسبه دونگ و سفر · ذخیره محلی در مرورگر
+                <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4, lineHeight: 1.6 }}>
+                  ✓ حساب‌ها و کارت‌های نامحدود · تراکنش‌های نامحدود · محاسبه دونگ و سفر · ذخیره محلی در مرورگر
                 </div>
               </div>
               <button
@@ -443,8 +432,8 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
                 className="cat-mini"
                 disabled={activePlanId === 'free'}
                 style={{
-                  fontWeight: 700,
-                  background: activePlanId === 'free' ? 'rgba(16, 185, 129, 0.2)' : undefined,
+                  fontWeight: 800,
+                  background: activePlanId === 'free' ? 'rgba(16, 185, 129, 0.25)' : undefined,
                   color: activePlanId === 'free' ? 'var(--hy-income)' : undefined,
                 }}
                 onClick={async () => {
@@ -452,7 +441,7 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
                   notifyUser('پلن به نسخه رایگان پایه تغییر یافت')
                 }}
               >
-                {activePlanId === 'free' ? 'پلن فعلی شما' : 'انتخاب نسخه رایگان'}
+                {activePlanId === 'free' ? '✓ پلن فعلی شما' : 'انتخاب نسخه رایگان'}
               </button>
             </div>
 
@@ -460,9 +449,9 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
             <div
               style={{
                 padding: '14px 16px',
-                borderRadius: 12,
-                background: activePlanId === 'bronze' ? 'rgba(56, 189, 248, 0.08)' : 'var(--hy-input-bg)',
-                border: activePlanId === 'bronze' ? '1px solid #38bdf8' : '1px solid var(--hy-border-color)',
+                borderRadius: 14,
+                background: activePlanId === 'bronze' ? 'rgba(56, 189, 248, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                border: activePlanId === 'bronze' ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -472,14 +461,14 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
             >
               <div style={{ flex: 1, minWidth: 200 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ color: '#38bdf8' }}>🛡️</span>
-                  <strong style={{ fontSize: 13.5 }}>پلن برنزی (پیشرفته)</strong>
-                  <span style={{ fontSize: 10.5, padding: '1px 7px', borderRadius: 6, background: 'rgba(56, 189, 248, 0.14)', color: '#38bdf8' }}>
+                  <span style={{ fontSize: 16 }}>🥉</span>
+                  <strong style={{ fontSize: 14 }}>پلن برنزی (پیشرفته)</strong>
+                  <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 6, background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8' }}>
                     محبوب کاربران
                   </span>
                 </div>
-                <div style={{ fontSize: 11.5, color: 'var(--hy-text-secondary)', marginTop: 4, lineHeight: 1.65 }}>
-                  همگام‌سازی ابری چنددستگاهی · استخراج خودکار پیامک بانکی · کارت و دونگ اشتراکی
+                <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4, lineHeight: 1.6 }}>
+                  ✓ همگام‌سازی ابری چنددستگاهی · استخراج هوشمند پیامک بانکی · کارت و دونگ اشتراکی
                 </div>
               </div>
               <button
@@ -487,8 +476,8 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
                 className="cat-mini"
                 disabled={activePlanId === 'bronze'}
                 style={{
-                  fontWeight: 700,
-                  background: activePlanId === 'bronze' ? 'rgba(56, 189, 248, 0.2)' : undefined,
+                  fontWeight: 800,
+                  background: activePlanId === 'bronze' ? 'rgba(56, 189, 248, 0.25)' : undefined,
                   color: activePlanId === 'bronze' ? '#38bdf8' : undefined,
                 }}
                 onClick={async () => {
@@ -496,7 +485,7 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
                   notifyUser('پلن برنزی با موفقیت فعال شد')
                 }}
               >
-                {activePlanId === 'bronze' ? 'پلن فعال شما' : 'فعال‌سازی پلن برنزی'}
+                {activePlanId === 'bronze' ? '✓ پلن فعال شما' : 'فعال‌سازی پلن برنزی'}
               </button>
             </div>
 
@@ -504,9 +493,9 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
             <div
               style={{
                 padding: '14px 16px',
-                borderRadius: 12,
-                background: activePlanId === 'vip' ? 'rgba(234, 179, 8, 0.08)' : 'var(--hy-input-bg)',
-                border: activePlanId === 'vip' ? '1px solid #facc15' : '1px solid var(--hy-border-color)',
+                borderRadius: 14,
+                background: activePlanId === 'vip' ? 'rgba(234, 179, 8, 0.12)' : 'rgba(255, 255, 255, 0.03)',
+                border: activePlanId === 'vip' ? '1px solid #facc15' : '1px solid rgba(255, 255, 255, 0.08)',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
@@ -516,14 +505,14 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
             >
               <div style={{ flex: 1, minWidth: 200 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ color: '#facc15' }}>👑</span>
-                  <strong style={{ fontSize: 13.5 }}>پلن طلایی VIP (نامحدود)</strong>
-                  <span style={{ fontSize: 10.5, padding: '1px 7px', borderRadius: 6, background: 'rgba(234, 179, 8, 0.16)', color: '#facc15', fontWeight: 700 }}>
+                  <span style={{ fontSize: 16 }}>🌟</span>
+                  <strong style={{ fontSize: 14 }}>پلن طلایی VIP (نامحدود)</strong>
+                  <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 6, background: 'rgba(234, 179, 8, 0.2)', color: '#facc15', fontWeight: 700 }}>
                     ویژه حرفه‌ای‌ها
                   </span>
                 </div>
-                <div style={{ fontSize: 11.5, color: 'var(--hy-text-secondary)', marginTop: 4, lineHeight: 1.65 }}>
-                  تمام امکانات برنزی · تحلیل مالی پیشرفته · امنیت بیومتریک دستگاه · پشتیبانی VIP
+                <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 4, lineHeight: 1.6 }}>
+                  ✓ تمام امکانات برنزی · هوش مصنوعی تحلیل مالی · امنیت بیومتریک پیشرفته · پشتیبانی VIP
                 </div>
               </div>
               <button
@@ -531,8 +520,8 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
                 className="cat-mini"
                 disabled={activePlanId === 'vip'}
                 style={{
-                  fontWeight: 700,
-                  background: activePlanId === 'vip' ? 'rgba(234, 179, 8, 0.2)' : undefined,
+                  fontWeight: 800,
+                  background: activePlanId === 'vip' ? 'rgba(234, 179, 8, 0.25)' : undefined,
                   color: activePlanId === 'vip' ? '#facc15' : undefined,
                 }}
                 onClick={async () => {
@@ -540,7 +529,7 @@ export function ProfilePage({ onScroll }: { onScroll: (compact: boolean) => void
                   notifyUser('پلن طلایی VIP با موفقیت فعال شد')
                 }}
               >
-                {activePlanId === 'vip' ? 'پلن فعال شما' : 'ارتقا به پلن طلایی VIP'}
+                {activePlanId === 'vip' ? '✓ پلن فعال شما' : 'ارتقا به پلن طلایی VIP'}
               </button>
             </div>
           </div>

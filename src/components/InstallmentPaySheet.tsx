@@ -66,7 +66,7 @@ export function InstallmentPaySheet({
             setPicker(null)
           }}
         >
-          <span className="oico">✕</span>
+          <span className="oico">🚫</span>
           <div>
             <div className="otitle">بدون حساب پرداخت (کسر نشود)</div>
             <div className="osub">قسط به‌عنوان پرداخت‌شده ثبت می‌شود بدون کسر از موجودی حساب</div>
@@ -82,7 +82,7 @@ export function InstallmentPaySheet({
               setPicker(null)
             }}
           >
-            <span className="oico">🏦</span>
+            <span className="oico">💳</span>
             <div>
               <div className="otitle">{a.name}</div>
               <div className="osub">موجودی قابل پرداخت: {formatRial(a.balance)} ریال</div>
@@ -122,7 +122,7 @@ export function InstallmentPaySheet({
     <WindowPopup
       title={`پرداخت قسط ${toFaDigits(item.index)} از ${toFaDigits(plan.totalCount)}`}
       subtitle={`${plan.name} · سررسید: ${formatPersianDateFull(item.dueDate)}`}
-      icon="🗓️"
+      icon="💳"
       isOpen={true}
       onClose={onClose}
       onMinimize={onMinimize}
@@ -132,7 +132,7 @@ export function InstallmentPaySheet({
       <div className="sheet-body-scroll" style={{ padding: '4px 0 16px' }}>
         {(error || insufficient) && (
           <div className="banner error" style={{ marginBottom: 12 }}>
-            <span className="bico">⚠️</span>
+            <span className="bico">⛔</span>
             <span>{error || 'موجودی حساب برای پرداخت این قسط کافی نیست'}</span>
           </div>
         )}
@@ -155,7 +155,7 @@ export function InstallmentPaySheet({
             style={{ alignItems: 'flex-start' }}
             onClick={() => setPicker('account')}
           >
-            <span className="ficon">🏦</span>
+            <span className="ficon">💳</span>
             <div style={{ flex: 1 }}>
               <div className="flabel">حساب پرداخت (اختیاری)</div>
               <div className={account ? 'fvalue' : 'fvalue placeholder-val'}>
@@ -179,7 +179,7 @@ export function InstallmentPaySheet({
 
           {/* Changeable Category */}
           <button className="field-chip" type="button" onClick={() => setPicker('category')}>
-            <span className="ficon">{category?.icon ?? '🗓️'}</span>
+            <span className="ficon">{category?.icon ?? '📂'}</span>
             <div style={{ flex: 1 }}>
               <div className="flabel">دسته‌بندی (قابل تغییر)</div>
               <div className="fvalue">{category?.name ?? 'اقساط'}</div>

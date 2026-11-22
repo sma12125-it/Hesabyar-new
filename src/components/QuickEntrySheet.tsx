@@ -222,7 +222,7 @@ export function QuickEntrySheet({
               setPicker(null)
             }}
           >
-            <span className="oico">{p.isMain ? '💰' : p.isOwn ? '👛' : '🤝'}</span>
+            <span className="oico">{p.isMain ? '⭐' : p.isOwn ? '👛' : '🤝'}</span>
             <div>
               <div className="otitle" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span>{p.name}</span>
@@ -243,7 +243,7 @@ export function QuickEntrySheet({
     <WindowPopup
       title={isEdit ? 'ویرایش تراکنش' : 'ثبت سریع تراکنش'}
       subtitle={kind === 'expense' ? 'ثبت هزینه جدید' : 'ثبت درآمد جدید'}
-      icon={kind === 'expense' ? '➖' : '➕'}
+      icon={kind === 'expense' ? '💸' : '💰'}
       isOpen={true}
       onClose={onClose}
       onMinimize={onMinimize}
@@ -294,14 +294,14 @@ export function QuickEntrySheet({
 
         {error || over ? (
           <div className="banner error">
-            <span className="bico">⚠️</span>
+            <span className="bico">⚠</span>
             <span>{error || 'موجودی حساب کافی نیست'}</span>
           </div>
         ) : null}
 
         <div className="field-stack">
           <button className="field-chip" type="button" onClick={() => !linked && setPicker('category')} disabled={linked}>
-            <span className="ficon">{category?.icon ?? '💳'}</span>
+            <span className="ficon">{category?.icon ?? '📂'}</span>
             <div>
               <div className="flabel">دسته‌بندی</div>
               <div className="fvalue">{category?.name ?? 'انتخاب کنید'}</div>
@@ -309,7 +309,7 @@ export function QuickEntrySheet({
             {linked ? <span className="readonly-tag">قفل</span> : <span className="fchev">‹</span>}
           </button>
           <button className="field-chip" type="button" onClick={() => setPicker('account')}>
-            <span className="ficon">🏦</span>
+            <span className="ficon">💳</span>
             <div>
               <div className="flabel">{kind === 'income' ? 'به حساب' : 'از حساب'}</div>
               <div className={account ? 'fvalue' : 'fvalue placeholder-val'}>
@@ -353,7 +353,7 @@ export function QuickEntrySheet({
               }}
             >
               <div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#ea580c' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#ea580c', display: 'flex', alignItems: 'center', gap: 6 }}>
                   🤝 حساب شود قرض از این جیب
                 </span>
                 <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
@@ -389,8 +389,8 @@ export function QuickEntrySheet({
               }}
             >
               <div>
-                <span style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>
-                  🔄 بازپرداخت بدهی به این جیب
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#10b981', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  ↩ بازپرداخت بدهی به این جیب
                 </span>
                 <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
                   مانده طلب این جیب: {formatMoney(openLoans[0].amount - (openLoans[0].repaidAmount || 0), true)}
@@ -434,7 +434,7 @@ export function QuickEntrySheet({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>
+              <span style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                 🏷️ برچسب‌ها (تگ)
               </span>
             </div>
@@ -494,8 +494,8 @@ export function QuickEntrySheet({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 13, fontWeight: 600 }}>
-                🧾 پیوست رسید یا فاکتور
+              <span style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                📸 پیوست رسید یا فاکتور
               </span>
               <label
                 className="cat-mini"
@@ -653,7 +653,7 @@ function CategoryPicker({
 function AccountPickRow({ account, onPick }: { account: Account; onPick: () => void }) {
   return (
     <button type="button" className="option-item lg-light" onClick={onPick}>
-      <span className="oico">{account.type === 'cash' ? '💵' : '🏦'}</span>
+      <span className="oico">💳</span>
       <div>
         <div className="otitle">{account.name}</div>
         <div className="osub">{formatRial(account.balance)} ریال</div>

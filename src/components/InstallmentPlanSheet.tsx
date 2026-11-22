@@ -132,7 +132,7 @@ export function InstallmentPlanSheet({
             setPicker(null)
           }}
         >
-          <span className="oico">✕</span>
+          <span className="oico">🚫</span>
           <div>
             <div className="otitle">بدون حساب پرداخت (کسر نشود)</div>
             <div className="osub">در صورت عدم انتخاب حساب، هنگام پرداخت قسط از موجودی حسابی کسر نمی‌شود</div>
@@ -148,7 +148,7 @@ export function InstallmentPlanSheet({
               setPicker(null)
             }}
           >
-            <span className="oico">🏦</span>
+            <span className="oico">💳</span>
             <div>
               <div className="otitle">{a.name}</div>
               <div className="osub">{formatRial(a.balance)} ریال</div>
@@ -221,7 +221,7 @@ export function InstallmentPlanSheet({
     <WindowPopup
       title={plan ? 'ویرایش برنامه اقساط' : 'برنامه جدید اقساط و وام'}
       subtitle={plan ? plan.name : `${activeCount} برنامه فعال در حال حاضر`}
-      icon="🗓️"
+      icon="📅"
       isOpen={true}
       onClose={onClose}
       onMinimize={onMinimize}
@@ -241,7 +241,7 @@ export function InstallmentPlanSheet({
       <div className="sheet-body-scroll" style={{ padding: '4px 0 16px' }}>
         {error ? (
           <div className="banner error" style={{ marginBottom: 12 }}>
-            <span className="bico">⚠️</span>
+            <span className="bico">⚠</span>
             <span>{error}</span>
           </div>
         ) : null}
@@ -264,10 +264,10 @@ export function InstallmentPlanSheet({
               <button
                 type="button"
                 className="cat-mini"
-                style={{ background: 'rgba(59, 130, 246, 0.16)', color: '#2563eb', fontWeight: 700, whiteSpace: 'nowrap' }}
+                style={{ background: 'rgba(59, 130, 246, 0.18)', color: '#2563eb', fontWeight: 700, whiteSpace: 'nowrap' }}
                 onClick={() => void convertToDebt()}
               >
-                🤝 ثبت در بدهی‌ها و مطالبات
+                ثبت در بدهی‌ها و مطالبات 🤝
               </button>
             </div>
           </div>
@@ -392,7 +392,7 @@ export function InstallmentPlanSheet({
 
           {locked ? (
             <div className="field-chip chip-readonly">
-              <span className="ficon">🗓️</span>
+              <span className="ficon">📆</span>
               <div>
                 <div className="flabel">تاریخ شروع</div>
                 <div className="fvalue">{formatPersianDateFull(startDate)}</div>
@@ -404,7 +404,7 @@ export function InstallmentPlanSheet({
           )}
 
           <button className="field-chip" type="button" onClick={() => setPicker('account')}>
-            <span className="ficon">🏦</span>
+            <span className="ficon">💳</span>
             <div style={{ flex: 1 }}>
               <div className="flabel">حساب پرداخت (اختیاری)</div>
               <div className={account ? 'fvalue' : 'fvalue placeholder-val'}>
@@ -421,7 +421,7 @@ export function InstallmentPlanSheet({
 
           {/* Changeable Category */}
           <button className="field-chip" type="button" onClick={() => setPicker('category')}>
-            <span className="ficon">{currentCategory?.icon ?? '🗓️'}</span>
+            <span className="ficon">{currentCategory?.icon ?? '📂'}</span>
             <div style={{ flex: 1 }}>
               <div className="flabel">دسته‌بندی (قابل تغییر)</div>
               <div className="fvalue">{currentCategory?.name ?? 'اقساط'}</div>

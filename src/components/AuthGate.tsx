@@ -240,7 +240,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
       const result = await authenticateWithBiometrics({ allowRegistration: false })
       if (result.ok) {
         setBiometricStatus('success')
-        setBiometricMsg('هویت بیومتریک توسط دستگاه تأیید شد')
+        setBiometricMsg('هویت بیومتریک توسط دستگاه تأیید شد ✨')
         notifyUser('ورود با موفقیت انجام شد')
         await enterApp()
         return
@@ -321,7 +321,7 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
 
   return (
     <div className="lock-screen">
-      <h1>🔐 ورود به حساب‌یار</h1>
+      <h1>ورود به حساب‌یار</h1>
       {store.error ? <div className="banner error"><span>{store.error}</span></div> : null}
       {error ? <div className="banner error"><span>{error}</span></div> : null}
       {booting ? <p className="sheet-sub">در حال آماده‌سازی…</p> : null}
@@ -329,10 +329,11 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
 
       {mode === 'unlock' ? (
         <div className="field-stack" style={{ width: '100%' }}>
-          <p className="sheet-sub" style={{ textAlign: 'center', margin: 0 }}>
+          <p className="sheet-sub" style={{ textAlign: 'center', marginBottom: 2 }}>
             {existing ? `حساب: ${existing.email}` : 'برای ورود به حساب‌یار قفل را باز کنید.'}
           </p>
 
+          {/* Method Selection Tabs */}
           <div className="unlock-method-tabs" role="tablist">
             {biometricAvailable ? (
               <button
@@ -346,7 +347,8 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
                   }
                 }}
               >
-                <span>👆 بیومتریک</span>
+                <span>👆</span>
+                <span>اثر انگشت / چهره</span>
               </button>
             ) : null}
 
@@ -359,7 +361,8 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
                   setError(null)
                 }}
               >
-                <span>🔢 پین</span>
+                <span>🔢</span>
+                <span>پین سریع</span>
               </button>
             ) : null}
 
@@ -371,7 +374,8 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
                 setError(null)
               }}
             >
-              <span>🔑 رمز حساب</span>
+              <span>🔑</span>
+              <span>رمز حساب</span>
             </button>
 
             {lock.patternHash ? (
@@ -383,20 +387,23 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
                   setError(null)
                 }}
               >
-                <span>🕸️ الگو</span>
+                <span>💠</span>
+                <span>الگو</span>
               </button>
             ) : null}
           </div>
 
+          {/* 1. Real Hardware Biometric Unlock View */}
           {activeTab === 'biometric' && biometricAvailable ? (
             <div className="biometric-prompt-card">
               <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--hy-text)', marginBottom: 2 }}>
                 ورود با اثر انگشت یا تشخیص چهره
               </div>
-              <p className="sheet-sub" style={{ fontSize: 11.5, margin: '2px 0 12px', lineHeight: 1.55 }}>
-                احراز هویت از طریق حسگر بیومتریک دستگاه
+              <p className="sheet-sub" style={{ fontSize: 11, margin: '2px 0 10px', lineHeight: 1.5 }}>
+                تأیید هویت واقعی از طریق حسگر بیومتریک دستگاه
               </p>
 
+              {/* Scanner with Animated Ripple */}
               <div className={`biometric-scanner-wrap ${biometricStatus}`}>
                 <div className="biometric-pulse-ring" />
                 <button
@@ -407,12 +414,19 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
                   aria-label="احراز هویت بیومتریک"
                   title="لمس برای اسکن اثر انگشت یا چهره"
                 >
-                  <span style={{ fontSize: 32 }}>
-                    {biometricStatus === 'success' ? '✅' : biometricStatus === 'error' ? '⚠️' : '👆'}
-                  </span>
+                  {biometricStatus === 'success' ? (
+                    <span style={{ fontSize: 36 }}>✅</span>
+                  ) : biometricStatus === 'error' ? (
+                    <span style={{ fontSize: 34 }}>⚠️</span>
+                  ) : biometricStatus === 'prompting' ? (
+                    <span style={{ fontSize: 34, filter: 'drop-shadow(0 0 8px #38bdf8)' }}>🔍</span>
+                  ) : (
+                    <span style={{ fontSize: 36, filter: 'drop-shadow(0 0 8px var(--hy-accent))' }}>👆</span>
+                  )}
                 </button>
               </div>
 
+              {/* Status Indicator */}
               <div className={`biometric-status-pill ${biometricStatus}`}>
                 {biometricStatus === 'prompting' ? (
                   <>
@@ -420,18 +434,28 @@ export function AuthGate({ onUnlock }: { onUnlock: () => void }) {
                     <span>{biometricMsg || 'در انتظار تأیید اثر انگشت یا چهره...'}</span>
                   </>
                 ) : biometricStatus === 'success' ? (
-                  <span>✅ {biometricMsg || 'تأیید شد، در حال بازگشایی...'}</span>
+                  <>
+                    <span>✨</span>
+                    <span>{biometricMsg || 'تأیید شد، در حال بازگشایی...'}</span>
+                  </>
                 ) : biometricStatus === 'error' ? (
-                  <span>⚠️ {biometricMsg || 'احراز هویت انجام نشد'}</span>
+                  <>
+                    <span>⚠️</span>
+                    <span>{biometricMsg || 'احراز هویت انجام نشد'}</span>
+                  </>
                 ) : (
-                  <span>🔐 {biometricMsg || 'برای اسکن اثر انگشت یا چهره لمس کنید'}</span>
+                  <>
+                    <span>🔒</span>
+                    <span>{biometricMsg || 'برای اسکن اثر انگشت یا چهره لمس کنید'}</span>
+                  </>
                 )}
               </div>
 
+              {/* Action Button */}
               <button
                 className="cta-confirm"
                 type="button"
-                style={{ width: '100%', height: 44 }}
+                style={{ width: '100%', height: 44, borderRadius: 14 }}
                 disabled={busy || booting || biometricStatus === 'prompting' || biometricStatus === 'success'}
                 onClick={() => void triggerBiometricPrompt(false)}
               >

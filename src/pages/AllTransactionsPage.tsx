@@ -175,9 +175,9 @@ export function AllTransactionsPage({
             right: 12,
             top: '50%',
             transform: 'translateY(-50%)',
+            fontSize: 16,
             opacity: 0.6,
             pointerEvents: 'none',
-            display: 'inline-flex',
           }}
         >
           🔍
@@ -219,6 +219,7 @@ export function AllTransactionsPage({
               height: 24,
               display: 'grid',
               placeItems: 'center',
+              fontSize: 12,
               color: 'var(--hy-text-secondary)',
               cursor: 'pointer',
             }}
@@ -506,7 +507,7 @@ export function AllTransactionsPage({
     <WindowPopup
       title="دفتر کل تمام تراکنش‌ها"
       subtitle={`${toFaDigits(filteredRows.length)} تراکنش · امکان جستجو، فیلتر و صفحه‌بندی`}
-      icon="📄"
+      icon="📒"
       isOpen={true}
       onClose={onBack}
       onMinimize={onMinimize}

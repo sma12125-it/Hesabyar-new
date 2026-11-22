@@ -113,7 +113,7 @@ export function UnifiedShareSheet({
         accountNumber: item.accountNumber,
         balance: item.balance,
       })
-      notifyUser(`دسترسی با موفقیت برای ${userToSave.displayName} فعال شد`)
+      notifyUser(`دسترسی با موفقیت برای ${userToSave.displayName} فعال شد ✨`)
       setIsAdding(false)
       setSearchInput('')
       setPreviewUser(null)
@@ -163,7 +163,7 @@ export function UnifiedShareSheet({
         {/* Header */}
         <div className="sheet-header" style={{ paddingBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: '26px' }}>{kind === 'card' ? '💳' : '🏦'}</span>
+            <span style={{ fontSize: 24 }}>{kind === 'card' ? '💳' : '🏦'}</span>
             <div>
               <h1 style={{ fontSize: 16, margin: 0, fontWeight: 800 }}>اشتراک {title}</h1>
               <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
@@ -244,8 +244,9 @@ export function UnifiedShareSheet({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <div style={{ fontWeight: 800, fontSize: 13, color: 'var(--hy-teal)' }}>
-                  ➕ افزودن کاربر با User ID یا شناسه کاربری (Handle)
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, fontSize: 13, color: 'var(--hy-teal)' }}>
+                  <span>➕</span>
+                  <span>افزودن کاربر با User ID یا شناسه کاربری (Handle)</span>
                 </div>
                 <button
                   type="button"
@@ -262,7 +263,6 @@ export function UnifiedShareSheet({
                     fontSize: 14,
                     padding: '2px 6px',
                   }}
-                  aria-label="بستن"
                 >
                   ✕
                 </button>
@@ -297,7 +297,7 @@ export function UnifiedShareSheet({
                   onClick={() => void handleLookup()}
                   style={{ height: 42, fontSize: 13, fontWeight: 800 }}
                 >
-                  🔍 {lookingUp ? 'در حال استعلام مشخصات از سرور…' : 'استعلام و بررسی مشخصات کاربر'}
+                  {lookingUp ? 'در حال استعلام مشخصات از سرور…' : '🔍 استعلام و بررسی مشخصات کاربر'}
                 </button>
               </div>
 
@@ -311,32 +311,33 @@ export function UnifiedShareSheet({
               {previewUser && (
                 <div
                   style={{
-                    background: 'var(--glass-chrome)',
-                    border: '1px solid var(--hy-teal)',
-                    borderRadius: 16,
+                    background: 'rgba(0, 0, 0, 0.3)',
+                    border: '1.5px solid var(--hy-teal, #0ea5e9)',
+                    borderRadius: 18,
                     padding: '16px',
                     marginTop: 14,
                     display: 'flex',
                     flexDirection: 'column',
                     gap: 12,
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.3)',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--hy-teal)' }}>
-                      مشخصات پروفایل کاربر
+                      ✨ مشخصات کامل پروفایل کاربر:
                     </span>
                     <span
                       style={{
                         fontSize: 10,
                         padding: '2px 8px',
                         borderRadius: 6,
-                        background: 'rgba(16, 185, 129, 0.14)',
+                        background: 'rgba(16, 185, 129, 0.16)',
                         color: 'var(--hy-income, #10b981)',
                         fontWeight: 800,
-                        border: '1px solid rgba(16, 185, 129, 0.28)',
+                        border: '1px solid rgba(16, 185, 129, 0.3)',
                       }}
                     >
-                      ✅ هویت تأیید شد
+                      ✓ هویت تأیید شد
                     </span>
                   </div>
 
@@ -377,7 +378,7 @@ export function UnifiedShareSheet({
                               fontWeight: 900,
                               fontSize: 22,
                               color: '#fff',
-                              background: 'var(--hy-teal)',
+                              background: 'linear-gradient(135deg, #0ea5e9, #6366f1)',
                             }}
                           >
                             {previewUser.displayName.charAt(0) || '👤'}
@@ -434,7 +435,6 @@ export function UnifiedShareSheet({
                               }
                               setIsEditingName(false)
                             }}
-                            aria-label="تأیید"
                           >
                             ✓
                           </button>
@@ -494,7 +494,7 @@ export function UnifiedShareSheet({
                       onClick={() => void handleConfirmShare()}
                       style={{ flex: 1.5, height: 42, fontSize: 13, fontWeight: 800 }}
                     >
-                      ✅ {submitting ? 'در حال ثبت…' : 'تأیید و افزودن به اعضای مجاز'}
+                      {submitting ? 'در حال ثبت…' : '✅ تأیید و افزودن به اعضای مجاز'}
                     </button>
                     <button
                       className="home-pill ghost"
@@ -569,7 +569,7 @@ export function UnifiedShareSheet({
                   border: '1px dashed rgba(255, 255, 255, 0.1)',
                 }}
               >
-                <div style={{ fontSize: 32, marginBottom: 8 }}>👥</div>
+                <div style={{ fontSize: 32, marginBottom: 6 }}>👥</div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--hy-text)' }}>
                   هنوز کاربری اضافه نشده است
                 </div>
@@ -600,7 +600,7 @@ export function UnifiedShareSheet({
                         height: 44,
                         borderRadius: 14,
                         overflow: 'hidden',
-                        background: 'var(--hy-teal)',
+                        background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',

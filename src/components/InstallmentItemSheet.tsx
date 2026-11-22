@@ -49,7 +49,7 @@ export function InstallmentItemSheet({
     <WindowPopup
       title={`مشخصات قسط ${toFaDigits(item.index)}${plan ? ` · ${plan.name}` : ''}`}
       subtitle={`سررسید: ${formatPersianDateFull(item.dueDate)}`}
-      icon="🗓️"
+      icon="📅"
       isOpen={true}
       onClose={onClose}
       onMinimize={onMinimize}
@@ -59,7 +59,7 @@ export function InstallmentItemSheet({
       <div className="sheet-body-scroll" style={{ padding: '6px 0 16px' }}>
         {error ? (
           <div className="banner error" style={{ marginBottom: 12 }}>
-            <span className="bico">⚠️</span>
+            <span className="bico">⚠</span>
             <span>{error}</span>
           </div>
         ) : null}
@@ -75,7 +75,7 @@ export function InstallmentItemSheet({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#059669', fontWeight: 700, fontSize: 13 }}>
-              <span>✅</span>
+              <span>✓</span>
               <span>این قسط پرداخت و تسویه شده است</span>
             </div>
             <div style={{ marginTop: 8, fontSize: 12, color: 'var(--hy-text)', display: 'flex', alignItems: 'center', gap: 6 }}>

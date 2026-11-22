@@ -35,8 +35,8 @@ export function SettingsButton({ showLabel }: { showLabel?: boolean }) {
         background: 'var(--hy-input-bg, rgba(255, 255, 255, 0.08))',
       }}
     >
-      <span className="mobile-only-icon" style={{ fontSize: 18 }}>☰</span>
-      <span className="desktop-only-icon" style={{ fontSize: 17 }}>⚙️</span>
+      <span className="mobile-only-icon" style={{ fontSize: 20, lineHeight: 1 }}>☰</span>
+      <span className="desktop-only-icon" style={{ fontSize: 18, lineHeight: 1 }}>⚙</span>
       {showLabel ? (
         <span className="desktop-only-icon" style={{ fontSize: 13, fontWeight: 700, color: 'var(--hy-text)' }}>تنظیمات</span>
       ) : null}

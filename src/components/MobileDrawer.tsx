@@ -19,40 +19,45 @@ export function MobileDrawer() {
     }
   }, [])
 
-  const userDisplayName = userProfile ? displayNameOf(userProfile) : 'کاربر حساب‌یار'
+  const userDisplayName = userProfile ? displayNameOf(userProfile) : 'کاربر حسابیار'
   const userHandle = userProfile?.handle ? `@${userProfile.handle}` : '@hesabyar'
-  const planLabel = activePlanId === 'vip' ? 'پلن VIP' : activePlanId === 'bronze' ? 'پلن برنزی' : 'نسخه پایه'
+  const planLabel = activePlanId === 'vip' ? '🌟 پلن طلایی VIP' : activePlanId === 'bronze' ? '🥉 پلن برنزی' : '🟢 نسخه رایگان پایه'
 
   return (
     <>
+      {/* Backdrop */}
       <div
         className={`drawer-backdrop${isOpen ? ' is-open' : ''}`}
         onClick={() => setIsOpen(false)}
         aria-hidden={!isOpen}
       />
 
+      {/* Drawer Panel */}
       <aside
         className={`drawer-panel${isOpen ? ' is-open' : ''}`}
         aria-label="منوی سایدبار موبایل"
       >
+        {/* Header */}
         <div className="drawer-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 26, lineHeight: 1 }}>💰</span>
+            <span style={{ fontSize: 24 }}>💰</span>
             <div>
-              <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--hy-text)' }}>حساب‌یار</div>
-              <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>مدیریت مالی شخصی</div>
+              <div style={{ fontWeight: 800, fontSize: 16, color: 'var(--hy-text)' }}>حسابیار</div>
+              <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>مدیریت هوشمند مالی</div>
             </div>
           </div>
           <button
             type="button"
-            className="action-menu-close"
+            className="icon-btn"
             onClick={() => setIsOpen(false)}
             aria-label="بستن منو"
+            style={{ width: 34, height: 34, borderRadius: 10 }}
           >
             ✕
           </button>
         </div>
 
+        {/* Profile Card */}
         <NavLink
           to="/profile"
           onClick={() => setIsOpen(false)}
@@ -61,26 +66,26 @@ export function MobileDrawer() {
             alignItems: 'center',
             gap: 12,
             padding: '12px 14px',
-            borderRadius: 14,
-            background: 'var(--hy-input-bg)',
-            border: '1px solid var(--hy-border-color)',
+            borderRadius: 16,
+            background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.16), rgba(15, 118, 110, 0.16))',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
             textDecoration: 'none',
             color: 'inherit',
-            marginBottom: 14,
+            marginBottom: 16,
           }}
         >
           <div
             style={{
-              width: 42,
-              height: 42,
-              borderRadius: 12,
-              background: 'var(--hy-teal)',
+              width: 44,
+              height: 44,
+              borderRadius: 14,
+              background: 'var(--hy-accent)',
               color: '#fff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontWeight: 800,
-              fontSize: 17,
+              fontSize: 18,
               overflow: 'hidden',
               flexShrink: 0,
             }}
@@ -99,7 +104,7 @@ export function MobileDrawer() {
             <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--hy-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {userDisplayName}
             </div>
-            <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }} dir="ltr">
+            <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
               {userHandle}
             </div>
             <span
@@ -110,16 +115,17 @@ export function MobileDrawer() {
                 fontWeight: 700,
                 padding: '1px 6px',
                 borderRadius: 6,
-                background: 'color-mix(in srgb, var(--hy-teal) 16%, transparent)',
-                color: 'var(--hy-teal)',
+                background: 'rgba(234, 179, 8, 0.2)',
+                color: '#eab308',
               }}
             >
               {planLabel}
             </span>
           </div>
-          <span style={{ fontSize: 18, opacity: 0.6 }}>‹</span>
+          <span style={{ fontSize: 14, opacity: 0.6 }}>‹</span>
         </NavLink>
 
+        {/* Navigation Links */}
         <nav style={{ flex: 1 }}>
           <NavLink
             to="/"
@@ -127,7 +133,7 @@ export function MobileDrawer() {
             className={({ isActive }) => `drawer-nav-item${isActive ? ' active' : ''}`}
             onClick={() => setIsOpen(false)}
           >
-            <span style={{ fontSize: 18 }}>🏠</span>
+            <span>🏠</span>
             <span>خانه و داشبورد</span>
           </NavLink>
 
@@ -136,7 +142,7 @@ export function MobileDrawer() {
             className={({ isActive }) => `drawer-nav-item${isActive ? ' active' : ''}`}
             onClick={() => setIsOpen(false)}
           >
-            <span style={{ fontSize: 18 }}>🏦</span>
+            <span>💳</span>
             <span>حساب‌ها و کارت‌ها</span>
           </NavLink>
 
@@ -145,7 +151,7 @@ export function MobileDrawer() {
             className={({ isActive }) => `drawer-nav-item${isActive ? ' active' : ''}`}
             onClick={() => setIsOpen(false)}
           >
-            <span style={{ fontSize: 18 }}>🗓️</span>
+            <span>📅</span>
             <span>اقساط، وام و چک</span>
           </NavLink>
 
@@ -154,7 +160,7 @@ export function MobileDrawer() {
             className={({ isActive }) => `drawer-nav-item${isActive ? ' active' : ''}`}
             onClick={() => setIsOpen(false)}
           >
-            <span style={{ fontSize: 18 }}>👥</span>
+            <span>👥</span>
             <span>محاسبه دونگ و سفر</span>
           </NavLink>
 
@@ -163,7 +169,7 @@ export function MobileDrawer() {
             className={({ isActive }) => `drawer-nav-item${isActive ? ' active' : ''}`}
             onClick={() => setIsOpen(false)}
           >
-            <span style={{ fontSize: 18 }}>📊</span>
+            <span>📊</span>
             <span>بودجه‌بندی و اهداف</span>
           </NavLink>
 
@@ -172,12 +178,13 @@ export function MobileDrawer() {
             className={({ isActive }) => `drawer-nav-item${isActive ? ' active' : ''}`}
             onClick={() => setIsOpen(false)}
           >
-            <span style={{ fontSize: 18 }}>⚙️</span>
+            <span>⚙️</span>
             <span>تنظیمات</span>
           </NavLink>
         </nav>
 
-        <div style={{ padding: '12px 0 8px', borderTop: '1px solid var(--hy-border-color)' }}>
+        {/* Logout Button */}
+        <div style={{ padding: '12px 0 8px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
           <button
             type="button"
             onClick={() => {
@@ -189,26 +196,29 @@ export function MobileDrawer() {
             style={{
               width: '100%',
               padding: '10px 14px',
-              borderRadius: 10,
+              borderRadius: 12,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
-              fontWeight: 700,
+              fontWeight: 800,
               fontSize: 13,
               cursor: 'pointer',
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.28)',
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
               color: '#f87171',
+              transition: 'background 0.2s',
             }}
           >
-            <span>🚪 خروج از حساب کاربری</span>
+            <span style={{ fontSize: 16 }}>🚪</span>
+            <span>خروج از حساب کاربری</span>
           </button>
         </div>
 
+        {/* Footer info */}
         <div style={{ paddingTop: 10, textAlign: 'center' }}>
-          <div style={{ fontSize: 11, color: 'var(--hy-text-tertiary)' }}>
-            حساب‌یار · دفتر مالی شخصی
+          <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
+            حساب‌یار · مدیریت هوشمند مالی
           </div>
         </div>
       </aside>

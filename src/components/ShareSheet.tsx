@@ -85,9 +85,7 @@ export function ShareSheet({ account, onClose }: { account: Account; onClose: ()
         <div className="sheet-handle" />
         <div className="sheet-header">
           <h1>اشتراک {account.name}</h1>
-          <button className="sheet-close" type="button" onClick={onClose} aria-label="بستن">
-            ✕
-          </button>
+          <button className="sheet-close" type="button" onClick={onClose} aria-label="بستن">✕</button>
         </div>
         <div className="sheet-body-scroll">
           <p className="sheet-sub">
@@ -161,7 +159,7 @@ export function ShareSheet({ account, onClose }: { account: Account; onClose: ()
         <div className="sheet-footer">
           {code && ledgerId ? (
             <button className="cta-confirm" type="button" disabled={busy || !email.trim()} onClick={() => void invite()}>
-              👥 {busy ? 'در حال ثبت…' : 'ثبت دسترسی کاربر (بدون رمز)'}
+              {busy ? 'در حال ثبت…' : '🤝 ثبت دسترسی کاربر (بدون رمز)'}
             </button>
           ) : (
             <button className="cta-confirm" type="button" disabled={busy} onClick={() => void create()}>

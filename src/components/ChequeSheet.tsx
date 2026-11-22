@@ -126,7 +126,7 @@ export function ChequeSheet({
     <WindowPopup
       title={isEdit ? 'ویرایش چک صیادی' : 'ثبت چک صیادی'}
       subtitle={direction === 'payable' ? 'چک پرداختی (صادره)' : 'چک دریافتی'}
-      icon="cheque"
+      icon="🧾"
       isOpen={true}
       onClose={onClose}
       onMinimize={onMinimize}

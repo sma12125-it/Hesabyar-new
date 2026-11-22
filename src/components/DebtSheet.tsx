@@ -122,14 +122,14 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
       <div className="sheet-body-scroll" style={{ padding: '4px 0' }}>
         {error ? (
           <div className="banner error" style={{ marginBottom: 12 }}>
-            <span className="bico">⚠️</span>
+            <span className="bico">⚠</span>
             <span>{error}</span>
           </div>
         ) : null}
 
         {isSettled ? (
           <div className="banner ok" style={{ marginBottom: 12 }}>
-            <span className="bico">✅</span>
+            <span className="bico">✓</span>
             <span>این مورد در تاریخ {formatPersianDateFull(debt.settledAt || '')} به طور کامل تسویه شده است.</span>
           </div>
         ) : null}
@@ -141,7 +141,7 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
               className={`seg-btn${direction === 'borrowed' ? ' active' : ''}`}
               type="button"
               onClick={() => setDirection('borrowed')}
-              style={direction === 'borrowed' ? { background: 'rgba(239, 68, 68, 0.14)', color: 'var(--hy-expense)' } : undefined}
+              style={direction === 'borrowed' ? { background: 'rgba(239, 68, 68, 0.18)', color: 'var(--hy-expense)' } : undefined}
             >
               🔴 بدهی من (قرض گرفتم)
             </button>
@@ -149,7 +149,7 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
               className={`seg-btn${direction === 'lent' ? ' active' : ''}`}
               type="button"
               onClick={() => setDirection('lent')}
-              style={direction === 'lent' ? { background: 'rgba(16, 185, 129, 0.14)', color: 'var(--hy-income)' } : undefined}
+              style={direction === 'lent' ? { background: 'rgba(16, 185, 129, 0.18)', color: 'var(--hy-income)' } : undefined}
             >
               🟢 طلب من (قرض دادم)
             </button>
@@ -198,7 +198,7 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>🗓️</span>
+                <span>📅</span>
                 <span style={{ fontSize: 13, fontWeight: 600 }}>تعیین تاریخ موعد بازپرداخت</span>
               </div>
               <button
@@ -227,7 +227,7 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
           {/* Account Selection */}
           {activeAccounts.length > 0 ? (
             <div className="field-chip">
-              <span className="ficon">🏦</span>
+              <span className="ficon">💳</span>
               <div style={{ flex: 1 }}>
                 <div className="flabel">حساب بانکی / نقدی مرتبط</div>
                 <select
@@ -288,14 +288,11 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
                 color: 'var(--hy-income)',
                 borderColor: 'rgba(16, 185, 129, 0.3)',
                 fontWeight: 700,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
               }}
               onClick={() => void handleSettle()}
               disabled={saving}
             >
-              <span>✓ تسویه کامل و مختومه کردن</span>
+              ✓ تسویه کامل و مختومه کردن
             </button>
           ) : null}
 
@@ -310,14 +307,11 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
                 color: '#2563eb',
                 borderColor: 'rgba(59, 130, 246, 0.3)',
                 fontWeight: 700,
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
               }}
               onClick={() => void handleUnsettle()}
               disabled={saving}
             >
-              <span>🔄 بازگردانی به وضعیت پرداخت‌نشده (جاری)</span>
+              ↩️ بازگردانی به وضعیت پرداخت‌نشده (جاری)
             </button>
           ) : null}
 
@@ -327,9 +321,9 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
               type="button"
               onClick={() => void handleDelete()}
               disabled={saving}
-              style={{ height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              style={{ height: 40 }}
             >
-              <span>🗑️ حذف این ردیف</span>
+              🗑️ حذف این ردیف
             </button>
           ) : null}
         </div>

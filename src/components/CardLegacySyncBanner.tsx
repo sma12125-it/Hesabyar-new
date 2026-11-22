@@ -32,7 +32,7 @@ export function CardLegacySyncBanner({ compact = false }: { compact?: boolean })
     try {
       await unlockVault(phrase)
       setPhrase('')
-      notifyUser('کارت‌های ثبت‌شده بازیابی و با ورود شما همگام شدند')
+      notifyUser('کارت‌های ثبت‌شده بازیابی و برای همیشه با ورود شما همگام شدند ✨')
     } catch {
       setError('رمز واردشده نادرست است. رمز قبلی گاوصندوق یا رمز ورود حساب خود را امتحان کنید.')
     } finally {
@@ -92,10 +92,10 @@ export function CardLegacySyncBanner({ compact = false }: { compact?: boolean })
           type="button"
           className="cta-confirm"
           disabled={busy}
-          style={{ minHeight: 44, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+          style={{ minHeight: 44, fontWeight: 800 }}
           onClick={() => void handleRecover()}
         >
-          <span>{busy ? 'در حال بازیابی کارت‌ها…' : '🔓 بازیابی و نمایش کارت‌ها'}</span>
+          {busy ? 'در حال بازیابی کارت‌ها…' : '🔓 بازیابی و نمایش کارت‌ها'}
         </button>
 
         {error ? (
@@ -120,7 +120,7 @@ export function CardLegacySyncBanner({ compact = false }: { compact?: boolean })
             <VaultRecover
               onDone={() => {
                 setShowRecover(false)
-                notifyUser('کارت‌ها بازیابی و همگام شدند')
+                notifyUser('کارت‌ها بازیابی و همگام شدند ✨')
               }}
             />
           </div>

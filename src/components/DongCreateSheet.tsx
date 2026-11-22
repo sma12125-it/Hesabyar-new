@@ -55,7 +55,7 @@ export function DongCreateSheet({ onClose, onMinimize, onCreated }: DongCreateSh
         settled: false,
       }
       const saved = await saveDongEvent(newEvent)
-      notifyUser(`رویداد دونگ «${saved.title}» ساخته شد`)
+      notifyUser(`رویداد دونگ «${saved.title}» ساخته شد ✨`)
       onClose()
       if (onCreated) {
         onCreated(saved.id)
@@ -94,7 +94,7 @@ export function DongCreateSheet({ onClose, onMinimize, onCreated }: DongCreateSh
             onClick={() => void handleCreate()}
             style={{ flex: 1 }}
           >
-            {saving ? 'در حال ثبت…' : 'ثبت و ایجاد رویداد دونگ'}
+            {saving ? 'در حال ثبت…' : '✨ ثبت و ایجاد رویداد دونگ'}
           </button>
         </div>
       }
@@ -175,7 +175,6 @@ export function DongCreateSheet({ onClose, onMinimize, onCreated }: DongCreateSh
                         }
                         setEditingMemberIdx(null)
                       }}
-                      aria-label="تأیید"
                     >
                       ✓
                     </button>
@@ -192,8 +191,6 @@ export function DongCreateSheet({ onClose, onMinimize, onCreated }: DongCreateSh
                         fontSize: 11,
                         opacity: 0.8,
                         color: 'var(--hy-text)',
-                        display: 'inline-flex',
-                        alignItems: 'center',
                       }}
                       title="ویرایش نام"
                       onClick={() => {
@@ -213,8 +210,6 @@ export function DongCreateSheet({ onClose, onMinimize, onCreated }: DongCreateSh
                           fontSize: 11,
                           opacity: 0.7,
                           color: 'var(--hy-expense, #ef4444)',
-                          display: 'inline-flex',
-                          alignItems: 'center',
                         }}
                         title="حذف فرد"
                         onClick={() => setDongMembers(dongMembers.filter((_, i) => i !== idx))}

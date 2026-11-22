@@ -23,7 +23,7 @@ export const TransactionsTable = memo(function TransactionsTable({
   if (transactions.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '40px 12px', color: 'var(--hy-muted)' }}>
-        <div style={{ fontSize: '28px', opacity: 0.7 }}>📋</div>
+        <span style={{ fontSize: '32px' }}>📊</span>
         <p style={{ marginTop: 8, fontSize: '13px' }}>تراکنشی برای نمایش در جدول وجود ندارد</p>
       </div>
     )
@@ -108,11 +108,7 @@ export const TransactionsTable = memo(function TransactionsTable({
                 <td style={{ padding: '10px 12px', fontWeight: 600, color: 'var(--hy-text)', whiteSpace: 'normal', minWidth: 160 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span>{txTitle(tx, accounts, customCategories)}</span>
-                    {tx.receiptPhoto ? (
-                      <span title="دارای رسید" style={{ fontSize: '12px' }}>
-                        🧾
-                      </span>
-                    ) : null}
+                    {tx.receiptPhoto ? <span title="دارای رسید">🧾</span> : null}
                   </div>
                   {tx.tags && tx.tags.length > 0 ? (
                     <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap' }}>
@@ -127,7 +123,10 @@ export const TransactionsTable = memo(function TransactionsTable({
 
                 {/* Category */}
                 <td style={{ padding: '10px 12px', color: 'var(--hy-subtext)' }}>
-                  <span>{cat?.icon} {cat?.name || 'عمومی'}</span>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <span>{cat?.icon || '💳'}</span>
+                    <span>{cat?.name || 'عمومی'}</span>
+                  </span>
                 </td>
 
                 {/* Account */}

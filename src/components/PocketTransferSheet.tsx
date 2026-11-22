@@ -115,7 +115,7 @@ export function PocketTransferSheet({
                   setPicker(null)
                 }}
               >
-                <span className="oico">{p.isMain ? '💰' : p.isOwn ? '👛' : '🤝'}</span>
+                <span className="oico">{p.isMain ? '⭐' : p.isOwn ? '👛' : '🤝'}</span>
                 <div>
                   <div className="otitle" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span>{p.name}</span>
@@ -137,7 +137,7 @@ export function PocketTransferSheet({
     <WindowPopup
       title="انتقال بین جیب‌ها"
       subtitle={account ? `حساب: ${account.name}` : undefined}
-      icon="🔄"
+      icon="⇄"
       isOpen={true}
       onClose={onClose}
       onMinimize={onMinimize}
@@ -158,7 +158,7 @@ export function PocketTransferSheet({
       <div className="sheet-body-scroll">
         {(error || over) && (
           <div className="banner error">
-            <span className="bico">⚠️</span>
+            <span className="bico">⛔</span>
             <span>{error || 'مبلغ انتقال از موجودی جیب مبدأ بیشتر است (جیب به موجودی منفی می‌رود)'}</span>
           </div>
         )}

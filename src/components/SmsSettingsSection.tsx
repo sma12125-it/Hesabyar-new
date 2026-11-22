@@ -86,9 +86,7 @@ function SmsPermissionSheet({
         <div className="sheet-handle" />
         <div className="sheet-header">
           <h1>دسترسی به پیامک</h1>
-          <button className="sheet-close" type="button" onClick={onClose} aria-label="بستن">
-            ✕
-          </button>
+          <button className="sheet-close" type="button" onClick={onClose} aria-label="بستن">✕</button>
         </div>
         <div className="sheet-body-scroll">
           <p>برای شناسایی خودکار تراکنش‌های بانکی، برنامه نیاز دارد پیامک‌های بانکی را دریافت و پردازش کند.</p>

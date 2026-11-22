@@ -236,6 +236,18 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
             onClick={() => window.dispatchEvent(new CustomEvent('hy:open-drawer'))}
             title="منوی ناوبری سایدبار"
             aria-label="منوی ناوبری سایدبار"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 12,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'var(--hy-input-bg, rgba(255, 255, 255, 0.08))',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 20,
+            }}
           >
             ☰
           </button>
@@ -247,8 +259,8 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                   fontSize: 11,
                   padding: '2px 8px',
                   borderRadius: 8,
-                  background: 'color-mix(in srgb, var(--hy-teal) 14%, transparent)',
-                  color: 'var(--hy-teal)',
+                  background: 'rgba(37, 99, 235, 0.15)',
+                  color: 'var(--hy-accent)',
                   fontWeight: 700,
                 }}
               >
@@ -283,7 +295,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                     onClick={() => setDongFilter('settled')}
                     style={{ fontSize: 12, padding: '4px 14px' }}
                   >
-                    ✅ تسویه شده ({toFaDigits(dongEvents.filter((d) => d.settled).length)})
+                    ✓ تسویه شده ({toFaDigits(dongEvents.filter((d) => d.settled).length)})
                   </button>
                 </div>
 
@@ -306,7 +318,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
               <section className="lg report-card">
                 {dongEvents.filter((d) => (dongFilter === 'active' ? !d.settled : d.settled)).length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '36px 14px', color: 'var(--hy-text-secondary)' }}>
-                    <div style={{ fontSize: 32 }}>🧳</div>
+                    <span style={{ fontSize: 36 }}>👥</span>
                     <p style={{ marginTop: 8 }}>
                       {dongFilter === 'active'
                         ? 'هیچ رویداد فعالی وجود ندارد.'
@@ -405,7 +417,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                                     notifyUser(evt.settled ? 'رویداد به حالت فعال برگشت' : 'رویداد پایان یافت و تسویه شد')
                                   }}
                                 >
-                                  {evt.settled ? '↩️ فعال کردن' : '✓ پایان و تسویه'}
+                                  {evt.settled ? '↺ فعال کردن' : '✓ پایان و تسویه'}
                                 </button>
                               )}
                               {evt.shareRole === 'member' ? null : (
@@ -436,7 +448,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                 <WindowPopup
                   title="ایجاد رویداد دونگ جدید"
                   subtitle="سفر، مهمانی، دورهمی یا خریدهای مشترک"
-                  icon="🧳"
+                  icon="👥"
                   isOpen={true}
                   onClose={() => setIsCreateDongOpen(false)}
                   defaultWidth={480}
@@ -489,7 +501,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                                 />
                                 <button
                                   type="button"
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 12, color: 'var(--hy-income)' }}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--hy-income)' }}
                                   onClick={() => {
                                     if (editingMemberName.trim()) {
                                       const updated = [...dongMembers]
@@ -507,7 +519,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                                 <span>👤 {m}</span>
                                 <button
                                   type="button"
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.8, fontSize: 11, color: 'inherit' }}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, opacity: 0.8 }}
                                   title="ویرایش نام"
                                   onClick={() => {
                                     setEditingMemberIdx(idx)
@@ -519,7 +531,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                                 {dongMembers.length > 1 ? (
                                   <button
                                     type="button"
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', opacity: 0.7, fontSize: 11, color: 'inherit' }}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 10, opacity: 0.7 }}
                                     title="حذف فرد"
                                     onClick={() => setDongMembers(dongMembers.filter((_, i) => i !== idx))}
                                   >
@@ -646,7 +658,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                       notifyUser(selectedDongEvent.settled ? 'رویداد به حالت فعال بازگردانده شد' : 'رویداد تسویه اعلام شد')
                     }}
                   >
-                    {selectedDongEvent.settled ? '↩️ بازگردانی به فعال' : '✓ پایان و علامت تسویه'}
+                    {selectedDongEvent.settled ? '↺ بازگردانی به فعال' : '✓ پایان و علامت تسویه'}
                   </button>
                 )}
               </div>
@@ -670,10 +682,11 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                     justifyContent: 'center',
                     gap: 8,
                     fontSize: 14,
-                    fontWeight: 700,
+                    fontWeight: 800,
                     padding: '12px 18px',
                     borderRadius: 14,
-                    background: 'var(--hy-accent)',
+                    background: 'linear-gradient(135deg, var(--hy-accent) 0%, #1d4ed8 100%)',
+                    boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)',
                     cursor: 'pointer',
                   }}
                   onClick={() => {
@@ -688,7 +701,8 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                     setIsDongExpenseModalOpen(true)
                   }}
                 >
-                  ➕ ثبت خرج جدید
+                  <span style={{ fontSize: 18 }}>＋</span>
+                  <span>ثبت خرج جدید</span>
                 </button>
 
                 {/* Button: Manage Members & Groups */}
@@ -701,11 +715,11 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                     justifyContent: 'center',
                     gap: 8,
                     fontSize: 13,
-                    fontWeight: 700,
+                    fontWeight: 800,
                     padding: '12px 18px',
                     borderRadius: 14,
-                    background: 'var(--glass-chrome)',
-                    border: '1px solid var(--hy-border-color)',
+                    background: 'rgba(255, 255, 255, 0.07)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
                     cursor: 'pointer',
                     color: 'var(--hy-text)',
                   }}
@@ -714,12 +728,15 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                     setIsDongMembersAndGroupsModalOpen(true)
                   }}
                 >
-                  👥 تنظیم گروه ({toFaDigits(selectedDongEvent.participants.length)} نفر
-                  {selectedDongEvent.groups && selectedDongEvent.groups.length > 0
-                    ? ` · ${toFaDigits(selectedDongEvent.groups.length)} گروه`
-                    : ''}
-                  {isMadreKharjEnabled(selectedDongEvent) ? ' · مادرخرج' : ''}
-                  )
+                  <span style={{ fontSize: 16 }}>👥</span>
+                  <span>
+                    تنظیم گروه ({toFaDigits(selectedDongEvent.participants.length)} نفر
+                    {selectedDongEvent.groups && selectedDongEvent.groups.length > 0
+                      ? ` · ${toFaDigits(selectedDongEvent.groups.length)} گروه`
+                      : ''}
+                    {isMadreKharjEnabled(selectedDongEvent) ? ' · مادرخرج' : ''}
+                    )
+                  </span>
                 </button>
               </div>
 
@@ -885,8 +902,9 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-                    <div style={{ fontWeight: 800, fontSize: 13, color: '#facc15' }}>
-                      ⏳ درخواست‌های اعضا در انتظار تأیید مدیر ({toFaDigits(selectedDongEvent.pendingApprovals.length)})
+                    <div style={{ fontWeight: 800, fontSize: 13, color: '#facc15', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span>⏳</span>
+                      <span>درخواست‌های اعضا در انتظار تأیید مدیر ({toFaDigits(selectedDongEvent.pendingApprovals.length)})</span>
                     </div>
                     <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
                       {selectedDongEvent.shareRole === 'member' ? 'در صف بررسی و تأیید مدیر' : 'برای اعمال در تراز نهایی بررسی و تأیید فرمایید'}
@@ -975,8 +993,8 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                 style={{
                   padding: '16px 18px',
                   borderRadius: 16,
-                  background: 'color-mix(in srgb, var(--hy-teal) 8%, var(--glass-chrome))',
-                  border: '1px solid color-mix(in srgb, var(--hy-teal) 26%, transparent)',
+                  background: 'linear-gradient(135deg, rgba(37,99,235,0.12), rgba(15,118,110,0.12))',
+                  border: '1px solid rgba(255,255,255,0.12)',
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
@@ -1034,9 +1052,12 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>
-                    📊 تراز و سهم اعضا و گروه‌ها در این رویداد
-                  </h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 16 }}>📊</span>
+                    <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>
+                      تراز و سهم اعضا و گروه‌ها در این رویداد
+                    </h3>
+                  </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>
                       مجموع مخارج کل: <b>{formatMoney(dongSummary.totalCost)}</b>
@@ -1172,9 +1193,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                                 alignItems: 'center',
                               }}
                             >
-                              <span>
-                                {isExpanded ? '▲ بستن تفکیک اعضا' : '▼ کلیک برای نمایش هزینه‌ها به تفکیک اعضای گروه'}
-                              </span>
+                              <span>{isExpanded ? '▲ بستن تفکیک اعضا' : '▼ کلیک برای نمایش هزینه‌ها به تفکیک اعضای گروه'}</span>
                               <span style={{ opacity: 0.7 }}>{isExpanded ? 'پنهان‌سازی' : 'نمایش'}</span>
                             </div>
 
@@ -1408,7 +1427,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                       }}
                     >
                       <div style={{ fontSize: 11, color: 'var(--hy-text)' }}>
-                        ℹ️ <b>گروه‌بندی افراد:</b> آیا برخی از حاضرین با هم هستند (مثلاً اعضای یک خانواده یا هم‌اتاقی‌ها)؟ می‌توانید آنها را گروه‌بندی کنید تا هزینه‌هایشان تجمیع شود.
+                        💡 <b>گروه‌بندی افراد:</b> آیا برخی از حاضرین با هم هستند (مثلاً اعضای یک خانواده یا هم‌اتاقی‌ها)؟ می‌توانید آنها را گروه‌بندی کنید تا هزینه‌هایشان تجمیع شود.
                       </div>
                       <button
                         type="button"
@@ -1431,17 +1450,18 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                 style={{
                   padding: 16,
                   borderRadius: 16,
-                  background: 'color-mix(in srgb, var(--hy-teal) 9%, var(--glass-chrome))',
-                  border: '1px solid color-mix(in srgb, var(--hy-teal) 26%, transparent)',
+                  background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.15) 0%, rgba(15, 118, 110, 0.2) 100%)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>
-                    ⚖️ فرمول تسویه حساب نهایی (چه کسی به چه کسی بدهد؟)
+                  <h3 style={{ fontSize: 14, fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>⚖️</span>
+                    <span>فرمول تسویه حساب نهایی (چه کسی به چه کسی بدهد؟)</span>
                   </h3>
                   {activeDongTransfers.length > 0 && activeDongTransfers.every((t) => t.settled) ? (
                     <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--hy-income)', background: 'rgba(16, 185, 129, 0.2)', padding: '2px 8px', borderRadius: 8 }}>
-                      ✓ تمام پرداخت‌ها انجام شد
+                      🎉 تمام پرداخت‌ها انجام شد
                     </span>
                   ) : null}
                 </div>
@@ -1483,7 +1503,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
 
                 {activeDongTransfers.length === 0 ? (
                   <p style={{ fontSize: 12, color: 'var(--hy-income)', margin: '8px 0 0' }}>
-                    ✅ تمام حساب‌ها کاملاً برابر است و کسی به دیگری بدهکار نیست!
+                    🎉 تمام حساب‌ها کاملاً برابر است و کسی به دیگری بدهکار نیست!
                   </p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
@@ -1538,9 +1558,6 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                               padding: '5px 12px',
                               borderRadius: 8,
                               cursor: 'pointer',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: 4,
                             }}
                             onClick={() => {
                               const nextSettled = new Set(selectedDongEvent.settledTransfers || [])
@@ -1557,7 +1574,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                               })
                             }}
                           >
-                            {tr.settled ? '✓ تسویه شده (لغو)' : '✓ ثبت تسویه'}
+                            {tr.settled ? '✓ تسویه شده (لغو)' : '🔘 ثبت تسویه'}
                           </button>
                         </div>
                       </div>
@@ -1772,7 +1789,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                                 onClick={() => setNewExpSplitMode('equal')}
                                 style={{ fontSize: 11, padding: '3px 10px' }}
                               >
-                                تقسیم مساوی
+                                ⚖️ تقسیم مساوی
                               </button>
                               <button
                                 type="button"
@@ -1824,7 +1841,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                                   onClick={resetCustomAmountsToEqual}
                                   title="توزیع مجدد مبلغ کل به طور مساوی"
                                 >
-                                  🔄 توزیع مساوی مجدد
+                                  ↺ توزیع مساوی مجدد
                                 </button>
                               </div>
                               {selectedDongEvent.participants.map((p) => {
@@ -1899,9 +1916,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                                         {diff > 0 ? `باقی‌مانده: ${formatMoney(diff)}` : `اضافه بر کل: ${formatMoney(-diff)}`}
                                       </span>
                                     ) : (
-                                      <span>
-                                        ✓ تراز دقیق با کل هزینه (بدون کسری/مازاد)
-                                      </span>
+                                      <span>✓ تراز دقیق با کل هزینه (بدون کسری/مازاد)</span>
                                     )}
                                   </div>
                                 )
@@ -2400,7 +2415,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                             lineHeight: 1.6,
                           }}
                         >
-                          <b>راهنمایی:</b> بعد از اعضا، گروه‌ها را مشخص کنید. مرحله بعد تعیین مادرخرج است و اختیاری است؛ اگر رد شود، حساب دونگ مثل قبل بین خود اعضا می‌ماند.
+                          💡 <b>راهنمایی:</b> بعد از اعضا، گروه‌ها را مشخص کنید. مرحله بعد تعیین مادرخرج است و اختیاری است؛ اگر رد شود، حساب دونگ مثل قبل بین خود اعضا می‌ماند.
                         </div>
                         <button className="cta-confirm" type="button" onClick={() => setMembersModalTab('groups')}>
                           مرحله بعد: گروه‌بندی
@@ -2422,7 +2437,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                             lineHeight: 1.6,
                           }}
                         >
-                          <b>چرا گروه‌بندی کنیم؟</b> در سفرهای دوستانه یا خانوادگی، می‌توانید اعضای یک خانواده یا هم‌اتاقی‌ها را در یک گروه قرار دهید. در این حالت، سهم و پرداخت‌های کل گروه با هم جمع شده و تسویه حساب نهایی بر اساس کل گروه انجام می‌شود. همچنین با کلیک روی هر گروه، هزینه‌ها به تفکیک اعضا نیز نمایش داده می‌شود.
+                          💡 <b>چرا گروه‌بندی کنیم؟</b> در سفرهای دوستانه یا خانوادگی، می‌توانید اعضای یک خانواده یا هم‌اتاقی‌ها را در یک گروه قرار دهید. در این حالت، سهم و پرداخت‌های کل گروه با هم جمع شده و تسویه حساب نهایی بر اساس کل گروه انجام می‌شود. همچنین با کلیک روی هر گروه، هزینه‌ها به تفکیک اعضا نیز نمایش داده می‌شود.
                         </div>
 
                         {/* Group Add / Edit Form */}
@@ -2609,9 +2624,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                                   >
                                     <div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                        <span style={{ fontWeight: 800, fontSize: 14 }}>
-                                          👥 {g.name}
-                                        </span>
+                                        <span style={{ fontWeight: 800, fontSize: 14 }}>👥 {g.name}</span>
                                         <span
                                           style={{
                                             fontSize: 10,
@@ -2744,7 +2757,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
 
                     {selectedDongEvent.expenses.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '36px 14px', color: 'var(--hy-text-secondary)' }}>
-                        <div style={{ fontSize: 28, opacity: 0.6 }}>🧾</div>
+                        <span style={{ fontSize: 32 }}>🧾</span>
                         <p style={{ marginTop: 8 }}>هنوز خرجی در این رویداد ثبت نشده است.</p>
                       </div>
                     ) : (
