@@ -75,6 +75,45 @@ export async function verifySupabaseToken(token: string): Promise<AuthenticatedU
   }
 }
 
+export function getSupabaseServerConfig(): { url: string; anonKey: string } {
+  return { url: SUPABASE_URL, anonKey: SUPABASE_ANON_KEY }
+}
+
+/**
+ * Verifies against Supabase RLS whether the authenticated caller has read/write
+ * access to a shared dong_events row (either as owner or as an invited member).
+ * In test/dev token mode returns 'dev-bypass'.
+ */
+export async function verifySupabaseDongAccess(
+  remoteId: string,
+  user: AuthenticatedUser,
+): Promise<{ allowed: boolean; isOwner?: boolean; devBypass?: boolean }> {
+  const isProd = process.env.NODE_ENV === 'production'
+  const isTest = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST)
+  const isDev = !isProd && process.env.ALLOW_DEV_TOKENS !== 'false'
+  if ((isTest || isDev) && (user.token.startsWith('test-user-') || user.token === 'dev-token')) {
+    return { allowed: true, devBypass: true }
+  }
+
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/dong_events?id=eq.${encodeURIComponent(remoteId)}&select=id,owner_id`,
+      {
+        headers: {
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${user.token}`,
+        },
+      },
+    )
+    if (!res.ok) return { allowed: false }
+    const rows = (await res.json()) as Array<{ id?: string; owner_id?: string }>
+    if (!Array.isArray(rows) || rows.length === 0) return { allowed: false }
+    return { allowed: true, isOwner: rows[0]?.owner_id === user.id }
+  } catch {
+    return { allowed: false }
+  }
+}
+
 /**
  * Express middleware to authenticate API requests.
  * Extracts Bearer token, validates it against Supabase Auth,

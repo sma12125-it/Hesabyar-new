@@ -1,0 +1,158 @@
+{
+  "dong_http_1795695169725": {
+    "remoteId": "dong_http_1795695169725",
+    "ownerAuthId": "test-user-a",
+    "authorizedUserIds": [
+      "test-user-a"
+    ],
+    "event": {
+      "id": "local-d1",
+      "remoteId": "dong_http_1795695169725",
+      "title": "شام تیمی",
+      "date": "2026-11-26",
+      "shareRole": "owner",
+      "participants": [
+        {
+          "id": "a",
+          "name": "علی"
+        },
+        {
+          "id": "b",
+          "name": "سارا"
+        }
+      ],
+      "expenses": [
+        {
+          "id": "e1",
+          "title": "پیتزا",
+          "amount": 200000,
+          "paidById": "a",
+          "splitAmongIds": [
+            "a",
+            "b"
+          ],
+          "updatedAt": 100
+        }
+      ],
+      "settledTransfers": [
+        "b->a:100000"
+      ],
+      "settledTransferTimestamps": {
+        "b->a:100000": {
+          "settled": true,
+          "updatedAt": 250
+        }
+      },
+      "createdAt": 100,
+      "updatedAt": 250,
+      "settled": true,
+      "settledUpdatedAt": 250,
+      "structureUpdatedAt": 250
+    },
+    "updatedAt": 1795695169796
+  },
+  "dong_http_1795695278905": {
+    "remoteId": "dong_http_1795695278905",
+    "ownerAuthId": "test-user-a",
+    "authorizedUserIds": [
+      "test-user-a"
+    ],
+    "event": {
+      "id": "local-d1",
+      "remoteId": "dong_http_1795695278905",
+      "title": "شام تیمی",
+      "date": "2026-11-26",
+      "shareRole": "owner",
+      "participants": [
+        {
+          "id": "a",
+          "name": "علی"
+        },
+        {
+          "id": "b",
+          "name": "سارا"
+        }
+      ],
+      "expenses": [
+        {
+          "id": "e1",
+          "title": "پیتزا",
+          "amount": 200000,
+          "paidById": "a",
+          "splitAmongIds": [
+            "a",
+            "b"
+          ],
+          "updatedAt": 100
+        }
+      ],
+      "settledTransfers": [
+        "b->a:100000"
+      ],
+      "settledTransferTimestamps": {
+        "b->a:100000": {
+          "settled": true,
+          "updatedAt": 250
+        }
+      },
+      "createdAt": 100,
+      "updatedAt": 250,
+      "settled": true,
+      "settledUpdatedAt": 250,
+      "structureUpdatedAt": 250
+    },
+    "updatedAt": 1795695278990
+  },
+  "dong_http_1795695358711": {
+    "remoteId": "dong_http_1795695358711",
+    "ownerAuthId": "test-user-a",
+    "authorizedUserIds": [
+      "test-user-a"
+    ],
+    "event": {
+      "id": "local-d1",
+      "remoteId": "dong_http_1795695358711",
+      "title": "شام تیمی",
+      "date": "2026-11-26",
+      "shareRole": "owner",
+      "participants": [
+        {
+          "id": "a",
+          "name": "علی"
+        },
+        {
+          "id": "b",
+          "name": "سارا"
+        }
+      ],
+      "expenses": [
+        {
+          "id": "e1",
+          "title": "پیتزا",
+          "amount": 200000,
+          "paidById": "a",
+          "splitAmongIds": [
+            "a",
+            "b"
+          ],
+          "updatedAt": 100
+        }
+      ],
+      "settledTransfers": [
+        "b->a:100000"
+      ],
+      "settledTransferTimestamps": {
+        "b->a:100000": {
+          "settled": true,
+          "updatedAt": 250
+        }
+      },
+      "createdAt": 100,
+      "updatedAt": 250,
+      "settled": true,
+      "settledUpdatedAt": 250,
+      "structureUpdatedAt": 250
+    },
+    "updatedAt": 1795695358791
+  }
+}

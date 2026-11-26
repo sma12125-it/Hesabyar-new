@@ -1,7 +1,9 @@
-import type { DongEvent } from '../types'
+import type { DongEvent, ShareAssetKind } from '../types'
 import {
   dongFromRemote,
   explainCloudError,
+  HANDLE_PATTERN,
+  normalizeHandle,
   jwtUserId,
   presentSharedAsset,
   profileFromRow,
@@ -17,6 +19,11 @@ export interface ShareLinkResult {
   eventId: string
   handle: string
   displayName: string
+}
+
+export interface PublicProfileResult extends PublicHandle {
+  userId?: string
+  avatarUrl?: string
 }
 
 const PROFILE_COLUMNS = 'first_name,last_name,email,phone,avatar_url,handle,display_name,about,updated_at'
@@ -107,6 +114,36 @@ export async function lookupHandle(handle: string): Promise<PublicHandle | null>
   return toPublicHandle(first)
 }
 
+export async function lookupPublicProfile(query: string): Promise<PublicProfileResult | null> {
+  const clean = normalizeHandle(query)
+  if (!clean) return null
+  const session = await authed()
+  try {
+    const rows = await rpc<Array<{ user_id?: string; handle?: string; display_name?: string; avatar_url?: string }>>(
+      'lookup_profile_public',
+      { p_query: clean },
+      session,
+    )
+    const first = Array.isArray(rows) ? rows[0] : null
+    if (first && (first.handle || first.user_id)) {
+      const uid = first.user_id?.trim()
+      return {
+        userId: uid ? (uid.length > 16 ? uid.slice(0, 12) : uid) : clean,
+        handle: first.handle || `user_${(uid || clean).slice(0, 6)}`,
+        displayName: first.display_name || first.handle || 'کاربر حسابیار',
+        avatarUrl: first.avatar_url || undefined,
+      }
+    }
+  } catch {
+    // Fallback to lookup_handle if migration has not run yet
+  }
+  if (HANDLE_PATTERN.test(clean)) {
+    const basic = await lookupHandle(clean)
+    if (basic) return { ...basic }
+  }
+  return null
+}
+
 export async function shareDongWithHandle(event: DongEvent, handle: string, participantId: string): Promise<ShareLinkResult> {
   const session = await authed()
   const result = await rpc<{ eventId?: string; handle?: string; displayName?: string }>(
@@ -179,8 +216,50 @@ export async function pullReadableDong(): Promise<DongEvent[]> {
   return rows.map((row) => dongFromRemote(row, session.userId))
 }
 
+export async function syncDongViaServer(event: DongEvent): Promise<DongEvent | null> {
+  if (!event.remoteId) return null
+  const session = await ensureSession()
+  if (!session?.accessToken) return null
+  try {
+    const res = await fetch('/api/v1/dong/sync', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ remoteId: event.remoteId, event }),
+    })
+    if (!res.ok) return null
+    const json = (await res.json()) as { success?: boolean; event?: DongEvent }
+    return json.success && json.event ? json.event : null
+  } catch {
+    return null
+  }
+}
+
+export async function pullDongViaServer(remoteIds: string[]): Promise<DongEvent[]> {
+  if (!remoteIds.length) return []
+  const session = await ensureSession()
+  if (!session?.accessToken) return []
+  try {
+    const res = await fetch('/api/v1/dong/pull', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${session.accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ remoteIds }),
+    })
+    if (!res.ok) return []
+    const json = (await res.json()) as { success?: boolean; events?: DongEvent[] }
+    return json.success && Array.isArray(json.events) ? json.events : []
+  } catch {
+    return []
+  }
+}
+
 export async function shareAssetWithHandle(
-  kind: 'card' | 'account',
+  kind: ShareAssetKind,
   localId: string,
   handle: string,
   payload: Record<string, unknown>,
@@ -194,7 +273,7 @@ export async function shareAssetWithHandle(
   }, session)
 }
 
-export async function revokeAssetShare(kind: 'card' | 'account', localId: string, handle: string): Promise<void> {
+export async function revokeAssetShare(kind: ShareAssetKind, localId: string, handle: string): Promise<void> {
   const session = await authed()
   await rpc<void>('revoke_asset_share', { p_kind: kind, p_local_id: localId, p_handle: handle }, session)
 }

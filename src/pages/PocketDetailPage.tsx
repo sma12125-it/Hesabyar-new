@@ -120,9 +120,10 @@ export function PocketDetailPage({
           className="action-chip lg-light"
           type="button"
           onClick={() => setFormOpen(true)}
-          style={{ height: 34, padding: '0 10px', fontSize: 12 }}
+          style={{ height: 34, padding: '0 10px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
         >
-          ✎ ویرایش
+          <span>✏️</span>
+          <span>ویرایش</span>
         </button>
       </div>
 
@@ -142,15 +143,16 @@ export function PocketDetailPage({
           className="home-card lg"
           style={{
             margin: '8px 0 14px',
-            background: 'linear-gradient(135deg, rgba(234, 88, 12, 0.15), rgba(249, 115, 22, 0.05))',
-            border: '1px solid rgba(234, 88, 12, 0.4)',
+            background: 'color-mix(in srgb, #ea580c 10%, var(--glass-chrome))',
+            border: '1px solid color-mix(in srgb, #ea580c 36%, transparent)',
             padding: '12px 16px',
             borderRadius: 16,
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#ea580c', display: 'flex', alignItems: 'center', gap: 6 }}>
-              🤝 قرض باز از این جیب
+              <span>🤝</span>
+              <span>قرض باز از این جیب</span>
             </span>
             <span style={{ fontSize: 14, fontWeight: 800, color: '#ea580c' }}>
               {formatMoney(totalOpenLoan, true)}
@@ -210,7 +212,10 @@ export function PocketDetailPage({
             gap: 2,
           }}
         >
-          <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>🔴 هزینه از حساب با این جیب</span>
+          <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span>🔴</span>
+            <span>هزینه از حساب با این جیب</span>
+          </span>
           <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--hy-expense)' }}>
             {formatMoney(pocketExpense, true)}
           </span>
@@ -226,7 +231,10 @@ export function PocketDetailPage({
             gap: 2,
           }}
         >
-          <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)' }}>🟢 واریز به حساب با این جیب</span>
+          <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span>🟢</span>
+            <span>واریز به حساب با این جیب</span>
+          </span>
           <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--hy-income)' }}>
             {formatMoney(pocketIncome, true)}
           </span>
@@ -240,14 +248,14 @@ export function PocketDetailPage({
           type="button"
           onClick={() => setTransferOpen(true)}
         >
-          <span className="aico">⇄</span>انتقال بین جیب‌ها
+          <span className="aico">🔄</span>انتقال بین جیب‌ها
         </button>
         <button
           className="action-chip lg-light"
           type="button"
           onClick={() => setFormOpen(true)}
         >
-          <span className="aico">✎</span>ویرایش جیب
+          <span className="aico">✏️</span>ویرایش جیب
         </button>
         {!pocket.isMain ? (
           <button
@@ -256,7 +264,7 @@ export function PocketDetailPage({
             style={{ color: '#ef4444' }}
             onClick={() => setConfirmDelete(true)}
           >
-            <span className="aico">🗑</span>حذف جیب
+            <span className="aico">🗑️</span>حذف جیب
           </button>
         ) : null}
       </div>
@@ -282,7 +290,9 @@ export function PocketDetailPage({
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px' }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div className="tx-ico">{isOut ? '📤' : '📥'}</div>
+                    <div className="tx-ico" style={{ color: isOut ? 'var(--hy-expense)' : 'var(--hy-income)' }}>
+                      {isOut ? '📤' : '📥'}
+                    </div>
                     <div>
                       <div className="tx-title" style={{ fontSize: 13, fontWeight: 600 }}>
                         {isOut ? `انتقال به ${otherName}` : `دریافت از ${otherName}`}

@@ -9,6 +9,7 @@ import {
 } from '../lib/userShare'
 import { notifyUser } from '../lib/sync'
 import { toFaDigits } from '../lib/money'
+import type { InstallmentItem, ShareAssetKind } from '../types'
 
 export interface ShareTargetItem {
   id: string
@@ -17,6 +18,32 @@ export interface ShareTargetItem {
   pan?: string
   accountNumber?: string
   balance?: number
+  amount?: number
+  dueDate?: string
+  party?: string
+  direction?: string
+  status?: string
+  sayadId?: string
+  note?: string
+  settledAt?: string
+  clearedAt?: string
+  repaidAmount?: number
+  installmentAmount?: number
+  totalCount?: number
+  startDate?: string
+  planKind?: 'fixed' | 'loan'
+  principal?: number
+  annualRatePercent?: number
+  items?: InstallmentItem[]
+  details?: Record<string, unknown>
+}
+
+const SHARE_KIND_META: Record<ShareAssetKind, { icon: string; noun: string; defaultTitle: string }> = {
+  card: { icon: '💳', noun: 'کارت', defaultTitle: 'کارت بانکی' },
+  account: { icon: '🏦', noun: 'حساب', defaultTitle: 'حساب مالی' },
+  installment: { icon: '📅', noun: 'برنامه اقساط', defaultTitle: 'برنامه اقساط' },
+  debt: { icon: '🤝', noun: 'بدهی / طلب', defaultTitle: 'بدهی / طلب' },
+  cheque: { icon: '🧾', noun: 'چک', defaultTitle: 'چک صیادی' },
 }
 
 export function UnifiedShareSheet({
@@ -24,7 +51,7 @@ export function UnifiedShareSheet({
   item,
   onClose,
 }: {
-  kind: 'card' | 'account'
+  kind: ShareAssetKind
   item: ShareTargetItem
   onClose: () => void
 }) {
@@ -41,7 +68,8 @@ export function UnifiedShareSheet({
   const [isEditingName, setIsEditingName] = useState(false)
   const [editedDisplayName, setEditedDisplayName] = useState('')
 
-  const title = item.bankName || item.name || (kind === 'card' ? 'کارت بانکی' : 'حساب مالی')
+  const meta = SHARE_KIND_META[kind] ?? SHARE_KIND_META.account
+  const title = (kind === 'card' ? item.bankName : undefined) || item.name || meta.defaultTitle
 
   const refreshList = async () => {
     try {
@@ -82,7 +110,7 @@ export function UnifiedShareSheet({
 
       // Check if already shared
       if (sharedUsers.some((u) => u.userId === found.userId || u.handle === found.handle)) {
-        setErrorMsg('این کاربر قبلاً به لیست اعضای مجاز این حساب/کارت اضافه شده است.')
+        setErrorMsg(`این کاربر قبلاً به لیست اعضای مجاز این ${meta.noun} اضافه شده است.`)
         return
       }
 
@@ -106,13 +134,32 @@ export function UnifiedShareSheet({
     }
 
     try {
-      await addSharedUser(kind, item.id, userToSave, {
+      const detailsPayload: Record<string, unknown> = {
+        ...(item.details ?? {}),
         name: item.name,
-        bankName: item.bankName,
-        pan: item.pan,
-        accountNumber: item.accountNumber,
-        balance: item.balance,
-      })
+        ...(item.bankName !== undefined ? { bankName: item.bankName } : {}),
+        ...(item.pan !== undefined ? { pan: item.pan } : {}),
+        ...(item.accountNumber !== undefined ? { accountNumber: item.accountNumber } : {}),
+        ...(item.balance !== undefined ? { balance: item.balance } : {}),
+        ...(item.amount !== undefined ? { amount: item.amount } : {}),
+        ...(item.dueDate !== undefined ? { dueDate: item.dueDate } : {}),
+        ...(item.party !== undefined ? { party: item.party } : {}),
+        ...(item.direction !== undefined ? { direction: item.direction } : {}),
+        ...(item.status !== undefined ? { status: item.status } : {}),
+        ...(item.sayadId !== undefined ? { sayadId: item.sayadId } : {}),
+        ...(item.note !== undefined ? { note: item.note } : {}),
+        ...(item.settledAt !== undefined ? { settledAt: item.settledAt } : {}),
+        ...(item.clearedAt !== undefined ? { clearedAt: item.clearedAt } : {}),
+        ...(item.repaidAmount !== undefined ? { repaidAmount: item.repaidAmount } : {}),
+        ...(item.installmentAmount !== undefined ? { installmentAmount: item.installmentAmount } : {}),
+        ...(item.totalCount !== undefined ? { totalCount: item.totalCount } : {}),
+        ...(item.startDate !== undefined ? { startDate: item.startDate } : {}),
+        ...(item.planKind !== undefined ? { kind: item.planKind } : {}),
+        ...(item.principal !== undefined ? { principal: item.principal } : {}),
+        ...(item.annualRatePercent !== undefined ? { annualRatePercent: item.annualRatePercent } : {}),
+        ...(item.items !== undefined ? { items: item.items } : {}),
+      }
+      await addSharedUser(kind, item.id, userToSave, detailsPayload)
       notifyUser(`دسترسی با موفقیت برای ${userToSave.displayName} فعال شد ✨`)
       setIsAdding(false)
       setSearchInput('')
@@ -127,7 +174,7 @@ export function UnifiedShareSheet({
   }
 
   async function handleRevoke(user: SharedUserProfile) {
-    if (confirm(`آیا از حذف دسترسی «${user.displayName}» به این ${kind === 'card' ? 'کارت' : 'حساب'} اطمینان دارید؟`)) {
+    if (confirm(`آیا از حذف دسترسی «${user.displayName}» به این ${meta.noun} اطمینان دارید؟`)) {
       setSharedUsers((prev) =>
         prev.filter(
           (u) =>
@@ -163,7 +210,7 @@ export function UnifiedShareSheet({
         {/* Header */}
         <div className="sheet-header" style={{ paddingBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 24 }}>{kind === 'card' ? '💳' : '🏦'}</span>
+            <span style={{ fontSize: 24 }}>{meta.icon}</span>
             <div>
               <h1 style={{ fontSize: 16, margin: 0, fontWeight: 800 }}>اشتراک {title}</h1>
               <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
@@ -192,7 +239,7 @@ export function UnifiedShareSheet({
           >
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--hy-text)' }}>
-                اعضای متصل به این {kind === 'card' ? 'کارت' : 'حساب'}
+                اعضای متصل به این {meta.noun}
               </div>
               <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
                 ظرفیت: <strong>{toFaDigits(sharedUsers.length)}</strong> از ۱۰ کاربر
@@ -483,7 +530,7 @@ export function UnifiedShareSheet({
                   </div>
 
                   <p style={{ fontSize: 11, color: 'var(--hy-text-secondary)', margin: 0, lineHeight: 1.6 }}>
-                    با تأیید، این {kind === 'card' ? 'کارت' : 'حساب'} به همراه مشخصات آن برای کاربر فوق به اشتراک گذاشته می‌شود.
+                    با تأیید، این {meta.noun} به همراه مشخصات آن برای کاربر فوق به اشتراک گذاشته می‌شود.
                   </p>
 
                   <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>

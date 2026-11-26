@@ -59,7 +59,7 @@ import {
   updateTransaction,
 } from '../lib/business/hesabyarBusiness'
 import type { ChequeDirection, ChequeStatus, CurrencyUnit, DebtLoanDirection, DebtLoanStatus } from '../types'
-import { requireAuth } from './auth'
+import { requireAuth, verifySupabaseDongAccess } from './auth'
 import { loadUserData, saveUserData } from './storage'
 
 export const apiRouter = Router()
@@ -2048,12 +2048,16 @@ apiRouter.post('/voice/transcribe', async (req: Request, res: Response): Promise
 // ============================================================================
 import {
   registerUserProfile,
-  lookupUserProfile,
+  lookupUserProfileWithCloud,
+  parseShareAssetKind,
   getAssetShares,
   shareAssetWithUser,
+  syncAssetShareDetails,
   revokeAssetShare,
   getIncomingSharesForUser,
   respondToAssetShare,
+  syncServerDongState,
+  pullServerDongStates,
 } from './shareService'
 
 /**
@@ -2079,10 +2083,10 @@ apiRouter.post('/profiles/register', (req: Request, res: Response): void => {
 
 /**
  * GET /api/v1/profiles/lookup
- * Query a real registered user profile by User ID, Handle, or Email.
+ * Query a real registered user profile by User ID, Handle, or Email (local registry + cloud Supabase fallback).
  * Strictly returns 404 if not found (no fake sample user generation).
  */
-apiRouter.get('/profiles/lookup', (req: Request, res: Response): void => {
+apiRouter.get('/profiles/lookup', async (req: Request, res: Response): Promise<void> => {
   try {
     const q = String(req.query.q || '').trim()
     if (!q) {
@@ -2090,7 +2094,7 @@ apiRouter.get('/profiles/lookup', (req: Request, res: Response): void => {
       return
     }
 
-    const profile = lookupUserProfile(q)
+    const profile = await lookupUserProfileWithCloud(q)
     if (!profile) {
       res.status(404).json({
         success: false,
@@ -2114,7 +2118,11 @@ apiRouter.get('/profiles/lookup', (req: Request, res: Response): void => {
  */
 apiRouter.get('/shares/asset', (req: Request, res: Response): void => {
   try {
-    const kind = req.query.kind === 'card' ? 'card' : 'account'
+    const kind = parseShareAssetKind(req.query.kind)
+    if (!kind) {
+      res.status(400).json({ success: false, error: 'نوع دارایی اشتراکی نامعتبر است' })
+      return
+    }
     const id = String(req.query.id || '').trim()
     if (!id) {
       res.status(400).json({ success: false, error: 'شناسه دارایی الزامی است' })
@@ -2134,21 +2142,22 @@ apiRouter.get('/shares/asset', (req: Request, res: Response): void => {
 
 /**
  * POST /api/v1/shares/share
- * Share an account or card with another user. Enforces maximum 10 users.
+ * Share an account, card, installment, debt, or cheque with another user. Enforces maximum 10 users.
  */
 apiRouter.post('/shares/share', (req: Request, res: Response): void => {
   try {
     const body = req.body || {}
-    if (!body.assetKind || !body.assetId || !body.ownerUserId || !body.granteeUser?.userId) {
+    const kind = parseShareAssetKind(body.assetKind)
+    if (!kind || !body.assetId || !body.ownerUserId || !body.granteeUser?.userId) {
       res.status(400).json({
         success: false,
-        error: 'فیلدهای الزامی: assetKind, assetId, ownerUserId, granteeUser.userId',
+        error: 'فیلدهای الزامی یا نوع دارایی نامعتبر است: assetKind, assetId, ownerUserId, granteeUser.userId',
       })
       return
     }
 
     const result = shareAssetWithUser({
-      assetKind: body.assetKind === 'card' ? 'card' : 'account',
+      assetKind: kind,
       assetId: String(body.assetId),
       assetName: String(body.assetName || 'دارایی مالی'),
       assetDetails: body.assetDetails,
@@ -2167,22 +2176,56 @@ apiRouter.post('/shares/share', (req: Request, res: Response): void => {
 })
 
 /**
+ * POST /api/v1/shares/sync
+ * Sync updated details/status for an existing shared asset to all shared recipients.
+ */
+apiRouter.post('/shares/sync', (req: Request, res: Response): void => {
+  try {
+    const body = req.body || {}
+    const kind = parseShareAssetKind(body.assetKind)
+    if (!kind || !body.assetId) {
+      res.status(400).json({
+        success: false,
+        error: 'فیلدهای الزامی نامعتبر است: assetKind, assetId',
+      })
+      return
+    }
+
+    const result = syncAssetShareDetails({
+      assetKind: kind,
+      assetId: String(body.assetId),
+      ownerUserId: body.ownerUserId ? String(body.ownerUserId) : undefined,
+      assetName: body.assetName ? String(body.assetName) : undefined,
+      assetDetails: body.assetDetails,
+    })
+
+    res.json(result)
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      error: err instanceof Error ? err.message : 'خطا در همگام‌سازی جزئیات اشتراک',
+    })
+  }
+})
+
+/**
  * POST /api/v1/shares/revoke
  * Revoke sharing of an asset from a user.
  */
 apiRouter.post('/shares/revoke', (req: Request, res: Response): void => {
   try {
     const body = req.body || {}
-    if (!body.assetKind || !body.assetId || !body.granteeUserId) {
+    const kind = parseShareAssetKind(body.assetKind)
+    if (!kind || !body.assetId || !body.granteeUserId) {
       res.status(400).json({
         success: false,
-        error: 'فیلدهای الزامی: assetKind, assetId, granteeUserId',
+        error: 'فیلدهای الزامی یا نوع دارایی نامعتبر است: assetKind, assetId, granteeUserId',
       })
       return
     }
 
     const result = revokeAssetShare(
-      body.assetKind === 'card' ? 'card' : 'account',
+      kind,
       String(body.assetId),
       String(body.granteeUserId),
       body.shareId ? String(body.shareId) : undefined,
@@ -2199,7 +2242,7 @@ apiRouter.post('/shares/revoke', (req: Request, res: Response): void => {
 
 /**
  * GET /api/v1/shares/incoming
- * Retrieve all assets shared WITH the given user (incoming shared cards and accounts).
+ * Retrieve all assets shared WITH the given user.
  */
 apiRouter.get('/shares/incoming', (req: Request, res: Response): void => {
   try {
@@ -2236,6 +2279,77 @@ apiRouter.post('/shares/respond', (req: Request, res: Response): void => {
     })
   }
 })
+
+/**
+ * POST /api/v1/dong/sync
+ * Authenticated companion sync endpoint for shared Dong events so transfer settlements,
+ * event settlement, and pending approvals converge across all shared participants.
+ */
+apiRouter.post('/dong/sync', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const body = req.body || {}
+    const remoteId = String(body.remoteId || body.event?.remoteId || '').trim()
+    if (!remoteId || !body.event || typeof body.event !== 'object') {
+      res.status(400).json({ success: false, error: 'فیلدهای remoteId و event الزامی هستند' })
+      return
+    }
+
+    const access = await verifySupabaseDongAccess(remoteId, req.user!)
+    if (!access.allowed) {
+      res.status(403).json({ success: false, error: 'شما دسترسی مجاز به این رویداد دونگ ندارید' })
+      return
+    }
+
+    const result = syncServerDongState({
+      remoteId,
+      authUserId: req.user!.id,
+      isOwnerVerified: access.isOwner,
+      grantAccessForAuthUser: !access.devBypass,
+      event: body.event,
+    })
+
+    res.json(result)
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'خطا در همگام‌سازی دونگ اشتراکی'
+    const status = msg.includes('دسترسی مجاز') ? 403 : 400
+    res.status(status).json({ success: false, error: msg })
+  }
+})
+
+/**
+ * POST /api/v1/dong/pull
+ * Pull reconciled shared Dong states for the caller's authorized remoteIds.
+ */
+apiRouter.post('/dong/pull', requireAuth, async (req: Request, res: Response): Promise<void> => {
+  try {
+    const rawIds: unknown[] = Array.isArray(req.body?.remoteIds) ? req.body.remoteIds : []
+    const remoteIds: string[] = rawIds.map((id: unknown) => String(id || '').trim()).filter(Boolean).slice(0, 50)
+    const verifiedRemoteIds = new Set<string>()
+
+    await Promise.all(
+      remoteIds.map(async (remoteId: string) => {
+        const access = await verifySupabaseDongAccess(remoteId, req.user!)
+        if (access.allowed && !access.devBypass) {
+          verifiedRemoteIds.add(remoteId)
+        }
+      }),
+    )
+
+    const events = pullServerDongStates({
+      remoteIds,
+      authUserId: req.user!.id,
+      verifiedRemoteIds,
+    })
+
+    res.json({ success: true, events })
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err instanceof Error ? err.message : 'خطا در دریافت وضعیت دونگ اشتراکی',
+    })
+  }
+})
+
 
 
 

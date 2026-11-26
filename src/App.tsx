@@ -44,6 +44,7 @@ import { PendingTransactionsPage } from './pages/PendingTransactionsPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { ExtrasProvider } from './store/Extras'
 import { StoreProvider, useStore } from './store/Store'
+import type { ShareAssetKind } from './types'
 
 export type Sheet =
   | { type: 'quick'; kind: 'expense' | 'income'; accountId?: string; returnToAll?: string }
@@ -60,7 +61,7 @@ export type Sheet =
   | { type: 'debt'; debtId?: string }
   | { type: 'dong-create' }
   | { type: 'sync' }
-  | { type: 'share'; kind: 'card' | 'account'; item: ShareTargetItem }
+  | { type: 'share'; kind: ShareAssetKind; item: ShareTargetItem }
   | { type: 'quick-cards'; initialTab?: 'cards' | 'accounts' }
   | { type: 'confirm'; title: string; message: string; confirmLabel?: string; run: () => Promise<void>; returnToAll?: string }
 
@@ -149,7 +150,7 @@ function Shell() {
     void autoRegisterCurrentProfile()
 
     const onOpenShare = (event: Event) => {
-      const detail = (event as CustomEvent<{ kind: 'card' | 'account'; item: ShareTargetItem }>).detail
+      const detail = (event as CustomEvent<{ kind: ShareAssetKind; item: ShareTargetItem }>).detail
       if (detail && detail.kind && detail.item) {
         setSheet({ type: 'share', kind: detail.kind, item: detail.item })
       }

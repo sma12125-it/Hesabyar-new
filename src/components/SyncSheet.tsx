@@ -125,7 +125,7 @@ export function SyncSheet({
     <WindowPopup
       title="اتصال و همگام‌سازی ابری"
       subtitle={session ? `متصل به: ${session.email}` : 'پشتیبان‌گیری و همگام‌سازی بین دستگاه‌ها'}
-      icon="☁️"
+      icon="cloud"
       isOpen={true}
       onClose={onClose}
       onMinimize={onMinimize}

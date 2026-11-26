@@ -240,6 +240,89 @@ describe('shared dong merge', () => {
     expect(collectDeletedExpenseIds(existing, [])).toEqual(['e1'])
     expect(collectDeletedExpenseIds(event({ expenses: prev }), [])).toBeUndefined()
   })
+
+  it('converges settledTransfers, event settled state, and approvals across owner and member', () => {
+    const ownerLocal = event({
+      remoteId: 'remote-sync-1',
+      shareRole: 'owner',
+      settled: false,
+      settledUpdatedAt: 10,
+      settledTransfers: [],
+      settledTransferTimestamps: {},
+      pendingApprovals: [
+        {
+          id: 'appr-1',
+          action: 'add-expense',
+          proposedByParticipantId: 'b',
+          proposedByName: 'سارا',
+          proposedAt: 15,
+          expense: { id: 'exp-new', title: 'قهوه', amount: 50_000, paidById: 'b', splitAmongIds: ['a', 'b'] },
+        },
+      ],
+    })
+
+    const memberIncoming = event({
+      remoteId: 'remote-sync-1',
+      shareRole: 'member',
+      settled: true,
+      settledUpdatedAt: 50,
+      settledTransfers: ['a->b:45000'],
+      settledTransferTimestamps: { 'a->b:45000': { settled: true, updatedAt: 50 } },
+      handledApprovalIds: ['appr-1'],
+      approvalsUpdatedAt: 60,
+    })
+
+    // Member marks settlement -> owner merges and sees settlement + handled approval
+    const ownerAfterMemberSettle = mergeSharedDong(ownerLocal, memberIncoming)
+    expect(ownerAfterMemberSettle.settled).toBe(true)
+    expect(ownerAfterMemberSettle.settledTransfers).toEqual(['a->b:45000'])
+    expect(ownerAfterMemberSettle.handledApprovalIds).toContain('appr-1')
+    expect(ownerAfterMemberSettle.pendingApprovals).toEqual([])
+
+    // Newer unsettle overrides older settle cleanly
+    const ownerUnsettles = event({
+      ...ownerAfterMemberSettle,
+      settled: false,
+      settledUpdatedAt: 90,
+      settledTransfers: [],
+      settledTransferTimestamps: { 'a->b:45000': { settled: false, updatedAt: 90 } },
+    })
+    const memberAfterOwnerUnsettle = mergeSharedDong(memberIncoming, ownerUnsettles)
+    expect(memberAfterOwnerUnsettle.settled).toBe(false)
+    expect(memberAfterOwnerUnsettle.settledTransfers).toEqual([])
+  })
+
+  it('presents shared installment, debt, and cheque views cleanly while rejecting invalid kinds', () => {
+    const installmentView = presentSharedAsset(
+      {
+        id: 'sh-inst-1',
+        owner_id: 'owner-x',
+        grantee_id: 'me',
+        kind: 'installment',
+        local_id: 'plan-1',
+        handle: 'mina',
+        display_name: 'مینا',
+        payload: { name: 'وام خودرو', cvv: '000' },
+        updated_at: '2026-11-26T00:00:00.000Z',
+      },
+      'me',
+    )
+    expect(installmentView?.kind).toBe('installment')
+    expect(installmentView?.payload).toEqual({ name: 'وام خودرو' })
+
+    const invalidView = presentSharedAsset(
+      {
+        id: 'sh-bad',
+        owner_id: 'owner-x',
+        grantee_id: 'me',
+        kind: 'unknown_kind',
+        local_id: 'x',
+        handle: 'mina',
+      },
+      'me',
+    )
+    expect(invalidView).toBeNull()
+  })
 })
 
 describe('cloud errors', () => {

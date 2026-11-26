@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { formatPersianDateFull } from '../lib/dates'
 import { notifyUser } from '../lib/sync'
+import { getStableUserId, isIncomingSharedAsset, serializeDebtShareDetails } from '../lib/userShare'
 import { useExtras } from '../store/Extras'
 import { useStore } from '../store/Store'
 import { WindowPopup } from './WindowPopup'
@@ -19,6 +20,7 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
   const { activeAccounts } = useStore()
 
   const isEdit = Boolean(debt)
+  const isIncomingShared = isIncomingSharedAsset(debt, getStableUserId())
   const [direction, setDirection] = useState<DebtLoanDirection>(debt?.direction ?? 'borrowed')
   const [party, setParty] = useState(debt?.party ?? '')
   const [amount, setAmount] = useState(debt?.amount ?? 0)
@@ -30,6 +32,7 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
   const [error, setError] = useState<string | null>(null)
 
   const isSettled = debt?.status === 'settled'
+  const isLocked = isSettled || isIncomingShared
 
   async function handleSave() {
     setError(null)
@@ -127,6 +130,15 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
           </div>
         ) : null}
 
+        {isIncomingShared && debt ? (
+          <div className="banner archive" style={{ marginBottom: 12 }}>
+            <span className="bico">🤝</span>
+            <span>
+              این {debt.direction === 'borrowed' ? 'بدهی' : 'طلب'} توسط {debt.ownerDisplayName || 'کاربر دیگر'} با شما به اشتراک گذاشته شده است (فقط‌خواندنی).
+            </span>
+          </div>
+        ) : null}
+
         {isSettled ? (
           <div className="banner ok" style={{ marginBottom: 12 }}>
             <span className="bico">✓</span>
@@ -135,7 +147,7 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
         ) : null}
 
         {/* Direction Toggle */}
-        {!isSettled ? (
+        {!isLocked ? (
           <div className="seg" role="tablist" style={{ marginBottom: 14 }}>
             <button
               className={`seg-btn${direction === 'borrowed' ? ' active' : ''}`}
@@ -168,7 +180,7 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
                 value={party}
                 onChange={(e) => setParty(e.target.value)}
                 autoFocus={!isEdit}
-                disabled={isSettled}
+                disabled={isLocked}
               />
             </div>
           </div>
@@ -212,7 +224,7 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
                     setDueDate(nextMonth.toISOString().slice(0, 10))
                   }
                 }}
-                disabled={isSettled}
+                disabled={isLocked}
               >
                 {hasDueDate ? 'دارد' : 'بدون موعد مشخص'}
               </button>
@@ -225,7 +237,7 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
           </div>
 
           {/* Account Selection */}
-          {activeAccounts.length > 0 ? (
+          {activeAccounts.length > 0 && !isIncomingShared ? (
             <div className="field-chip">
               <span className="ficon">💳</span>
               <div style={{ flex: 1 }}>
@@ -234,7 +246,7 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
                   className="field-input"
                   value={accountId}
                   onChange={(e) => setAccountId(e.target.value)}
-                  disabled={isSettled}
+                  disabled={isLocked}
                   style={{ background: 'transparent', border: 'none', padding: 0 }}
                 >
                   <option value="">بدون انتخاب حساب</option>
@@ -258,7 +270,7 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
                 placeholder="توضیح دلخواه، بابت چی..."
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                disabled={isSettled}
+                disabled={isLocked}
               />
             </div>
           </div>
@@ -266,7 +278,7 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
 
         {/* Action Buttons */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 20 }}>
-          {!isSettled ? (
+          {!isLocked ? (
             <button
               className="cta-confirm"
               type="button"
@@ -277,7 +289,47 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
             </button>
           ) : null}
 
-          {isEdit && !isSettled ? (
+          {isEdit && debt && !isIncomingShared ? (
+            <button
+              className="action-chip lg-light"
+              type="button"
+              style={{
+                justifyContent: 'center',
+                height: 44,
+                background: 'rgba(14, 165, 233, 0.14)',
+                color: 'var(--hy-teal)',
+                borderColor: 'rgba(14, 165, 233, 0.3)',
+                fontWeight: 700,
+              }}
+              onClick={() => {
+                window.dispatchEvent(
+                  new CustomEvent('hy-open-share', {
+                    detail: {
+                      kind: 'debt',
+                      item: {
+                        id: debt.id,
+                        name: `${debt.direction === 'borrowed' ? 'بدهی به' : 'طلب از'} ${debt.party}`,
+                        party: debt.party,
+                        direction: debt.direction,
+                        amount: debt.amount,
+                        dueDate: debt.dueDate,
+                        status: debt.status,
+                        note: debt.note,
+                        settledAt: debt.settledAt,
+                        repaidAmount: debt.repaidAmount,
+                        details: serializeDebtShareDetails(debt),
+                      },
+                    },
+                  }),
+                )
+                onClose()
+              }}
+            >
+              🤝 اشتراک‌گذاری با دیگران
+            </button>
+          ) : null}
+
+          {isEdit && !isLocked ? (
             <button
               className="action-chip lg-light"
               type="button"
@@ -296,7 +348,7 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
             </button>
           ) : null}
 
-          {isEdit && isSettled ? (
+          {isEdit && isSettled && !isIncomingShared ? (
             <button
               className="action-chip lg-light"
               type="button"
@@ -315,7 +367,7 @@ export function DebtSheet({ debt, onClose, onMinimize }: DebtSheetProps) {
             </button>
           ) : null}
 
-          {isEdit ? (
+          {isEdit && !isIncomingShared ? (
             <button
               className="btn-ghost-danger"
               type="button"

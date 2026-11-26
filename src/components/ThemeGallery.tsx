@@ -50,10 +50,9 @@ export function ThemeGallery() {
               gap: 10,
             }}
           >
-            {/* Top row: Icon, Name, Badge, Radio */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 22 }}>{theme.icon}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 22, lineHeight: 1 }}>{theme.icon}</span>
                 <div>
                   <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--hy-text)', display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span>{theme.name}</span>
@@ -79,7 +78,6 @@ export function ThemeGallery() {
                 </div>
               </div>
 
-              {/* Selection Indicator */}
               <div
                 className="theme-radio-dot"
                 style={{
@@ -88,13 +86,11 @@ export function ThemeGallery() {
                   borderRadius: '50%',
                   display: 'grid',
                   placeItems: 'center',
-                  fontSize: 13,
-                  fontWeight: 900,
                   flexShrink: 0,
                   transition: 'all 0.18s ease',
                 }}
               >
-                {isSelected ? '✓' : ''}
+                {isSelected ? <span style={{ fontSize: 13, fontWeight: 900 }}>✓</span> : null}
               </div>
             </div>
 
@@ -152,16 +148,18 @@ export function ThemeGallery() {
                 دکمه
               </div>
 
-              {/* Tag indicator */}
               <div
                 style={{
-                  fontSize: 9,
+                  fontSize: 10,
                   marginRight: 'auto',
                   color: p.text,
-                  opacity: 0.7,
+                  opacity: 0.75,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
                 }}
               >
-                {theme.isDark ? '🌙 حالت شب' : '☀️ حالت روز'}
+                <span>{theme.isDark ? '🌙 نمای شب' : '☀️ نمای روز'}</span>
               </div>
             </div>
           </div>

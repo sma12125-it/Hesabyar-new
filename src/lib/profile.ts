@@ -1,5 +1,5 @@
 import { toWesternDigits } from './money'
-import type { Account, BankCard, DongEvent, DongExpenseItem, DongMemberLink } from '../types'
+import type { Account, BankCard, DongEvent, DongExpenseItem, DongMemberLink, DongPendingApproval, ShareAssetKind } from '../types'
 
 /** Latin handle: a letter, then 2–19 letters, digits, or underscores (3–20 total). */
 export const HANDLE_PATTERN = /^[a-z][a-z0-9_]{2,19}$/
@@ -30,7 +30,7 @@ export interface PublicHandle {
 
 export interface SharedAssetView {
   id: string
-  kind: 'card' | 'account'
+  kind: ShareAssetKind
   localId: string
   handle: string
   displayName: string
@@ -236,10 +236,13 @@ export function shareableAccount(account: Account): Record<string, unknown> {
   }
 }
 
+const ALLOWED_ASSET_KINDS = new Set<ShareAssetKind>(['card', 'account', 'installment', 'debt', 'cheque'])
+
 export function presentSharedAsset(row: unknown, myUserId: string): SharedAssetView | null {
   if (!row || typeof row !== 'object') return null
   const rec = row as Record<string, unknown>
-  const kind = rec.kind === 'card' || rec.kind === 'account' ? rec.kind : null
+  const rawKind = typeof rec.kind === 'string' ? (rec.kind as ShareAssetKind) : null
+  const kind = rawKind && ALLOWED_ASSET_KINDS.has(rawKind) ? rawKind : null
   const id = text(rec.id)
   const localId = text(rec.local_id ?? rec.localId)
   const handle = text(rec.handle)
@@ -351,6 +354,9 @@ export function mergeSharedDong(local: DongEvent, incoming: DongEvent): DongEven
   const structure = pickStructure(local, incoming)
   const expenses = mergeExpenses(local, incoming)
   const links = pickLinks(local, incoming)
+  const transfers = mergeSettledTransfers(local, incoming)
+  const settledState = mergeEventSettled(local, incoming, structure)
+  const approvals = mergeApprovals(local, incoming)
   return {
     ...structure,
     id: local.id,
@@ -363,6 +369,102 @@ export function mergeSharedDong(local: DongEvent, incoming: DongEvent): DongEven
     shareRole: local.shareRole === 'member' || incoming.shareRole === 'member' ? 'member' : local.shareRole ?? incoming.shareRole,
     updatedAt: Math.max(local.updatedAt ?? 0, incoming.updatedAt ?? 0),
     structureUpdatedAt: structure.structureUpdatedAt ?? structure.updatedAt,
+    settled: settledState.settled,
+    settledUpdatedAt: settledState.settledUpdatedAt,
+    settledTransfers: transfers.settledTransfers,
+    settledTransferTimestamps: transfers.settledTransferTimestamps,
+    pendingApprovals: approvals.pendingApprovals,
+    handledApprovalIds: approvals.handledApprovalIds,
+    approvalsUpdatedAt: approvals.approvalsUpdatedAt,
+  }
+}
+
+function mergeSettledTransfers(
+  local: DongEvent,
+  incoming: DongEvent,
+): {
+  settledTransfers?: string[]
+  settledTransferTimestamps?: Record<string, { settled: boolean; updatedAt: number }>
+} {
+  const localMap = local.settledTransferTimestamps ?? {}
+  const incomingMap = incoming.settledTransferTimestamps ?? {}
+  const localLegacy = new Set(local.settledTransfers ?? [])
+  const incomingLegacy = new Set(incoming.settledTransfers ?? [])
+  const allKeys = new Set<string>([
+    ...Object.keys(localMap),
+    ...Object.keys(incomingMap),
+    ...localLegacy,
+    ...incomingLegacy,
+  ])
+  if (allKeys.size === 0) {
+    return { settledTransfers: undefined, settledTransferTimestamps: undefined }
+  }
+
+  const mergedMap: Record<string, { settled: boolean; updatedAt: number }> = {}
+  const settledList: string[] = []
+
+  for (const key of allKeys) {
+    const lEntry = localMap[key] ?? (localLegacy.has(key) ? { settled: true, updatedAt: 1 } : undefined)
+    const iEntry = incomingMap[key] ?? (incomingLegacy.has(key) ? { settled: true, updatedAt: 1 } : undefined)
+    let chosen: { settled: boolean; updatedAt: number } | undefined
+    if (lEntry && iEntry) {
+      if (iEntry.updatedAt > lEntry.updatedAt) chosen = iEntry
+      else if (lEntry.updatedAt > iEntry.updatedAt) chosen = lEntry
+      else chosen = iEntry.settled === lEntry.settled ? iEntry : (iEntry.settled ? iEntry : lEntry)
+    } else {
+      chosen = iEntry ?? lEntry
+    }
+    if (chosen) {
+      mergedMap[key] = chosen
+      if (chosen.settled) settledList.push(key)
+    }
+  }
+
+  return {
+    settledTransfers: settledList,
+    settledTransferTimestamps: Object.keys(mergedMap).length ? mergedMap : undefined,
+  }
+}
+
+function mergeEventSettled(
+  local: DongEvent,
+  incoming: DongEvent,
+  structure: DongEvent,
+): { settled?: boolean; settledUpdatedAt?: number } {
+  const lTime = local.settledUpdatedAt ?? 0
+  const iTime = incoming.settledUpdatedAt ?? 0
+  if (iTime > lTime) return { settled: incoming.settled, settledUpdatedAt: iTime }
+  if (lTime > iTime) return { settled: local.settled, settledUpdatedAt: lTime }
+  if (lTime > 0) return { settled: local.settled ?? incoming.settled, settledUpdatedAt: lTime }
+  return { settled: structure.settled, settledUpdatedAt: structure.settledUpdatedAt }
+}
+
+function mergeApprovals(
+  local: DongEvent,
+  incoming: DongEvent,
+): {
+  pendingApprovals?: DongPendingApproval[]
+  handledApprovalIds?: string[]
+  approvalsUpdatedAt?: number
+} {
+  const handled = new Set([...(local.handledApprovalIds ?? []), ...(incoming.handledApprovalIds ?? [])])
+  const map = new Map<string, DongPendingApproval>()
+  for (const source of [local, incoming]) {
+    for (const req of source.pendingApprovals ?? []) {
+      if (!req?.id || handled.has(req.id)) continue
+      const prev = map.get(req.id)
+      if (!prev || (req.proposedAt ?? 0) >= (prev.proposedAt ?? 0)) {
+        map.set(req.id, req)
+      }
+    }
+  }
+  const approvalsUpdatedAt = Math.max(local.approvalsUpdatedAt ?? 0, incoming.approvalsUpdatedAt ?? 0) || undefined
+  const pending = [...map.values()]
+  const handledArr = [...handled]
+  return {
+    pendingApprovals: pending.length ? pending : (local.pendingApprovals || incoming.pendingApprovals ? [] : undefined),
+    handledApprovalIds: handledArr.length ? handledArr : undefined,
+    approvalsUpdatedAt,
   }
 }
 

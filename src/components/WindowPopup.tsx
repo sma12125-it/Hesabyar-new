@@ -1,5 +1,36 @@
 import { useState, useRef, useEffect, useId, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+const NAME_TO_EMOJI: Record<string, string> = {
+  card: '💳',
+  file: '📄',
+  calendar: '🗓️',
+  transfer: '🔄',
+  wallet: '💰',
+  voice: '🎙️',
+  receipt: '🧾',
+  users: '🤝',
+  dong: '👥',
+  cloud: '☁️',
+  settings: '⚙️',
+  reports: '📊',
+  layers: '🗂️',
+  info: 'ℹ️',
+  palette: '🎨',
+  bank: '🏦',
+  pocket: '👛',
+  briefcase: '💼',
+  edit: '✏️',
+  lock: '🔒',
+  search: '🔍',
+  chart: '📈',
+  target: '🎯',
+  debt: '🤝',
+}
+
+function resolveEmojiIcon(icon?: string): string {
+  if (!icon) return '📄'
+  return NAME_TO_EMOJI[icon] ?? icon
+}
 
 export interface WindowPopupProps {
   title: string
@@ -65,7 +96,7 @@ export function GlobalMinimizedDock() {
           onClick={item.restore}
           title="کلیک برای بازگردانی پنجره (Restore)"
         >
-          <span style={{ fontSize: 18, lineHeight: 1 }}>{item.icon}</span>
+          <span style={{ fontSize: 18 }}>{resolveEmojiIcon(item.icon)}</span>
           <span
             style={{
               fontSize: 13,
@@ -87,8 +118,7 @@ export function GlobalMinimizedDock() {
             }}
             title="باز کردن پنجره"
           >
-            <span>🗖</span>
-            <span>باز کردن</span>
+            <span>⛶ باز کردن</span>
           </button>
           <button
             type="button"
@@ -546,7 +576,7 @@ export function WindowPopup({
         >
           {/* Title and info */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            <span style={{ fontSize: 20, flexShrink: 0 }}>{icon}</span>
+            <span style={{ fontSize: 22, lineHeight: 1 }}>{resolveEmojiIcon(icon)}</span>
             <div style={{ minWidth: 0 }}>
               <div
                 style={{
@@ -561,20 +591,6 @@ export function WindowPopup({
                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {title}
                 </span>
-                {isDesktop && !isMaximized ? (
-                  <span
-                    style={{
-                      fontSize: 10,
-                      color: 'var(--hy-muted)',
-                      background: 'var(--hy-hover)',
-                      padding: '2px 6px',
-                      borderRadius: 6,
-                      flexShrink: 0,
-                    }}
-                  >
-                    جابجایی ✥
-                  </span>
-                ) : null}
               </div>
               {subtitle ? (
                 <div
@@ -604,22 +620,22 @@ export function WindowPopup({
                   background: isTableView ? 'var(--hy-accent-fill)' : 'var(--hy-hover)',
                   color: isTableView ? 'var(--hy-on-accent)' : 'var(--hy-text)',
                   border: '1px solid var(--hy-border-color)',
-                  borderRadius: 10,
+                  borderRadius: 9,
                   padding: '5px 10px',
                   fontSize: 11,
                   fontWeight: 700,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 4,
+                  gap: 5,
                 }}
                 title={isTableView ? 'تغییر به نمای کارتی' : 'تغییر به نمای جدولی (Table View)'}
               >
-                <span>{isTableView ? '🗂️ نمای کارتی' : '📊 نمای جدولی'}</span>
+                <span>{isTableView ? '🗂️ نمای کارتی' : '📋 نمای جدولی'}</span>
               </button>
             ) : null}
 
-            {/* Minimize Button - Available everywhere (desktop and mobile) */}
+            {/* Minimize Button */}
             <button
               type="button"
               className="no-drag"
@@ -631,15 +647,15 @@ export function WindowPopup({
                 border: '1px solid var(--hy-border-color)',
                 background: 'var(--hy-hover)',
                 color: 'var(--hy-text)',
-                fontSize: 14,
                 display: 'grid',
                 placeItems: 'center',
+                fontSize: 13,
                 cursor: 'pointer',
               }}
-              title="کوچک کردن پنجره (Minimize)"
+              title="کوچک کردن پنجره"
               aria-label="کوچک کردن"
             >
-              ─
+              ➖
             </button>
 
             {/* Maximize / Restore Button on Desktop */}
@@ -655,15 +671,15 @@ export function WindowPopup({
                   border: '1px solid var(--hy-border-color)',
                   background: 'var(--hy-hover)',
                   color: 'var(--hy-text)',
-                  fontSize: 13,
                   display: 'grid',
                   placeItems: 'center',
+                  fontSize: 14,
                   cursor: 'pointer',
                 }}
-                title={isMaximized ? 'بازگردانی به پنجره (Restore)' : 'تمام صفحه در کادر (Maximize)'}
+                title={isMaximized ? 'بازگردانی به پنجره' : 'تمام صفحه'}
                 aria-label="بزرگ کردن"
               >
-                {isMaximized ? '❐' : '□'}
+                {isMaximized ? '🗗' : '⛶'}
               </button>
             ) : null}
 
@@ -681,9 +697,9 @@ export function WindowPopup({
                 border: '1px solid color-mix(in srgb, var(--hy-expense) 40%, transparent)',
                 display: 'grid',
                 placeItems: 'center',
-                cursor: 'pointer',
                 fontSize: 14,
                 fontWeight: 700,
+                cursor: 'pointer',
               }}
               title="بستن پنجره"
               aria-label="بستن"

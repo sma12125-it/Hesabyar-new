@@ -76,7 +76,7 @@ export function SupabaseConfigSheet({
     <WindowPopup
       title="اتصال اختصاصی دیتابیس Supabase"
       subtitle="دیتابیس آنلاین شخصی خود را بدون کدنویسی به حساب‌یار متصل کنید"
-      icon="⚡"
+      icon="🗄️"
       isOpen={true}
       onClose={onClose}
       onMinimize={onMinimize}
@@ -146,7 +146,7 @@ export function SupabaseConfigSheet({
                 gap: 6,
               }}
             >
-              <span>{statusMsg.ok ? '✓' : '⚠️'}</span>
+              <span>{statusMsg.ok ? '✅' : '⚠️'}</span>
               <span>{statusMsg.text}</span>
             </div>
           ) : null}
@@ -197,7 +197,7 @@ export function SupabaseConfigSheet({
                 onClick={() => void handleTest()}
                 style={{ flex: 1, justifyContent: 'center', height: 42, fontSize: '13px' }}
               >
-                {testing ? 'در حال آزمودن…' : '🔍 تست ارتباط'}
+                🔍 {testing ? 'در حال آزمودن…' : 'تست ارتباط'}
               </button>
 
               <button
@@ -207,7 +207,7 @@ export function SupabaseConfigSheet({
                 onClick={() => void handleSave()}
                 style={{ flex: 1.2, height: 42, fontSize: '13px' }}
               >
-                {saving ? 'در حال ذخیره…' : '💾 ذخیره و اتصال'}
+                💾 {saving ? 'در حال ذخیره…' : 'ذخیره و اتصال'}
               </button>
             </div>
           </div>
@@ -226,7 +226,7 @@ export function SupabaseConfigSheet({
             }}
           >
             <strong style={{ display: 'block', color: 'var(--hy-text)', marginBottom: 4, fontSize: '12px' }}>
-              💡 نکته امنیتی:
+              🔒 نکته امنیتی:
             </strong>
             کلیدهای وارد شده صرفاً در حافظه امن محلی مرورگر (Local Storage) شما نگهداری می‌شوند و هرگز در هیچ سرور واسطی ذخیره نخواهند شد.
           </div>

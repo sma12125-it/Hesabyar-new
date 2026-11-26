@@ -30,7 +30,13 @@ import {
 } from '../lib/investments'
 import { digitsOnly, toFaDigits } from '../lib/money'
 import { addDaysIso, todayIso } from '../lib/iso'
-import { getStableUserId, isIncomingSharedAsset } from '../lib/userShare'
+import {
+  getStableUserId,
+  isIncomingSharedAsset,
+  serializeChequeShareDetails,
+  serializeDebtShareDetails,
+  syncSharedAssetState,
+} from '../lib/userShare'
 import type { BankCard, Budget, Cheque, ChequeStatus, CurrencyUnit, DebtLoan, DongEvent, InvestmentAsset, InvestmentTransaction, ReminderSettings, SavingsGoal } from '../types'
 
 interface VaultBlob {
@@ -94,14 +100,18 @@ interface ExtrasValue {
   deleteInvestmentTransaction: (assetId: string, txId: string) => Promise<InvestmentAsset>
   saveDongEvent: (event: Omit<DongEvent, 'id' | 'createdAt'> & { id?: string }) => Promise<DongEvent>
   deleteDongEvent: (id: string) => Promise<void>
-  absorbSharedDong: (incoming: DongEvent[]) => Promise<void>
+  absorbSharedDong: (incoming: DongEvent[], options?: { pruneMembers?: boolean }) => Promise<void>
   saveCheque: (cheque: Omit<Cheque, 'id' | 'createdAt'> & { id?: string }) => Promise<Cheque>
   deleteCheque: (id: string) => Promise<void>
   updateChequeStatus: (id: string, status: ChequeStatus, clearedDate?: string) => Promise<void>
+  upsertSharedCheque: (cheque: Cheque) => Promise<void>
+  removeSharedCheque: (shareIdOrId: string) => Promise<void>
   saveDebt: (debt: Omit<DebtLoan, 'id' | 'createdAt'> & { id?: string }) => Promise<DebtLoan>
   deleteDebt: (id: string) => Promise<void>
   settleDebt: (id: string, accountId?: string) => Promise<void>
   unsettleDebt: (id: string) => Promise<void>
+  upsertSharedDebt: (debt: DebtLoan) => Promise<void>
+  removeSharedDebt: (shareIdOrId: string) => Promise<void>
   setReminders: (next: ReminderSettings) => Promise<void>
   exportLocal: () => Promise<Record<string, unknown>>
   importLocal: (data: Record<string, unknown>) => Promise<void>
@@ -1078,11 +1088,14 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
     const current = chequesRef.current
     const existing = input.id ? current.find((c) => c.id === input.id) : undefined
     const now = Date.now()
+    const myId = getStableUserId()
     const cheque: Cheque = {
+      ...existing,
       ...input,
       id: existing?.id ?? createId('chq'),
       createdAt: existing?.createdAt ?? now,
       updatedAt: now,
+      ownerUserId: existing?.ownerUserId ?? input.ownerUserId ?? myId,
     }
     const next = existing ? current.map((c) => (c.id === cheque.id ? cheque : c)) : [cheque, ...current]
     chequesRef.current = next
@@ -1090,6 +1103,14 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
     await db.setKv('cheques', next)
     const { notifyLocalChange } = await import('../lib/sync')
     notifyLocalChange()
+    if (!isIncomingSharedAsset(cheque, myId)) {
+      void syncSharedAssetState(
+        'cheque',
+        cheque.id,
+        `چک ${cheque.party || cheque.bankName}`.trim(),
+        serializeChequeShareDetails(cheque),
+      )
+    }
     return cheque
   }, [])
 
@@ -1106,33 +1127,93 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
   const updateChequeStatus = useCallback(async (id: string, status: ChequeStatus, clearedDate?: string) => {
     const current = chequesRef.current
     const now = Date.now()
-    const next = current.map((c) =>
-      c.id === id
-        ? {
-            ...c,
-            status,
-            clearedAt: status === 'cleared' ? clearedDate ?? new Date(now).toISOString().slice(0, 10) : undefined,
-            updatedAt: now,
-          }
-        : c,
-    )
+    const myId = getStableUserId()
+    let updatedItem: Cheque | undefined
+    const next = current.map((c) => {
+      if (c.id !== id) return c
+      updatedItem = {
+        ...c,
+        status,
+        clearedAt: status === 'cleared' ? clearedDate ?? new Date(now).toISOString().slice(0, 10) : undefined,
+        updatedAt: now,
+      }
+      return updatedItem
+    })
     chequesRef.current = next
     setCheques(next)
     await db.setKv('cheques', next)
     const { notifyLocalChange } = await import('../lib/sync')
     notifyLocalChange()
+    if (updatedItem && !isIncomingSharedAsset(updatedItem, myId)) {
+      void syncSharedAssetState(
+        'cheque',
+        updatedItem.id,
+        `چک ${updatedItem.party || updatedItem.bankName}`.trim(),
+        serializeChequeShareDetails(updatedItem),
+      )
+    }
+  }, [])
+
+  const upsertSharedCheque = useCallback(async (cheque: Cheque) => {
+    const { withoutSync } = await import('../lib/sync')
+    await withoutSync(async () => {
+      const myId = getStableUserId()
+      const normalized: Cheque = {
+        ...cheque,
+        isShared: true,
+        recipientUserId: cheque.recipientUserId ?? myId,
+      }
+      const current = chequesRef.current
+      const existing = current.find(
+        (c) =>
+          c.id === normalized.id ||
+          (normalized.shareId && c.shareId === normalized.shareId) ||
+          (normalized.sourceAssetId && c.sourceAssetId === normalized.sourceAssetId),
+      )
+      const merged: Cheque = existing
+        ? {
+            ...existing,
+            ...normalized,
+            id: existing.id,
+            createdAt: existing.createdAt,
+          }
+        : normalized
+      const next = existing
+        ? current.map((c) => (c.id === existing.id ? merged : c))
+        : [merged, ...current]
+      chequesRef.current = next
+      setCheques(next)
+      await db.setKv('cheques', next)
+    })
+  }, [])
+
+  const removeSharedCheque = useCallback(async (shareIdOrId: string) => {
+    const { withoutSync } = await import('../lib/sync')
+    await withoutSync(async () => {
+      const current = chequesRef.current
+      const next = current.filter(
+        (c) => c.id !== shareIdOrId && c.shareId !== shareIdOrId && c.sourceAssetId !== shareIdOrId,
+      )
+      if (next.length === current.length) return
+      chequesRef.current = next
+      setCheques(next)
+      await db.setKv('cheques', next)
+    })
   }, [])
 
   const saveDebt = useCallback(async (input: Omit<DebtLoan, 'id' | 'createdAt'> & { id?: string }): Promise<DebtLoan> => {
     const current = debtsRef.current
     const existing = input.id ? current.find((d) => d.id === input.id) : undefined
     const now = Date.now()
+    const myId = getStableUserId()
     const debt: DebtLoan = {
+      ...existing,
       ...input,
       id: existing?.id ?? createId('debt'),
       createdAt: existing?.createdAt ?? now,
       status: input.status ?? existing?.status ?? 'active',
       updatedAt: now,
+      ownerUserId: existing?.ownerUserId ?? input.ownerUserId ?? myId,
     }
     const next = existing ? current.map((d) => (d.id === debt.id ? debt : d)) : [debt, ...current]
     debtsRef.current = next
@@ -1140,6 +1221,14 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
     await db.setKv('debts', next)
     const { notifyLocalChange } = await import('../lib/sync')
     notifyLocalChange()
+    if (!isIncomingSharedAsset(debt, myId)) {
+      void syncSharedAssetState(
+        'debt',
+        debt.id,
+        `${debt.direction === 'borrowed' ? 'بدهی به' : 'طلب از'} ${debt.party}`.trim(),
+        serializeDebtShareDetails(debt),
+      )
+    }
     return debt
   }, [])
 
@@ -1157,29 +1246,98 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
     const current = debtsRef.current
     const now = Date.now()
     const today = new Date(now).toISOString().slice(0, 10)
-    const next = current.map((d) =>
-      d.id === id
-        ? { ...d, status: 'settled' as const, settledAt: today, accountId: accountId || d.accountId, updatedAt: now }
-        : d,
-    )
+    const myId = getStableUserId()
+    let updatedItem: DebtLoan | undefined
+    const next = current.map((d) => {
+      if (d.id !== id) return d
+      updatedItem = { ...d, status: 'settled' as const, settledAt: today, accountId: accountId || d.accountId, updatedAt: now }
+      return updatedItem
+    })
     debtsRef.current = next
     setDebts(next)
     await db.setKv('debts', next)
     const { notifyLocalChange } = await import('../lib/sync')
     notifyLocalChange()
+    if (updatedItem && !isIncomingSharedAsset(updatedItem, myId)) {
+      void syncSharedAssetState(
+        'debt',
+        updatedItem.id,
+        `${updatedItem.direction === 'borrowed' ? 'بدهی به' : 'طلب از'} ${updatedItem.party}`.trim(),
+        serializeDebtShareDetails(updatedItem),
+      )
+    }
   }, [])
 
   const unsettleDebt = useCallback(async (id: string) => {
     const current = debtsRef.current
     const now = Date.now()
-    const next = current.map((d) =>
-      d.id === id ? { ...d, status: 'active' as const, settledAt: undefined, updatedAt: now } : d,
-    )
+    const myId = getStableUserId()
+    let updatedItem: DebtLoan | undefined
+    const next = current.map((d) => {
+      if (d.id !== id) return d
+      updatedItem = { ...d, status: 'active' as const, settledAt: undefined, updatedAt: now }
+      return updatedItem
+    })
     debtsRef.current = next
     setDebts(next)
     await db.setKv('debts', next)
     const { notifyLocalChange } = await import('../lib/sync')
     notifyLocalChange()
+    if (updatedItem && !isIncomingSharedAsset(updatedItem, myId)) {
+      void syncSharedAssetState(
+        'debt',
+        updatedItem.id,
+        `${updatedItem.direction === 'borrowed' ? 'بدهی به' : 'طلب از'} ${updatedItem.party}`.trim(),
+        serializeDebtShareDetails(updatedItem),
+      )
+    }
+  }, [])
+
+  const upsertSharedDebt = useCallback(async (debt: DebtLoan) => {
+    const { withoutSync } = await import('../lib/sync')
+    await withoutSync(async () => {
+      const myId = getStableUserId()
+      const normalized: DebtLoan = {
+        ...debt,
+        isShared: true,
+        recipientUserId: debt.recipientUserId ?? myId,
+      }
+      const current = debtsRef.current
+      const existing = current.find(
+        (d) =>
+          d.id === normalized.id ||
+          (normalized.shareId && d.shareId === normalized.shareId) ||
+          (normalized.sourceAssetId && d.sourceAssetId === normalized.sourceAssetId),
+      )
+      const merged: DebtLoan = existing
+        ? {
+            ...existing,
+            ...normalized,
+            id: existing.id,
+            createdAt: existing.createdAt,
+          }
+        : normalized
+      const next = existing
+        ? current.map((d) => (d.id === existing.id ? merged : d))
+        : [merged, ...current]
+      debtsRef.current = next
+      setDebts(next)
+      await db.setKv('debts', next)
+    })
+  }, [])
+
+  const removeSharedDebt = useCallback(async (shareIdOrId: string) => {
+    const { withoutSync } = await import('../lib/sync')
+    await withoutSync(async () => {
+      const current = debtsRef.current
+      const next = current.filter(
+        (d) => d.id !== shareIdOrId && d.shareId !== shareIdOrId && d.sourceAssetId !== shareIdOrId,
+      )
+      if (next.length === current.length) return
+      debtsRef.current = next
+      setDebts(next)
+      await db.setKv('debts', next)
+    })
   }, [])
 
   const value = useMemo<ExtrasValue>(
@@ -1508,6 +1666,17 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
             expenses,
             deletedExpenseIds: collectDeletedExpenseIds(existing, expenses),
             note: event.note ?? existing.note,
+            settled: event.settled !== undefined ? event.settled : existing.settled,
+            settledUpdatedAt: event.settledUpdatedAt ?? existing.settledUpdatedAt,
+            settledTransfers: event.settledTransfers !== undefined ? event.settledTransfers : existing.settledTransfers,
+            settledTransferTimestamps:
+              event.settledTransferTimestamps !== undefined
+                ? event.settledTransferTimestamps
+                : existing.settledTransferTimestamps,
+            pendingApprovals: event.pendingApprovals !== undefined ? event.pendingApprovals : existing.pendingApprovals,
+            handledApprovalIds:
+              event.handledApprovalIds !== undefined ? event.handledApprovalIds : existing.handledApprovalIds,
+            approvalsUpdatedAt: event.approvalsUpdatedAt ?? existing.approvalsUpdatedAt,
             updatedAt: now,
           }
         } else if (!shared) {
@@ -1531,6 +1700,10 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
             memberLinks: event.memberLinks !== undefined ? event.memberLinks : existing?.memberLinks,
             linksUpdatedAt: event.linksUpdatedAt ?? existing?.linksUpdatedAt,
             structureUpdatedAt: structureChanged ? now : existing?.structureUpdatedAt ?? existing?.updatedAt ?? now,
+            settledUpdatedAt: event.settledUpdatedAt ?? existing?.settledUpdatedAt,
+            settledTransferTimestamps: event.settledTransferTimestamps ?? existing?.settledTransferTimestamps,
+            handledApprovalIds: event.handledApprovalIds ?? existing?.handledApprovalIds,
+            approvalsUpdatedAt: event.approvalsUpdatedAt ?? existing?.approvalsUpdatedAt,
           }
         }
         const next = dongEventsRef.current.some((item) => item.id === row.id)
@@ -1560,14 +1733,17 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
           })
         }
       },
-      absorbSharedDong: async (incoming) => {
+      absorbSharedDong: async (incoming, options) => {
+        const pruneMembers = options?.pruneMembers !== false
         const { withoutSync } = await import('../lib/sync')
         await withoutSync(async () => {
           const local = dongEventsRef.current
           const memberRemoteIds = new Set(
             incoming.filter((item) => item.shareRole === 'member' && item.remoteId).map((item) => item.remoteId),
           )
-          let next = local.filter((item) => item.shareRole !== 'member' || (item.remoteId && memberRemoteIds.has(item.remoteId)))
+          let next = pruneMembers
+            ? local.filter((item) => item.shareRole !== 'member' || (item.remoteId && memberRemoteIds.has(item.remoteId)))
+            : local.slice()
           let changed = next.length !== local.length
           for (const remote of incoming) {
             const idx = next.findIndex(
@@ -1597,10 +1773,14 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       saveCheque,
       deleteCheque,
       updateChequeStatus,
+      upsertSharedCheque,
+      removeSharedCheque,
       saveDebt,
       deleteDebt,
       settleDebt,
       unsettleDebt,
+      upsertSharedDebt,
+      removeSharedDebt,
       setReminders: async (next) => {
         setReminderState(next)
         await db.setKv('reminders', next)
@@ -1760,6 +1940,11 @@ export function ExtrasProvider({ children }: { children: ReactNode }) {
       saveDebt,
       setCurrencyUnit,
       settleDebt,
+      unsettleDebt,
+      upsertSharedCheque,
+      removeSharedCheque,
+      upsertSharedDebt,
+      removeSharedDebt,
       unitLabel,
       unlockVault,
       unlockVaultWithBiometric,

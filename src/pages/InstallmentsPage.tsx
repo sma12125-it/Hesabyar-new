@@ -7,7 +7,18 @@ import { nextPayableItem, overdueCount, paidCount, planBadge } from '../lib/inst
 import { todayIso } from '../lib/iso'
 import { toFaDigits } from '../lib/money'
 import { notifyUser } from '../lib/sync'
+import {
+  fetchIncomingShares,
+  getStableUserId,
+  isIncomingSharedAsset,
+  respondIncomingShare,
+  serializeChequeShareDetails,
+  serializeDebtShareDetails,
+  serializeInstallmentShareDetails,
+  type IncomingSharedAsset,
+} from '../lib/userShare'
 import { useStore } from '../store/Store'
+import { SharedAssetDetailSheet } from '../components/SharedAssetDetailSheet'
 import { SwipeRow } from '../components/SwipeRow'
 import { useUiActions } from '../components/UiActions'
 import { ChequeSheet } from '../components/ChequeSheet'
@@ -35,12 +46,63 @@ export function InstallmentsPage({
   onCreate: () => void
   initialTab?: 'plans' | 'cheques' | 'debts'
 }) {
-  const { plans, items } = useStore()
-  const { reminders, setReminders, cheques, debts, formatMoney, deleteCheque, saveCheque, deleteDebt, unsettleDebt } = useExtras()
+  const { plans, items, upsertSharedInstallmentPlan } = useStore()
+  const {
+    reminders,
+    setReminders,
+    cheques,
+    debts,
+    formatMoney,
+    deleteCheque,
+    saveCheque,
+    deleteDebt,
+    unsettleDebt,
+    upsertSharedCheque,
+    upsertSharedDebt,
+  } = useExtras()
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const today = todayIso()
+  const myUserId = getStableUserId()
+  const [incomingShares, setIncomingShares] = useState<IncomingSharedAsset[]>([])
+  const [selectedSharedAsset, setSelectedSharedAsset] = useState<{
+    kind: 'installment' | 'debt' | 'cheque'
+    plan?: InstallmentPlan
+    planItems?: InstallmentItem[]
+    debt?: DebtLoan
+    cheque?: Cheque
+  } | null>(null)
+
+  const loadIncomingShares = async () => {
+    try {
+      const list = await fetchIncomingShares()
+      setIncomingShares(list)
+    } catch {}
+  }
+
+  useEffect(() => {
+    void loadIncomingShares()
+    window.addEventListener('hy-share-assets-updated', loadIncomingShares)
+    return () => window.removeEventListener('hy-share-assets-updated', loadIncomingShares)
+  }, [])
+
+  const pendingCommitmentShares = useMemo(() => {
+    const myIdLower = myUserId.trim().toLowerCase()
+    return incomingShares.filter((s) => {
+      if (s.assetKind !== 'installment' && s.assetKind !== 'debt' && s.assetKind !== 'cheque') return false
+      if (s.status === 'rejected') return false
+      const ownerIdLower = (s.ownerUserId || '').trim().toLowerCase()
+      if (ownerIdLower && ownerIdLower === myIdLower) return false
+      if (s.assetKind === 'installment') {
+        return !plans.some((p) => p.shareId === s.id || p.sourceAssetId === s.assetId || p.id === s.assetId)
+      }
+      if (s.assetKind === 'debt') {
+        return !debts.some((d) => d.shareId === s.id || d.sourceAssetId === s.assetId || d.id === s.assetId)
+      }
+      return !cheques.some((c) => c.shareId === s.id || c.sourceAssetId === s.assetId || c.id === s.assetId)
+    })
+  }, [incomingShares, plans, debts, cheques, myUserId])
 
   const pathTab = location.pathname.includes('/debts')
     ? 'debts'
@@ -461,6 +523,200 @@ export function InstallmentsPage({
         </button>
       </div>
 
+      {/* Pending incoming commitment shares (installments / debts / cheques) */}
+      {pendingCommitmentShares.length > 0 ? (
+        <div
+          style={{
+            margin: '0 0 16px',
+            padding: '12px 14px',
+            borderRadius: 16,
+            background: 'linear-gradient(135deg, rgba(15, 118, 110, 0.16) 0%, rgba(30, 27, 75, 0.25) 100%)',
+            border: '1.5px solid var(--hy-teal)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 800, fontSize: 13, color: 'var(--hy-teal)' }}>
+              <span>🔔</span>
+              <span>دعوتنامه اشتراک قسط، بدهی یا چک جدید</span>
+            </div>
+            <span
+              style={{
+                fontSize: 10,
+                padding: '2px 8px',
+                borderRadius: 6,
+                background: 'rgba(16, 185, 129, 0.2)',
+                color: 'var(--hy-income, #10b981)',
+                fontWeight: 800,
+              }}
+            >
+              {toFaDigits(pendingCommitmentShares.length)} مورد
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {pendingCommitmentShares.map((share) => {
+              const kindBadge =
+                share.assetKind === 'installment'
+                  ? '📅 قسط مشترک: '
+                  : share.assetKind === 'debt'
+                    ? '🤝 بدهی/طلب مشترک: '
+                    : '🧾 چک مشترک: '
+              return (
+                <div
+                  key={share.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    background: 'rgba(255, 255, 255, 0.05)',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    gap: 10,
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 700 }}>
+                      {kindBadge}
+                      {share.assetName}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
+                      از طرف: <strong>{share.ownerDisplayName || `کاربر ${share.ownerUserId}`}</strong>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      type="button"
+                      className="cat-mini"
+                      style={{
+                        background: 'var(--hy-teal, #0ea5e9)',
+                        color: '#fff',
+                        border: 'none',
+                        fontWeight: 800,
+                        padding: '6px 12px',
+                      }}
+                      onClick={async () => {
+                        await respondIncomingShare(share.id, 'accept')
+                        const resolvedOwner = share.ownerDisplayName || `کاربر ${share.ownerUserId}`
+                        const details = share.assetDetails ?? {}
+                        if (share.assetKind === 'installment') {
+                          const targetPlanId = `shared_plan_${share.id}`
+                          const rawItems = Array.isArray(details.items) ? details.items : []
+                          const mappedItems: InstallmentItem[] = rawItems.map((it, idx) => ({
+                            id: `${targetPlanId}_i_${it.index ?? idx + 1}`,
+                            planId: targetPlanId,
+                            index: Number(it.index ?? idx + 1),
+                            dueDate: String(it.dueDate ?? ''),
+                            amount: Number(it.amount ?? details.installmentAmount ?? 0),
+                            status: it.status === 'paid' || it.status === 'overdue' ? it.status : 'pending',
+                            paidAt: typeof it.paidAt === 'string' ? it.paidAt : undefined,
+                          }))
+                          const statusRaw = details.status
+                          const planStatus: InstallmentPlan['status'] =
+                            statusRaw === 'completed' || statusRaw === 'archived' ? statusRaw : 'active'
+                          await upsertSharedInstallmentPlan({
+                            plan: {
+                              id: targetPlanId,
+                              name: String(details.name || share.assetName || 'برنامه اقساط مشترک'),
+                              installmentAmount: Number(details.installmentAmount ?? mappedItems[0]?.amount ?? 0),
+                              totalCount: Number(details.totalCount ?? mappedItems.length),
+                              startDate: String(details.startDate ?? mappedItems[0]?.dueDate ?? today),
+                              categoryId: 'installments',
+                              status: planStatus,
+                              kind: details.kind === 'loan' ? 'loan' : 'fixed',
+                              principal: typeof details.principal === 'number' ? details.principal : undefined,
+                              annualRatePercent: typeof details.annualRatePercent === 'number' ? details.annualRatePercent : undefined,
+                              createdAt: Date.parse(share.sharedAt) || Date.now(),
+                              updatedAt: Date.now(),
+                              shareId: share.id,
+                              sourceAssetId: share.assetId,
+                              isShared: true,
+                              ownerDisplayName: resolvedOwner,
+                              ownerUserId: share.ownerUserId,
+                              recipientUserId: myUserId,
+                            },
+                            items: mappedItems,
+                          })
+                          setActiveTab('plans')
+                        } else if (share.assetKind === 'debt') {
+                          await upsertSharedDebt({
+                            id: `shared_debt_${share.id}`,
+                            direction: details.direction === 'lent' ? 'lent' : 'borrowed',
+                            party: String(details.party || share.assetName || 'طرف حساب'),
+                            amount: Number(details.amount ?? 0),
+                            dueDate: typeof details.dueDate === 'string' && details.dueDate ? details.dueDate : undefined,
+                            note: typeof details.note === 'string' ? details.note : '',
+                            status: details.status === 'settled' ? 'settled' : 'active',
+                            settledAt: typeof details.settledAt === 'string' ? details.settledAt : undefined,
+                            repaidAmount: typeof details.repaidAmount === 'number' ? details.repaidAmount : undefined,
+                            createdAt: Date.parse(share.sharedAt) || Date.now(),
+                            updatedAt: Date.now(),
+                            shareId: share.id,
+                            sourceAssetId: share.assetId,
+                            isShared: true,
+                            ownerDisplayName: resolvedOwner,
+                            ownerUserId: share.ownerUserId,
+                            recipientUserId: myUserId,
+                          })
+                          setActiveTab('debts')
+                        } else {
+                          const statusRaw = details.status
+                          const chequeStatus: Cheque['status'] =
+                            statusRaw === 'cleared' || statusRaw === 'bounced' ? statusRaw : 'pending'
+                          await upsertSharedCheque({
+                            id: `shared_cheque_${share.id}`,
+                            direction: details.direction === 'receivable' ? 'receivable' : 'payable',
+                            sayadId: String(details.sayadId ?? ''),
+                            bankName: String(details.bankName || 'بانک'),
+                            amount: Number(details.amount ?? 0),
+                            dueDate: String(details.dueDate ?? today),
+                            party: String(details.party || share.assetName || 'طرف حساب'),
+                            status: chequeStatus,
+                            note: typeof details.note === 'string' ? details.note : '',
+                            clearedAt: typeof details.clearedAt === 'string' ? details.clearedAt : undefined,
+                            createdAt: Date.parse(share.sharedAt) || Date.now(),
+                            updatedAt: Date.now(),
+                            shareId: share.id,
+                            sourceAssetId: share.assetId,
+                            isShared: true,
+                            ownerDisplayName: resolvedOwner,
+                            ownerUserId: share.ownerUserId,
+                            recipientUserId: myUserId,
+                          })
+                          setActiveTab('cheques')
+                        }
+                        notifyUser(`«${share.assetName}» به لیست شما افزوده شد ✨`)
+                        void loadIncomingShares()
+                      }}
+                    >
+                      ✅ تأیید و افزودن
+                    </button>
+
+                    <button
+                      type="button"
+                      className="cat-mini danger"
+                      style={{ padding: '6px 10px' }}
+                      onClick={async () => {
+                        await respondIncomingShare(share.id, 'reject')
+                        notifyUser('دعوتنامه رد شد')
+                        void loadIncomingShares()
+                      }}
+                    >
+                      ✕ رد
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ) : null}
+
       {/* TAB 1: INSTALLMENT PLANS */}
       {activeTab === 'plans' ? (
         <>
@@ -670,12 +926,20 @@ export function InstallmentsPage({
                       ) : null}
 
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <PlanCard
-                          plan={plan}
-                          items={items.filter((i) => i.planId === plan.id)}
-                          today={today}
-                          onClick={() => navigate(`/installments/${plan.id}`)}
-                        />
+                        {(() => {
+                          const planItems = items.filter((i) => i.planId === plan.id)
+                          return (
+                            <PlanCard
+                              plan={plan}
+                              items={planItems}
+                              today={today}
+                              onClick={() => navigate(`/installments/${plan.id}`)}
+                              onInspectShare={(p, pItems) =>
+                                setSelectedSharedAsset({ kind: 'installment', plan: p, planItems: pItems })
+                              }
+                            />
+                          )
+                        })()}
                       </div>
                     </div>
                   ))}
@@ -824,6 +1088,7 @@ export function InstallmentsPage({
             <div className="plan-list">
               {sortedDebts.map((d, idx, arr) => {
                 const isOverdue = d.status === 'active' && d.dueDate && d.dueDate < today
+                const isShared = isIncomingSharedAsset(d, myUserId)
                 return (
                   <div
                     key={d.id}
@@ -889,28 +1154,50 @@ export function InstallmentsPage({
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {/* Swipe Row for Debts and Loans */}
                       <SwipeRow
-                        onEdit={() => {
-                          setEditingDebt(d)
-                          setDebtSheetOpen(true)
-                        }}
-                        onDelete={() => void handleDeleteDebt(d.id)}
+                        onEdit={
+                          isShared
+                            ? undefined
+                            : () => {
+                                setEditingDebt(d)
+                                setDebtSheetOpen(true)
+                              }
+                        }
+                        onDelete={isShared ? undefined : () => void handleDeleteDebt(d.id)}
                       >
                         <div
                           className="plan-card lg-row"
                           style={{ textAlign: 'right', cursor: 'pointer', width: '100%' }}
                           onClick={() => {
-                            setEditingDebt(d)
-                            setDebtSheetOpen(true)
+                            if (isShared) {
+                              setSelectedSharedAsset({ kind: 'debt', debt: d })
+                            } else {
+                              setEditingDebt(d)
+                              setDebtSheetOpen(true)
+                            }
                           }}
                         >
                           <div className="plan-top">
                             <div>
-                              <div className="plan-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <div className="plan-name" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                 <span>{d.direction === 'borrowed' ? '🔴' : '🟢'}</span>
                                 <span>{d.party}</span>
                                 <span style={{ fontSize: 11, color: 'var(--hy-text-tertiary)', fontWeight: 'normal' }}>
                                   ({d.direction === 'borrowed' ? 'بدهی من' : 'طلب من'})
                                 </span>
+                                {isShared ? (
+                                  <span
+                                    style={{
+                                      fontSize: 10,
+                                      padding: '2px 7px',
+                                      borderRadius: 6,
+                                      background: 'rgba(16, 185, 129, 0.16)',
+                                      color: 'var(--hy-income, #10b981)',
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    🤝 مشترک ({d.ownerDisplayName || 'کاربر'})
+                                  </span>
+                                ) : null}
                               </div>
                               <div className="plan-meta">
                                 {d.status === 'settled'
@@ -935,9 +1222,54 @@ export function InstallmentsPage({
                             </div>
                           ) : null}
 
-                          {/* Quick Revert to Active for Settled Debts */}
-                          {d.status === 'settled' ? (
-                            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+                          <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            {isShared ? (
+                              <button
+                                type="button"
+                                className="cat-mini"
+                                style={{ fontSize: 11, padding: '4px 10px' }}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedSharedAsset({ kind: 'debt', debt: d })
+                                }}
+                              >
+                                ℹ️ جزئیات اشتراک
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="cat-mini"
+                                style={{ background: 'rgba(14, 165, 233, 0.15)', color: 'var(--hy-teal)', fontSize: 11, padding: '4px 10px' }}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  window.dispatchEvent(
+                                    new CustomEvent('hy-open-share', {
+                                      detail: {
+                                        kind: 'debt',
+                                        item: {
+                                          id: d.id,
+                                          name: `${d.direction === 'borrowed' ? 'بدهی به' : 'طلب از'} ${d.party}`,
+                                          party: d.party,
+                                          direction: d.direction,
+                                          amount: d.amount,
+                                          dueDate: d.dueDate,
+                                          status: d.status,
+                                          note: d.note,
+                                          settledAt: d.settledAt,
+                                          repaidAmount: d.repaidAmount,
+                                          details: serializeDebtShareDetails(d),
+                                        },
+                                      },
+                                    }),
+                                  )
+                                }}
+                              >
+                                🤝 اشتراک
+                              </button>
+                            )}
+
+                            {/* Quick Revert to Active for Settled Debts */}
+                            {d.status === 'settled' && !isShared ? (
                               <button
                                 type="button"
                                 className="cat-mini"
@@ -949,8 +1281,8 @@ export function InstallmentsPage({
                               >
                                 ↩️ بازگردانی به وضعیت پرداخت‌نشده (جاری)
                               </button>
-                            </div>
-                          ) : null}
+                            ) : null}
+                          </div>
                         </div>
                       </SwipeRow>
                     </div>
@@ -1113,6 +1445,7 @@ export function InstallmentsPage({
                 const statusMeta = CHEQUE_STATUS_LABEL[c.status]
                 const isOverdue = c.status === 'pending' && c.dueDate < today
                 const isCleared = c.status === 'cleared'
+                const isShared = isIncomingSharedAsset(c, myUserId)
 
                 return (
                   <div
@@ -1179,28 +1512,50 @@ export function InstallmentsPage({
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {/* Swipe Row for Cheques */}
                       <SwipeRow
-                        onEdit={() => {
-                          setEditingCheque(c)
-                          setChequeSheetOpen(true)
-                        }}
-                        onDelete={() => void handleDeleteCheque(c.id)}
+                        onEdit={
+                          isShared
+                            ? undefined
+                            : () => {
+                                setEditingCheque(c)
+                                setChequeSheetOpen(true)
+                              }
+                        }
+                        onDelete={isShared ? undefined : () => void handleDeleteCheque(c.id)}
                       >
                         <div
                           className="plan-card lg-row"
                           style={{ textAlign: 'right', cursor: 'pointer', width: '100%' }}
                           onClick={() => {
-                            setEditingCheque(c)
-                            setChequeSheetOpen(true)
+                            if (isShared) {
+                              setSelectedSharedAsset({ kind: 'cheque', cheque: c })
+                            } else {
+                              setEditingCheque(c)
+                              setChequeSheetOpen(true)
+                            }
                           }}
                         >
                           <div className="plan-top">
                             <div>
-                              <div className="plan-name" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <div className="plan-name" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                                 <span>{c.direction === 'payable' ? '📤' : '📥'}</span>
                                 <span>{c.party}</span>
                                 <span style={{ fontSize: 11, color: 'var(--hy-text-tertiary)', fontWeight: 'normal' }}>
                                   ({c.bankName})
                                 </span>
+                                {isShared ? (
+                                  <span
+                                    style={{
+                                      fontSize: 10,
+                                      padding: '2px 7px',
+                                      borderRadius: 6,
+                                      background: 'rgba(16, 185, 129, 0.16)',
+                                      color: 'var(--hy-income, #10b981)',
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    🤝 مشترک ({c.ownerDisplayName || 'کاربر'})
+                                  </span>
+                                ) : null}
                               </div>
                               <div className="plan-meta">
                                 {isCleared
@@ -1224,9 +1579,55 @@ export function InstallmentsPage({
                             </div>
                           ) : null}
 
-                          {/* Restore Cleared Cheque to Active */}
-                          {isCleared ? (
-                            <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+                          <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            {isShared ? (
+                              <button
+                                type="button"
+                                className="cat-mini"
+                                style={{ fontSize: 11, padding: '4px 10px' }}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSelectedSharedAsset({ kind: 'cheque', cheque: c })
+                                }}
+                              >
+                                ℹ️ جزئیات اشتراک
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                className="cat-mini"
+                                style={{ background: 'rgba(14, 165, 233, 0.15)', color: 'var(--hy-teal)', fontSize: 11, padding: '4px 10px' }}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  window.dispatchEvent(
+                                    new CustomEvent('hy-open-share', {
+                                      detail: {
+                                        kind: 'cheque',
+                                        item: {
+                                          id: c.id,
+                                          name: `چک ${c.party}`,
+                                          party: c.party,
+                                          bankName: c.bankName,
+                                          direction: c.direction,
+                                          amount: c.amount,
+                                          dueDate: c.dueDate,
+                                          status: c.status,
+                                          sayadId: c.sayadId,
+                                          note: c.note,
+                                          clearedAt: c.clearedAt,
+                                          details: serializeChequeShareDetails(c),
+                                        },
+                                      },
+                                    }),
+                                  )
+                                }}
+                              >
+                                🤝 اشتراک
+                              </button>
+                            )}
+
+                            {/* Restore Cleared Cheque to Active */}
+                            {isCleared && !isShared ? (
                               <button
                                 type="button"
                                 className="cat-mini"
@@ -1238,8 +1639,8 @@ export function InstallmentsPage({
                               >
                                 ↩️ بازگردانی به چک‌های جاری (معلق)
                               </button>
-                            </div>
-                          ) : null}
+                            ) : null}
+                          </div>
                         </div>
                       </SwipeRow>
                     </div>
@@ -1271,6 +1672,17 @@ export function InstallmentsPage({
           }}
         />
       ) : null}
+
+      {selectedSharedAsset ? (
+        <SharedAssetDetailSheet
+          kind={selectedSharedAsset.kind}
+          plan={selectedSharedAsset.plan}
+          planItems={selectedSharedAsset.planItems}
+          debt={selectedSharedAsset.debt}
+          cheque={selectedSharedAsset.cheque}
+          onClose={() => setSelectedSharedAsset(null)}
+        />
+      ) : null}
     </div>
   )
 }
@@ -1280,14 +1692,17 @@ export function PlanCard({
   items,
   today,
   onClick,
+  onInspectShare,
 }: {
   plan: InstallmentPlan
   items: InstallmentItem[]
   today: string
   onClick: () => void
+  onInspectShare?: (plan: InstallmentPlan, items: InstallmentItem[]) => void
 }) {
   const actions = useUiActions()
   const { formatMoney } = useExtras()
+  const isShared = isIncomingSharedAsset(plan, getStableUserId())
   const paid = paidCount(items, today)
   const overdue = overdueCount(items, today)
   const badge = plan.status === 'completed' ? 'ok' : planBadge(items, today)
@@ -1298,14 +1713,40 @@ export function PlanCard({
 
   return (
     <SwipeRow
-      onEdit={actions ? () => actions.editPlan(plan.id) : undefined}
-      onDelete={actions ? () => actions.deletePlan(plan.id) : undefined}
+      onEdit={!isShared && actions ? () => actions.editPlan(plan.id) : undefined}
+      onDelete={!isShared && actions ? () => actions.deletePlan(plan.id) : undefined}
     >
-      <button className="plan-card lg-row" type="button" onClick={onClick}>
+      <div
+        className="plan-card lg-row"
+        role="button"
+        tabIndex={0}
+        style={{ width: '100%', textAlign: 'right', cursor: 'pointer' }}
+        onClick={onClick}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onClick()
+          }
+        }}
+      >
         <div className="plan-top">
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <span className="plan-name">{plan.name}</span>
+              {isShared ? (
+                <span
+                  style={{
+                    fontSize: 10,
+                    padding: '2px 7px',
+                    borderRadius: 6,
+                    background: 'rgba(16, 185, 129, 0.16)',
+                    color: 'var(--hy-income, #10b981)',
+                    fontWeight: 700,
+                  }}
+                >
+                  🤝 مشترک ({plan.ownerDisplayName || 'کاربر'})
+                </span>
+              ) : null}
               {overdue > 0 && plan.status === 'active' ? (
                 <span
                   style={{
@@ -1349,7 +1790,7 @@ export function PlanCard({
           <span>
             {toFaDigits(paid)} از {toFaDigits(plan.totalCount)} قسط
           </span>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             {overdue > 0 && plan.status === 'active' ? (
               <span style={{ color: 'var(--hy-expense)', fontWeight: 700 }}>
                 {toFaDigits(overdue)} قسط معوق
@@ -1358,7 +1799,53 @@ export function PlanCard({
             <span>مانده: {toFaDigits(Math.max(plan.totalCount - paid, 0))}</span>
           </div>
         </div>
-      </button>
+        <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-start' }}>
+          {isShared ? (
+            <button
+              type="button"
+              className="cat-mini"
+              style={{ fontSize: 11, padding: '4px 10px' }}
+              onClick={(e) => {
+                e.stopPropagation()
+                onInspectShare?.(plan, items)
+              }}
+            >
+              ℹ️ جزئیات اشتراک
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="cat-mini"
+              style={{ background: 'rgba(14, 165, 233, 0.15)', color: 'var(--hy-teal)', fontSize: 11, padding: '4px 10px' }}
+              onClick={(e) => {
+                e.stopPropagation()
+                window.dispatchEvent(
+                  new CustomEvent('hy-open-share', {
+                    detail: {
+                      kind: 'installment',
+                      item: {
+                        id: plan.id,
+                        name: plan.name,
+                        installmentAmount: plan.installmentAmount,
+                        totalCount: plan.totalCount,
+                        startDate: plan.startDate,
+                        status: plan.status,
+                        planKind: plan.kind,
+                        principal: plan.principal,
+                        annualRatePercent: plan.annualRatePercent,
+                        items,
+                        details: serializeInstallmentShareDetails(plan, items),
+                      },
+                    },
+                  }),
+                )
+              }}
+            >
+              🤝 اشتراک
+            </button>
+          )}
+        </div>
+      </div>
     </SwipeRow>
   )
 }

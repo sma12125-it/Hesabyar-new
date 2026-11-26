@@ -5,6 +5,7 @@ import { WindowPopup } from './WindowPopup'
 import { todayIso } from '../lib/iso'
 import { digitsOnly } from '../lib/money'
 import { notifyUser } from '../lib/sync'
+import { getStableUserId, isIncomingSharedAsset, serializeChequeShareDetails } from '../lib/userShare'
 import { useExtras } from '../store/Extras'
 import { useStore } from '../store/Store'
 import type { Cheque, ChequeDirection, ChequeStatus } from '../types'
@@ -53,6 +54,7 @@ export function ChequeSheet({
   const [saving, setSaving] = useState(false)
 
   const isEdit = Boolean(cheque)
+  const isIncomingShared = isIncomingSharedAsset(cheque, getStableUserId())
 
   async function handleSave() {
     setError(null)
@@ -133,38 +135,86 @@ export function ChequeSheet({
       defaultWidth={540}
       defaultHeight={680}
       footer={
-        <div style={{ display: 'flex', gap: 8, width: '100%' }}>
-          {isEdit ? (
-            <button
-              className="cat-mini danger"
-              type="button"
-              disabled={saving}
-              style={{ minWidth: 70 }}
-              onClick={() => void handleDelete()}
-            >
-              حذف
-            </button>
-          ) : null}
-          <button
-            className="cta-confirm"
-            type="button"
-            disabled={saving || amount <= 0 || !party.trim()}
-            onClick={() => void handleSave()}
-            style={{ flex: 1 }}
-          >
-            {saving ? 'در حال ثبت…' : isEdit ? 'ذخیره تغییرات' : 'ثبت چک'}
+        isIncomingShared ? (
+          <button className="home-pill ghost" type="button" onClick={onClose} style={{ width: '100%', justifyContent: 'center' }}>
+            بستن
           </button>
-        </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+            {isEdit ? (
+              <button
+                className="cat-mini danger"
+                type="button"
+                disabled={saving}
+                style={{ minWidth: 64 }}
+                onClick={() => void handleDelete()}
+              >
+                حذف
+              </button>
+            ) : null}
+            {isEdit && cheque ? (
+              <button
+                className="cat-mini"
+                type="button"
+                disabled={saving}
+                style={{ background: 'rgba(14, 165, 233, 0.15)', color: 'var(--hy-teal)', fontWeight: 700 }}
+                onClick={() => {
+                  window.dispatchEvent(
+                    new CustomEvent('hy-open-share', {
+                      detail: {
+                        kind: 'cheque',
+                        item: {
+                          id: cheque.id,
+                          name: `چک ${cheque.party}`,
+                          party: cheque.party,
+                          bankName: cheque.bankName,
+                          direction: cheque.direction,
+                          amount: cheque.amount,
+                          dueDate: cheque.dueDate,
+                          status: cheque.status,
+                          sayadId: cheque.sayadId,
+                          note: cheque.note,
+                          clearedAt: cheque.clearedAt,
+                          details: serializeChequeShareDetails(cheque),
+                        },
+                      },
+                    }),
+                  )
+                  onClose()
+                }}
+              >
+                🤝 اشتراک
+              </button>
+            ) : null}
+            <button
+              className="cta-confirm"
+              type="button"
+              disabled={saving || amount <= 0 || !party.trim()}
+              onClick={() => void handleSave()}
+              style={{ flex: 1 }}
+            >
+              {saving ? 'در حال ثبت…' : isEdit ? 'ذخیره تغییرات' : 'ثبت چک'}
+            </button>
+          </div>
+        )
       }
     >
       <div className="sheet-body-scroll" style={{ padding: '4px 0 16px' }}>
         {error ? <div className="banner error"><span>{error}</span></div> : null}
+
+        {isIncomingShared && cheque ? (
+          <div className="banner archive" style={{ marginBottom: 12 }}>
+            <span className="bico">🤝</span>
+            <span>این چک توسط {cheque.ownerDisplayName || 'کاربر دیگر'} با شما به اشتراک گذاشته شده است (فقط‌خواندنی).</span>
+          </div>
+        ) : null}
 
         {/* Direction toggle */}
         <div className="seg" role="tablist" style={{ marginBottom: 16 }}>
           <button
             className={`seg-btn${direction === 'payable' ? ' active' : ''}`}
             type="button"
+            disabled={isIncomingShared}
             onClick={() => setDirection('payable')}
           >
             چک پرداختی (صادره)
@@ -172,6 +222,7 @@ export function ChequeSheet({
           <button
             className={`seg-btn${direction === 'receivable' ? ' active' : ''}`}
             type="button"
+            disabled={isIncomingShared}
             onClick={() => setDirection('receivable')}
           >
             چک دریافتی
@@ -194,6 +245,7 @@ export function ChequeSheet({
                 className="field-input"
                 placeholder={direction === 'payable' ? 'مثلاً: شرکت الف، آقای محمدی' : 'مثلاً: علی رضایی'}
                 value={party}
+                disabled={isIncomingShared}
                 onChange={(e) => setParty(e.target.value)}
               />
             </label>
@@ -208,6 +260,7 @@ export function ChequeSheet({
                 maxLength={16}
                 placeholder="مثلاً: 1234567890123456"
                 value={sayadId}
+                disabled={isIncomingShared}
                 onChange={(e) => setSayadId(e.target.value)}
               />
             </label>
@@ -217,6 +270,7 @@ export function ChequeSheet({
               <select
                 className="field-input"
                 value={bankName}
+                disabled={isIncomingShared}
                 onChange={(e) => setBankName(e.target.value)}
               >
                 {COMMON_BANKS.map((b) => (
@@ -227,7 +281,7 @@ export function ChequeSheet({
               </select>
             </label>
 
-            {activeAccounts.length > 0 ? (
+            {activeAccounts.length > 0 && !isIncomingShared ? (
               <label className="field-stack">
                 <span>حساب بانکی متصل</span>
                 <select
@@ -250,6 +304,7 @@ export function ChequeSheet({
               <select
                 className="field-input"
                 value={status}
+                disabled={isIncomingShared}
                 onChange={(e) => setStatus(e.target.value as ChequeStatus)}
               >
                 <option value="pending">در انتظار سررسید / در جریان وصول</option>
@@ -258,7 +313,7 @@ export function ChequeSheet({
               </select>
             </label>
 
-            {status === 'cleared' && !cheque?.transactionId ? (
+            {status === 'cleared' && !cheque?.transactionId && !isIncomingShared ? (
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--hy-text)' }}>
                 <input
                   type="checkbox"
@@ -275,6 +330,7 @@ export function ChequeSheet({
                 className="field-input"
                 placeholder="مثلاً: قسط قرارداد، رهن خانه، خرید تجهیزات"
                 value={note}
+                disabled={isIncomingShared}
                 onChange={(e) => setNote(e.target.value)}
               />
             </label>

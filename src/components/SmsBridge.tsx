@@ -25,7 +25,7 @@ export function SmsBridge() {
         if (incomingText && incomingText.trim().length >= 8) {
           void ingestMultipleBankSms(incomingText.trim()).then((res) => {
             if (res.added > 0) {
-              notifyUser(`📨 ${res.added} پیامک بانکی به طور خودکار دریافت و به صف تأیید اضافه شد`)
+              notifyUser(`${res.added} پیامک بانکی دریافت و به صف تأیید اضافه شد`)
             }
           })
         }
@@ -59,7 +59,7 @@ export function SmsBridge() {
         })
 
         if (res.status === 'created') {
-          notifyUser('📨 پیامک بانکی کپی‌شده به طور خودکار شناسایی و به صف تأیید اضافه شد ✨')
+          notifyUser('پیامک بانکی کپی‌شده شناسایی و به صف تأیید اضافه شد')
         }
       } catch {
         // Silent catch: clipboard read permission may be withheld in some browser modes
@@ -89,7 +89,7 @@ export function SmsBridge() {
         lastProcessedHashRef.current = text.trim()
         void ingestMultipleBankSms(text.trim()).then((res) => {
           if (res.added > 0) {
-            notifyUser(`📨 ${res.added} تراکنش از متن پیست‌شده شناسایی و در صف تأیید قرار گرفت`)
+            notifyUser(`${res.added} تراکنش از متن پیست‌شده شناسایی و در صف تأیید قرار گرفت`)
           }
         })
       }

@@ -157,7 +157,7 @@ export function TransferSheet({
               setPicker(null)
             }}
           >
-            <span className="oico">{p.isMain ? '⭐' : p.isOwn ? '👛' : '🤝'}</span>
+            <span className="oico">{p.isMain ? '💰' : p.isOwn ? '👛' : '🤝'}</span>
             <div>
               <div className="otitle" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span>{p.name}</span>
@@ -184,7 +184,7 @@ export function TransferSheet({
               setPicker(null)
             }}
           >
-            <span className="oico">{p.isMain ? '⭐' : p.isOwn ? '👛' : '🤝'}</span>
+            <span className="oico">{p.isMain ? '💰' : p.isOwn ? '👛' : '🤝'}</span>
             <div>
               <div className="otitle" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span>{p.name}</span>
@@ -202,7 +202,7 @@ export function TransferSheet({
     <WindowPopup
       title={existingOut ? 'ویرایش انتقال' : 'انتقال بین حساب‌ها'}
       subtitle="انتقال وجه بین حساب‌های فعال شما"
-      icon="⇄"
+      icon="🔄"
       isOpen={true}
       onClose={onClose}
       onMinimize={onMinimize}
@@ -223,7 +223,7 @@ export function TransferSheet({
       <div className="sheet-body-scroll">
         {(error || over) && (
           <div className="banner error">
-            <span className="bico">⛔</span>
+            <span className="bico">⚠️</span>
             <span>{error || 'مبلغ از موجودی قابل انتقال بیشتر است'}</span>
           </div>
         )}
@@ -343,7 +343,7 @@ export function TransferSheet({
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span>💳</span>
+              <span>🏦</span>
               <span style={{ fontSize: 13, fontWeight: 600 }}>کارمزد انتقال بانکی</span>
             </div>
             <button

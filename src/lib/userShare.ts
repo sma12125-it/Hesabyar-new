@@ -1,7 +1,10 @@
 import * as db from '../db/db'
 import { toWesternDigits } from './money'
 import { loadSession } from './sync'
-import type { UserProfile } from './profile'
+import { displayNameOf, HANDLE_PATTERN, type UserProfile } from './profile'
+import type { Cheque, DebtLoan, InstallmentItem, InstallmentPlan, ShareAssetKind } from '../types'
+
+export type { ShareAssetKind }
 
 export interface SharedUserProfile {
   userId: string
@@ -16,10 +19,10 @@ export interface SharedUserProfile {
 
 export interface IncomingSharedAsset {
   id: string
-  assetKind: 'card' | 'account'
+  assetKind: ShareAssetKind
   assetId: string
   assetName: string
-  assetDetails?: {
+  assetDetails?: Record<string, unknown> & {
     bankName?: string
     accountNumber?: string
     pan?: string
@@ -28,11 +31,32 @@ export interface IncomingSharedAsset {
     sheba?: string
     expiry?: string
     holder?: string
+    // Installment details
+    installmentAmount?: number
+    totalCount?: number
+    startDate?: string
+    status?: string
+    kind?: 'fixed' | 'loan'
+    principal?: number
+    annualRatePercent?: number
+    items?: InstallmentItem[]
+    // Debt details
+    direction?: string
+    party?: string
+    amount?: number
+    dueDate?: string
+    note?: string
+    settledAt?: string
+    repaidAmount?: number
+    // Cheque details
+    sayadId?: string
+    clearedAt?: string
   }
   ownerUserId: string
   ownerDisplayName?: string
   status?: 'pending' | 'accepted' | 'rejected'
   sharedAt: string
+  updatedAt?: string
 }
 
 // Curated authentic real human portrait photos
@@ -81,8 +105,66 @@ async function safeSetKv<T>(key: string, value: T): Promise<void> {
   memKv.set(key, value)
 }
 
-function shareKey(kind: 'card' | 'account', id: string): string {
+function shareKey(kind: ShareAssetKind, id: string): string {
   return `hy_asset_shares:${kind}:${String(id).trim()}`
+}
+
+export function serializeInstallmentShareDetails(
+  plan: InstallmentPlan,
+  planItems: InstallmentItem[],
+): Record<string, unknown> {
+  return {
+    name: plan.name,
+    installmentAmount: plan.installmentAmount,
+    totalCount: plan.totalCount,
+    startDate: plan.startDate,
+    status: plan.status,
+    kind: plan.kind ?? 'fixed',
+    principal: plan.principal,
+    annualRatePercent: plan.annualRatePercent,
+    updatedAt: plan.updatedAt,
+    items: planItems
+      .slice()
+      .sort((a, b) => a.index - b.index)
+      .map((item) => ({
+        id: item.id,
+        planId: item.planId,
+        index: item.index,
+        dueDate: item.dueDate,
+        amount: item.amount,
+        status: item.status,
+        paidAt: item.paidAt,
+      })),
+  }
+}
+
+export function serializeDebtShareDetails(debt: DebtLoan): Record<string, unknown> {
+  return {
+    direction: debt.direction,
+    party: debt.party,
+    amount: debt.amount,
+    dueDate: debt.dueDate,
+    note: debt.note,
+    status: debt.status,
+    settledAt: debt.settledAt,
+    repaidAmount: debt.repaidAmount,
+    updatedAt: debt.updatedAt,
+  }
+}
+
+export function serializeChequeShareDetails(cheque: Cheque): Record<string, unknown> {
+  return {
+    direction: cheque.direction,
+    sayadId: cheque.sayadId,
+    bankName: cheque.bankName,
+    amount: cheque.amount,
+    dueDate: cheque.dueDate,
+    party: cheque.party,
+    status: cheque.status,
+    note: cheque.note,
+    clearedAt: cheque.clearedAt,
+    updatedAt: cheque.updatedAt,
+  }
 }
 
 /**
@@ -105,9 +187,8 @@ export function getStableUserId(): string {
 }
 
 /**
- * Strictly determines whether an account or bank card is an incoming shared asset
- * received from another user. Assets created by the current user (even if shared
- * out with others or carrying a legacy shareId) always return false.
+ * Strictly determines whether an asset is an incoming shared asset received from
+ * another user. Assets owned by the current user always return false.
  */
 export function isIncomingSharedAsset(
   item: { isShared?: boolean; ownerUserId?: string; recipientUserId?: string; shareId?: string } | null | undefined,
@@ -130,23 +211,25 @@ export async function autoRegisterCurrentProfile(): Promise<void> {
   try {
     const localProfile = await safeGetKv<UserProfile>('userProfile')
     const session = loadSession()
-    const userId = session?.userId
-      ? session.userId.length > 16
-        ? session.userId.slice(0, 12)
-        : session.userId
+    const fullUserId = session?.userId?.trim() || undefined
+    const shortUserId = fullUserId
+      ? fullUserId.length > 16
+        ? fullUserId.slice(0, 12)
+        : fullUserId
       : getStableUserId()
 
-    const dName =
-      localProfile?.displayName?.trim() ||
-      `${localProfile?.firstName?.trim() || ''} ${localProfile?.lastName?.trim() || ''}`.trim() ||
-      'کاربر حسابیار'
+    const dName = localProfile
+      ? displayNameOf(localProfile)
+      : session?.email?.split('@')[0] || 'کاربر حسابیار'
 
     await fetch('/api/v1/profiles/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId,
-        handle: localProfile?.handle || `user_${userId.slice(0, 6)}`,
+        userId: shortUserId,
+        fullUserId,
+        shortUserId,
+        handle: localProfile?.handle?.trim() || undefined,
         displayName: dName,
         firstName: localProfile?.firstName || '',
         lastName: localProfile?.lastName || '',
@@ -159,7 +242,7 @@ export async function autoRegisterCurrentProfile(): Promise<void> {
 
 /**
  * Searches for a user either by User ID (from Settings) or by manual profile handle (@handle / username).
- * Queries the real server registry.
+ * Queries the real server registry (plus cloud fallback when signed in).
  * Strictly returns null if not found (no sample profiles, no fake synthetic user generation).
  */
 export async function lookupUserByIdOrHandle(rawInput: string): Promise<SharedUserProfile | null> {
@@ -169,7 +252,7 @@ export async function lookupUserByIdOrHandle(rawInput: string): Promise<SharedUs
   const queryLower = query.toLowerCase()
   const stableId = getStableUserId()
 
-  // 1. Check current local user profile
+  // 1. Check current local user profile & active session
   try {
     const localProfile = await safeGetKv<UserProfile>('userProfile')
     const session = loadSession()
@@ -179,35 +262,38 @@ export async function lookupUserByIdOrHandle(rawInput: string): Promise<SharedUs
         : session.userId
       : stableId
 
-    if (localProfile) {
-      const matchHandle = localProfile.handle && localProfile.handle.toLowerCase() === queryLower
-      const matchId =
-        queryLower === activeUserId.toLowerCase() ||
-        (session?.userId &&
+    const matchHandle = Boolean(localProfile?.handle && localProfile.handle.trim().toLowerCase() === queryLower)
+    const matchId =
+      queryLower === activeUserId.toLowerCase() ||
+      queryLower === stableId.toLowerCase() ||
+      Boolean(
+        session?.userId &&
           (session.userId.toLowerCase() === queryLower ||
-            session.userId.slice(0, 12).toLowerCase() === queryLower))
-      const matchEmail = localProfile.email && localProfile.email.toLowerCase() === queryLower
+            session.userId.slice(0, 12).toLowerCase() === queryLower),
+      )
+    const matchEmail = Boolean(
+      (localProfile?.email && localProfile.email.trim().toLowerCase() === queryLower) ||
+        (session?.email && session.email.trim().toLowerCase() === queryLower),
+    )
 
-      if (matchHandle || matchId || matchEmail) {
-        const dName =
-          localProfile.displayName?.trim() ||
-          `${localProfile.firstName?.trim() || ''} ${localProfile.lastName?.trim() || ''}`.trim() ||
-          'کاربر حسابیار'
-        return {
-          userId: activeUserId,
-          handle: localProfile.handle || 'me',
-          displayName: dName,
-          firstName: localProfile.firstName || dName.split(' ')[0] || 'کاربر',
-          lastName: localProfile.lastName || dName.split(' ')[1] || '',
-          avatarUrl: localProfile.avatarUrl || HUMAN_AVATARS[0],
-          email: localProfile.email || session?.email,
-          sharedAt: new Date().toISOString(),
-        }
+    if (matchHandle || matchId || matchEmail) {
+      const dName = localProfile
+        ? displayNameOf(localProfile)
+        : session?.email?.split('@')[0] || 'کاربر حسابیار'
+      return {
+        userId: activeUserId,
+        handle: localProfile?.handle?.trim() || `user_${activeUserId.slice(0, 6)}`,
+        displayName: dName,
+        firstName: localProfile?.firstName || dName.split(' ')[0] || 'کاربر',
+        lastName: localProfile?.lastName || dName.split(' ')[1] || '',
+        avatarUrl: localProfile?.avatarUrl || HUMAN_AVATARS[0],
+        email: localProfile?.email || session?.email,
+        sharedAt: new Date().toISOString(),
       }
     }
   } catch {}
 
-  // 2. Query the real server profile registry
+  // 2. Query the real server profile registry (includes Supabase cloud fallback on backend)
   try {
     const res = await fetch(`/api/v1/profiles/lookup?q=${encodeURIComponent(query)}`)
     if (res.ok) {
@@ -228,7 +314,27 @@ export async function lookupUserByIdOrHandle(rawInput: string): Promise<SharedUs
     }
   } catch {}
 
-  // 3. Fallback: check local known profiles
+  // 3. Fallback: if user is signed into Supabase and searched by handle/ID, query Supabase RPC directly
+  try {
+    const session = loadSession()
+    if (session?.accessToken) {
+      const { lookupPublicProfile } = await import('./profileApi')
+      const cloudProfile = await lookupPublicProfile(query)
+      if (cloudProfile) {
+        return {
+          userId: cloudProfile.userId || cloudProfile.handle,
+          handle: cloudProfile.handle,
+          displayName: cloudProfile.displayName,
+          avatarUrl: cloudProfile.avatarUrl || HUMAN_AVATARS[0],
+          sharedAt: new Date().toISOString(),
+        }
+      }
+    } else if (HANDLE_PATTERN.test(queryLower)) {
+      // No active session; rely only on server registry & known profiles
+    }
+  } catch {}
+
+  // 4. Fallback: check local known profiles
   try {
     const known = (await safeGetKv<SharedUserProfile[]>('hy_known_profiles')) ?? []
     const foundKnown = known.find(
@@ -251,15 +357,15 @@ export async function lookupUserByIdOrHandle(rawInput: string): Promise<SharedUs
 }
 
 /**
- * Gets the list of shared users for a specific account or bank card.
+ * Gets the list of shared users for a specific asset.
  * Merges server and local storage so members are never lost when reopened.
  */
-export async function getSharedUsers(kind: 'card' | 'account', id: string): Promise<SharedUserProfile[]> {
+export async function getSharedUsers(kind: ShareAssetKind, id: string): Promise<SharedUserProfile[]> {
   const cleanId = String(id).trim()
   const stored = (await safeGetKv<SharedUserProfile[]>(shareKey(kind, cleanId))) || []
 
   try {
-    const res = await fetch(`/api/v1/shares/asset?kind=${kind}&id=${encodeURIComponent(cleanId)}`)
+    const res = await fetch(`/api/v1/shares/asset?kind=${encodeURIComponent(kind)}&id=${encodeURIComponent(cleanId)}`)
     if (res.ok) {
       const json = await res.json()
       if (json.success && Array.isArray(json.users)) {
@@ -285,15 +391,15 @@ export async function getSharedUsers(kind: 'card' | 'account', id: string): Prom
 }
 
 /**
- * Adds a user to the shared list for a specific account or bank card.
+ * Adds a user to the shared list for a specific asset.
  * Enforces a strict maximum of 10 users!
  * Saves to server so it appears for the other user as well.
  */
 export async function addSharedUser(
-  kind: 'card' | 'account',
+  kind: ShareAssetKind,
   id: string,
   user: SharedUserProfile,
-  assetInfo?: {
+  assetInfo?: Record<string, unknown> & {
     name?: string
     bankName?: string
     pan?: string
@@ -323,13 +429,21 @@ export async function addSharedUser(
       session?.email?.trim() ||
       `کاربر ${stableId}`
 
+    const defaultNames: Record<ShareAssetKind, string> = {
+      card: 'کارت بانکی',
+      account: 'حساب مالی',
+      installment: 'برنامه اقساط',
+      debt: 'بدهی / طلب',
+      cheque: 'چک صیادی',
+    }
+
     const res = await fetch('/api/v1/shares/share', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         assetKind: kind,
         assetId: cleanId,
-        assetName: assetInfo?.name || assetInfo?.bankName || (kind === 'card' ? 'کارت بانکی' : 'حساب مالی'),
+        assetName: assetInfo?.name || assetInfo?.bankName || defaultNames[kind] || 'دارایی مالی',
         assetDetails: assetInfo,
         ownerUserId: stableId,
         ownerDisplayName,
@@ -339,12 +453,10 @@ export async function addSharedUser(
 
     if (!res.ok) {
       const errJson = await res.json().catch(() => null)
-      if (errJson?.error) {
-        throw new Error(errJson.error)
-      }
+      throw new Error(errJson?.error || 'ثبت اشتراک‌گذاری در سرور ناموفق بود')
     }
   } catch (err) {
-    if (err instanceof Error && err.message.includes('حداکثر با ۱۰ کاربر')) {
+    if (err instanceof Error && (err.message.includes('حداکثر با ۱۰ کاربر') || err.message.includes('سرور') || err.message.includes('نامعتبر'))) {
       throw err
     }
   }
@@ -385,10 +497,38 @@ export async function addSharedUser(
 }
 
 /**
- * Revokes access of a shared user from a card or account.
+ * Syncs updated details/status for an existing shared asset to all shared recipients on the server.
+ */
+export async function syncSharedAssetState(
+  kind: ShareAssetKind,
+  id: string,
+  assetName: string,
+  assetDetails: Record<string, unknown>,
+): Promise<void> {
+  try {
+    const cleanId = String(id).trim()
+    if (!cleanId) return
+    await fetch('/api/v1/shares/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        assetKind: kind,
+        assetId: cleanId,
+        ownerUserId: getStableUserId(),
+        assetName,
+        assetDetails,
+      }),
+    })
+  } catch {
+    // Offline or non-shared asset: silently ignore
+  }
+}
+
+/**
+ * Revokes access of a shared user from an asset.
  */
 export async function removeSharedUser(
-  kind: 'card' | 'account',
+  kind: ShareAssetKind,
   id: string,
   targetUserIdOrHandle: string,
   shareId?: string,
@@ -479,10 +619,10 @@ export async function fetchIncomingShares(): Promise<IncomingSharedAsset[]> {
           ownerDisplayName: s.ownerDisplayName,
           status: s.status || 'pending',
           sharedAt: s.sharedAt,
+          updatedAt: s.updatedAt,
         }))
       }
     }
   } catch {}
   return []
 }
-

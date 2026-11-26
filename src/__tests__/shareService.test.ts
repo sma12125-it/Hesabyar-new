@@ -163,4 +163,114 @@ describe('server shareService', () => {
     const afterLeave = getIncomingSharesForUser('usr_exact_grantee', 'ali_rezaei_unique')
     expect(afterLeave.some((s) => s.assetId === uniqueAccId)).toBe(false)
   })
+
+  it('registers multiple users without overwriting each other and supports UUID prefix & Persian digit lookup', () => {
+    const uuidA = '11111111-aaaa-4111-8111-111111111111'
+    const uuidB = '22222222-bbbb-4222-8222-222222222222'
+    registerUserProfile({
+      userId: '11111111-aaa',
+      fullUserId: uuidA,
+      shortUserId: '11111111-aaa',
+      handle: 'user_111111',
+      displayName: 'کاربر اول',
+    })
+    registerUserProfile({
+      userId: '22222222-bbb',
+      fullUserId: uuidB,
+      shortUserId: '22222222-bbb',
+      handle: 'user_222222',
+      displayName: 'کاربر دوم',
+    })
+    registerUserProfile({
+      userId: 'usr_9876',
+      handle: 'reza_9876',
+      displayName: 'رضا',
+    })
+
+    expect(lookupUserProfile(uuidA)?.displayName).toBe('کاربر اول')
+    expect(lookupUserProfile('11111111-aaa')?.displayName).toBe('کاربر اول')
+    expect(lookupUserProfile(uuidB)?.displayName).toBe('کاربر دوم')
+    expect(lookupUserProfile('usr_۹۸۷۶')?.displayName).toBe('رضا')
+  })
+
+  it('shares, syncs, strips secrets, and revokes installment, debt, and cheque assets', async () => {
+    const { syncAssetShareDetails } = await import('../server/shareService')
+    const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+    const ownerId = `usr_commit_owner_${suffix}`
+    const grantee = {
+      userId: `usr_commit_member_${suffix}`,
+      handle: `member_${suffix}`,
+      displayName: 'مریم شریک',
+    }
+
+    const planId = `plan_${suffix}`
+    const debtId = `debt_${suffix}`
+    const chequeId = `cheque_${suffix}`
+
+    const planRes = shareAssetWithUser({
+      assetKind: 'installment',
+      assetId: planId,
+      assetName: 'وام مسکن',
+      assetDetails: { installmentAmount: 5_000_000, totalCount: 12, cvv: '999', pin: '1234' },
+      ownerUserId: ownerId,
+      ownerDisplayName: 'امیر',
+      granteeUser: grantee,
+    })
+    expect(planRes.success).toBe(true)
+    expect(planRes.share.assetDetails).not.toHaveProperty('cvv')
+    expect(planRes.share.assetDetails).not.toHaveProperty('pin')
+
+    shareAssetWithUser({
+      assetKind: 'debt',
+      assetId: debtId,
+      assetName: 'قرض سفر',
+      assetDetails: { party: 'حسین', amount: 2_000_000, status: 'active' },
+      ownerUserId: ownerId,
+      granteeUser: grantee,
+    })
+
+    shareAssetWithUser({
+      assetKind: 'cheque',
+      assetId: chequeId,
+      assetName: 'چک رهن',
+      assetDetails: { party: 'مالک', bankName: 'بانک ملی', amount: 10_000_000, status: 'pending' },
+      ownerUserId: ownerId,
+      granteeUser: grantee,
+    })
+
+    const incomingBeforeSync = getIncomingSharesForUser(grantee.userId, grantee.handle)
+    expect(incomingBeforeSync.some((s) => s.assetKind === 'installment' && s.assetId === planId)).toBe(true)
+    expect(incomingBeforeSync.some((s) => s.assetKind === 'debt' && s.assetId === debtId)).toBe(true)
+    expect(incomingBeforeSync.some((s) => s.assetKind === 'cheque' && s.assetId === chequeId)).toBe(true)
+
+    // Non-owner cannot sync owned share details
+    const blockedSync = syncAssetShareDetails({
+      assetKind: 'debt',
+      assetId: debtId,
+      ownerUserId: 'usr_attacker',
+      assetName: 'جعلی',
+      assetDetails: { status: 'settled' },
+    })
+    expect(blockedSync.updatedCount).toBe(0)
+
+    // Owner sync updates status and strips secrets
+    const ownerSync = syncAssetShareDetails({
+      assetKind: 'debt',
+      assetId: debtId,
+      ownerUserId: ownerId,
+      assetName: 'قرض سفر (تسویه)',
+      assetDetails: { status: 'settled', settledAt: '2026-11-26', password: 'leak' },
+    })
+    expect(ownerSync.updatedCount).toBe(1)
+
+    const updatedDebtShare = getIncomingSharesForUser(grantee.userId, grantee.handle).find(
+      (s) => s.assetKind === 'debt' && s.assetId === debtId,
+    )
+    expect(updatedDebtShare?.assetDetails?.status).toBe('settled')
+    expect(updatedDebtShare?.assetDetails).not.toHaveProperty('password')
+
+    revokeAssetShare('cheque', chequeId, grantee.userId)
+    expect(getAssetShares('cheque', chequeId)).toHaveLength(0)
+  })
 })
+

@@ -224,7 +224,7 @@ export function QuickCardsSheet({ initialTab = 'cards', onClose }: QuickCardsShe
         {/* Header */}
         <div className="sheet-header" style={{ paddingBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            <span style={{ fontSize: 22, flexShrink: 0 }} aria-hidden="true">💳</span>
+            <span style={{ fontSize: 22 }} aria-hidden="true">💳</span>
             <div style={{ minWidth: 0 }}>
               <h1 style={{ fontSize: 16, margin: 0, fontWeight: 800 }}>کیف کارت و حساب سریع</h1>
               <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
@@ -275,7 +275,7 @@ export function QuickCardsSheet({ initialTab = 'cards', onClose }: QuickCardsShe
               <CardLegacySyncBanner compact />
             ) : cards.length === 0 ? (
               <div className="empty-state" style={{ padding: '24px 16px' }}>
-                <div style={{ fontSize: 30, marginBottom: 6 }} aria-hidden="true">💳</div>
+                <div style={{ fontSize: 34, marginBottom: 8 }} aria-hidden="true">💳</div>
                 <h3 style={{ fontSize: 14, margin: '0 0 6px', fontWeight: 700 }}>
                   هنوز کارتی ثبت نشده است
                 </h3>

@@ -413,7 +413,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                                   style={{ height: 34, padding: '0 12px' }}
                                   title={evt.settled ? 'بازگردانی به رویدادهای فعال' : 'اتمام و انتقال به تسویه شده'}
                                   onClick={() => {
-                                    void saveDongEvent({ ...evt, settled: !evt.settled })
+                                    void saveDongEvent({ ...evt, settled: !evt.settled, settledUpdatedAt: Date.now() })
                                     notifyUser(evt.settled ? 'رویداد به حالت فعال برگشت' : 'رویداد پایان یافت و تسویه شد')
                                   }}
                                 >
@@ -654,7 +654,7 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                       color: selectedDongEvent.settled ? 'var(--hy-income)' : 'var(--hy-text)',
                     }}
                     onClick={() => {
-                      void saveDongEvent({ ...selectedDongEvent, settled: !selectedDongEvent.settled })
+                      void saveDongEvent({ ...selectedDongEvent, settled: !selectedDongEvent.settled, settledUpdatedAt: Date.now() })
                       notifyUser(selectedDongEvent.settled ? 'رویداد به حالت فعال بازگردانده شد' : 'رویداد تسویه اعلام شد')
                     }}
                   >
@@ -956,10 +956,13 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                                 nextExpenses = nextExpenses.filter((e) => e.id !== req.expense.id)
                               }
                               const nextPending = selectedDongEvent.pendingApprovals?.filter((p) => p.id !== req.id) || []
+                              const nextHandled = Array.from(new Set([...(selectedDongEvent.handledApprovalIds ?? []), req.id]))
                               void saveDongEvent({
                                 ...selectedDongEvent,
                                 expenses: nextExpenses,
                                 pendingApprovals: nextPending,
+                                handledApprovalIds: nextHandled,
+                                approvalsUpdatedAt: Date.now(),
                               })
                               notifyUser('درخواست با موفقیت تأیید و در رویداد اعمال شد')
                             }}
@@ -971,9 +974,12 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                             className="cat-mini danger"
                             onClick={() => {
                               const nextPending = selectedDongEvent.pendingApprovals?.filter((p) => p.id !== req.id) || []
+                              const nextHandled = Array.from(new Set([...(selectedDongEvent.handledApprovalIds ?? []), req.id]))
                               void saveDongEvent({
                                 ...selectedDongEvent,
                                 pendingApprovals: nextPending,
+                                handledApprovalIds: nextHandled,
+                                approvalsUpdatedAt: Date.now(),
                               })
                               notifyUser('درخواست رد شد')
                             }}
@@ -1561,16 +1567,22 @@ export function DongPage({ onScroll }: { onScroll?: (compact: boolean) => void }
                             }}
                             onClick={() => {
                               const nextSettled = new Set(selectedDongEvent.settledTransfers || [])
-                              if (nextSettled.has(tr.id)) {
+                              const wasSettled = nextSettled.has(tr.id)
+                              if (wasSettled) {
                                 nextSettled.delete(tr.id)
                                 notifyUser(`وضعیت پرداخت ${tr.fromName} به حالت تسویه نشده بازگشت`)
                               } else {
                                 nextSettled.add(tr.id)
                                 notifyUser(`تسویه پرداخت ${tr.fromName} به ${tr.toName} ثبت شد`)
                               }
+                              const now = Date.now()
                               void saveDongEvent({
                                 ...selectedDongEvent,
                                 settledTransfers: Array.from(nextSettled),
+                                settledTransferTimestamps: {
+                                  ...(selectedDongEvent.settledTransferTimestamps ?? {}),
+                                  [tr.id]: { settled: !wasSettled, updatedAt: now },
+                                },
                               })
                             }}
                           >

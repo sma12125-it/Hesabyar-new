@@ -48,7 +48,7 @@ export function ConfirmSheet({
         </p>
         {error ? (
           <div className="banner error">
-            <span className="bico">⚠</span>
+            <span className="bico">⚠️</span>
             <span>{error}</span>
           </div>
         ) : null}

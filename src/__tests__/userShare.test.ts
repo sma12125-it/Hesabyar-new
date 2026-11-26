@@ -123,4 +123,71 @@ describe('userShare module', () => {
       ),
     ).toBe(true)
   })
+
+  it('normalizes Persian digits during profile lookup and serializes installment/debt/cheque details', async () => {
+    const {
+      serializeInstallmentShareDetails,
+      serializeDebtShareDetails,
+      serializeChequeShareDetails,
+    } = await import('../lib/userShare')
+
+    const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        success: true,
+        profile: { userId: 'usr_1234', handle: 'user_1234', displayName: 'کاربر ۱۲۳۴' },
+      }),
+    } as any)
+
+    const found = await lookupUserByIdOrHandle('usr_۱۲۳۴')
+    expect(found?.userId).toBe('usr_1234')
+    expect(fetchSpy).toHaveBeenCalledWith('/api/v1/profiles/lookup?q=usr_1234')
+
+    const planDetails = serializeInstallmentShareDetails(
+      {
+        id: 'p1',
+        name: 'وام',
+        installmentAmount: 2_000_000,
+        totalCount: 2,
+        startDate: '2026-10-01',
+        categoryId: 'installments',
+        status: 'active',
+        createdAt: 1,
+        updatedAt: 50,
+      },
+      [
+        { id: 'i2', planId: 'p1', index: 2, dueDate: '2026-11-01', amount: 2_000_000, status: 'pending' },
+        { id: 'i1', planId: 'p1', index: 1, dueDate: '2026-10-01', amount: 2_000_000, status: 'paid', paidAt: '2026-10-02' },
+      ],
+    )
+    expect((planDetails.items as any[]).map((i) => i.index)).toEqual([1, 2])
+    expect(planDetails.name).toBe('وام')
+
+    const debtDetails = serializeDebtShareDetails({
+      id: 'd1',
+      direction: 'lent',
+      party: 'سعید',
+      amount: 500_000,
+      note: 'ناهار',
+      status: 'settled',
+      settledAt: '2026-10-10',
+      createdAt: 1,
+    })
+    expect(debtDetails).toMatchObject({ direction: 'lent', party: 'سعید', status: 'settled' })
+
+    const chequeDetails = serializeChequeShareDetails({
+      id: 'c1',
+      direction: 'payable',
+      sayadId: '1234567890123456',
+      bankName: 'بانک ملت',
+      amount: 12_000_000,
+      dueDate: '2026-12-01',
+      party: 'شرکت',
+      status: 'pending',
+      note: 'قرارداد',
+      createdAt: 1,
+    })
+    expect(chequeDetails).toMatchObject({ sayadId: '1234567890123456', bankName: 'بانک ملت', status: 'pending' })
+  })
 })
+

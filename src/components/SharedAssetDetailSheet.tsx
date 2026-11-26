@@ -1,35 +1,76 @@
 import { useState } from 'react'
+import { formatPersianDateFull } from '../lib/dates'
+import { paidCount, remainingAmount } from '../lib/installments'
+import { todayIso } from '../lib/iso'
 import { toFaDigits } from '../lib/money'
 import { notifyUser } from '../lib/sync'
 import { getStableUserId, removeSharedUser } from '../lib/userShare'
 import { useExtras } from '../store/Extras'
 import { useStore } from '../store/Store'
-import type { Account, BankCard } from '../types'
+import type { Account, BankCard, Cheque, DebtLoan, InstallmentItem, InstallmentPlan, ShareAssetKind } from '../types'
 
 export interface SharedAssetDetailSheetProps {
-  kind: 'card' | 'account'
+  kind: ShareAssetKind
   account?: Account
   card?: BankCard
+  plan?: InstallmentPlan
+  planItems?: InstallmentItem[]
+  debt?: DebtLoan
+  cheque?: Cheque
   onClose: () => void
+}
+
+const KIND_HEADER_META: Record<ShareAssetKind, { icon: string; badge: string; fallbackTitle: string }> = {
+  card: { icon: '💳', badge: '🤝 کارت مشترک', fallbackTitle: 'کارت بانکی مشترک' },
+  account: { icon: '🏦', badge: '🤝 حساب مشترک', fallbackTitle: 'حساب مشترک' },
+  installment: { icon: '📅', badge: '🤝 اقساط مشترک', fallbackTitle: 'برنامه اقساط مشترک' },
+  debt: { icon: '🤝', badge: '🤝 بدهی/طلب مشترک', fallbackTitle: 'بدهی / طلب مشترک' },
+  cheque: { icon: '🧾', badge: '🤝 چک مشترک', fallbackTitle: 'چک صیادی مشترک' },
 }
 
 export function SharedAssetDetailSheet({
   kind,
   account,
   card,
+  plan,
+  planItems = [],
+  debt,
+  cheque,
   onClose,
 }: SharedAssetDetailSheetProps) {
-  const { formatMoney, unitLabel, deleteSharedCard } = useExtras()
-  const { removeSharedAccount } = useStore()
+  const { formatMoney, unitLabel, deleteSharedCard, removeSharedCheque, removeSharedDebt } = useExtras()
+  const { removeSharedAccount, removeSharedInstallmentPlan } = useStore()
   const [leaving, setLeaving] = useState(false)
 
-  const title = kind === 'card' ? (card?.bankName || 'کارت بانکی مشترک') : (account?.name || 'حساب مشترک')
-  const ownerId = kind === 'card' ? card?.ownerUserId : account?.ownerUserId
-  const rawOwnerName = kind === 'card' ? card?.ownerDisplayName : account?.ownerDisplayName
-  const ownerName = rawOwnerName || (ownerId ? `کاربر ${ownerId}` : 'مالک حساب')
-  const shareId = kind === 'card' ? card?.shareId : account?.shareId
-  const assetId = kind === 'card' ? card?.id : account?.id
-  const sourceAssetId = kind === 'card' ? card?.sourceAssetId : account?.sourceAssetId
+  const headerMeta = KIND_HEADER_META[kind] ?? KIND_HEADER_META.account
+  const title =
+    kind === 'card'
+      ? card?.bankName || headerMeta.fallbackTitle
+      : kind === 'account'
+        ? account?.name || headerMeta.fallbackTitle
+        : kind === 'installment'
+          ? plan?.name || headerMeta.fallbackTitle
+          : kind === 'debt'
+            ? debt?.party || headerMeta.fallbackTitle
+            : cheque?.party || headerMeta.fallbackTitle
+
+  const activeObj =
+    kind === 'card'
+      ? card
+      : kind === 'account'
+        ? account
+        : kind === 'installment'
+          ? plan
+          : kind === 'debt'
+            ? debt
+            : cheque
+
+  const ownerId = activeObj?.ownerUserId
+  const rawOwnerName = activeObj?.ownerDisplayName
+  const ownerName = rawOwnerName || (ownerId ? `کاربر ${ownerId}` : 'مالک')
+  const shareId = activeObj?.shareId
+  const assetId = activeObj?.id
+  const sourceAssetId = activeObj?.sourceAssetId
 
   const copyText = (txt?: string, label?: string) => {
     if (!txt) return
@@ -52,10 +93,13 @@ export function SharedAssetDetailSheet({
         await removeSharedUser(kind, targetAssetId, myId, shareId)
       }
 
-      if (kind === 'account' && (shareId || assetId)) {
-        await removeSharedAccount(shareId || assetId!)
-      } else if (kind === 'card' && (shareId || assetId)) {
-        await deleteSharedCard(shareId || assetId!)
+      const keyToRemove = shareId || assetId
+      if (keyToRemove) {
+        if (kind === 'account') await removeSharedAccount(keyToRemove)
+        else if (kind === 'card') await deleteSharedCard(keyToRemove)
+        else if (kind === 'installment') await removeSharedInstallmentPlan(keyToRemove)
+        else if (kind === 'debt') await removeSharedDebt(keyToRemove)
+        else if (kind === 'cheque') await removeSharedCheque(keyToRemove)
       }
 
       notifyUser(`شما از اشتراک «${title}» خارج شدید`)
@@ -66,6 +110,10 @@ export function SharedAssetDetailSheet({
       setLeaving(false)
     }
   }
+
+  const today = todayIso()
+  const paidInstallments = kind === 'installment' ? paidCount(planItems, today) : 0
+  const remainingInstallments = kind === 'installment' ? remainingAmount(planItems, today) : 0
 
   return (
     <>
@@ -81,9 +129,9 @@ export function SharedAssetDetailSheet({
         {/* Header */}
         <div className="sheet-header" style={{ paddingBottom: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: 26 }}>{kind === 'card' ? '💳' : '🏦'}</span>
+            <span style={{ fontSize: 26 }}>{headerMeta.icon}</span>
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 <h1 style={{ fontSize: 16, margin: 0, fontWeight: 800 }}>{title}</h1>
                 <span
                   style={{
@@ -96,7 +144,7 @@ export function SharedAssetDetailSheet({
                     border: '1px solid rgba(16, 185, 129, 0.3)',
                   }}
                 >
-                  🤝 حساب مشترک
+                  {headerMeta.badge}
                 </span>
               </div>
               <div style={{ fontSize: 11, color: 'var(--hy-text-secondary)', marginTop: 2 }}>
@@ -133,11 +181,10 @@ export function SharedAssetDetailSheet({
               ) : null}
             </div>
             <div style={{ fontSize: 11, color: 'var(--hy-income, #10b981)', marginTop: 4 }}>
-              ✓ وضعیت دسترسی: فعال و تأیید شده
+              ✓ وضعیت دسترسی: فعال و همگام‌سازی‌شده
             </div>
           </div>
 
-          {/* Account or Card Details */}
           {kind === 'account' && account ? (
             <div
               style={{
@@ -154,14 +201,12 @@ export function SharedAssetDetailSheet({
                 <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>نام حساب</span>
                 <span style={{ fontSize: 13, fontWeight: 700 }}>{account.name}</span>
               </div>
-
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>موجودی حساب</span>
                 <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--hy-teal)' }}>
                   {formatMoney(account.balance, false)} <span style={{ fontSize: 11 }}>{unitLabel}</span>
                 </span>
               </div>
-
               {account.accountNumber ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>شماره حساب</span>
@@ -180,7 +225,6 @@ export function SharedAssetDetailSheet({
                   </div>
                 </div>
               ) : null}
-
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>نوع حساب</span>
                 <span style={{ fontSize: 12 }}>{account.type === 'cash' ? 'حساب نقدی' : 'حساب بانکی'}</span>
@@ -204,12 +248,10 @@ export function SharedAssetDetailSheet({
                 <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>بانک صادرکننده</span>
                 <span style={{ fontSize: 13, fontWeight: 700 }}>{card.bankName}</span>
               </div>
-
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>صاحب کارت</span>
                 <span style={{ fontSize: 13 }}>{card.holder}</span>
               </div>
-
               {card.pan ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>شماره کارت</span>
@@ -228,7 +270,6 @@ export function SharedAssetDetailSheet({
                   </div>
                 </div>
               ) : null}
-
               {card.sheba ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>شماره شبا</span>
@@ -247,13 +288,157 @@ export function SharedAssetDetailSheet({
                   </div>
                 </div>
               ) : null}
-
               {card.expiry ? (
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>انقضا</span>
                   <span style={{ fontSize: 12, fontFamily: 'monospace' }} dir="ltr">
                     {toFaDigits(card.expiry)}
                   </span>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {kind === 'installment' && plan ? (
+            <div
+              style={{
+                padding: '14px',
+                borderRadius: 16,
+                background: 'var(--glass-chrome)',
+                border: 'var(--glass-border)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>عنوان برنامه اقساط</span>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{plan.name}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>مبلغ هر قسط</span>
+                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--hy-teal)' }}>
+                  {formatMoney(plan.installmentAmount)}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>مانده کل</span>
+                <span style={{ fontSize: 14, fontWeight: 800 }}>{formatMoney(remainingInstallments)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>پیشرفت پرداخت</span>
+                <span style={{ fontSize: 12, fontWeight: 700 }}>
+                  {toFaDigits(paidInstallments)} از {toFaDigits(plan.totalCount)} قسط
+                </span>
+              </div>
+              {plan.startDate ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>تاریخ شروع</span>
+                  <span style={{ fontSize: 12 }}>{formatPersianDateFull(plan.startDate)}</span>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {kind === 'debt' && debt ? (
+            <div
+              style={{
+                padding: '14px',
+                borderRadius: 16,
+                background: 'var(--glass-chrome)',
+                border: 'var(--glass-border)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>طرف حساب</span>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{debt.party}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>نوع</span>
+                <span style={{ fontSize: 12, fontWeight: 700 }}>
+                  {debt.direction === 'borrowed' ? 'بدهی (قرض گرفته‌شده)' : 'طلب (قرض داده‌شده)'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>مبلغ</span>
+                <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--hy-teal)' }}>
+                  {formatMoney(debt.amount)}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>وضعیت</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: debt.status === 'settled' ? 'var(--hy-income)' : 'var(--hy-accent)' }}>
+                  {debt.status === 'settled' ? 'تسویه‌شده' : 'جاری'}
+                </span>
+              </div>
+              {debt.dueDate ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>موعد سررسید</span>
+                  <span style={{ fontSize: 12 }}>{formatPersianDateFull(debt.dueDate)}</span>
+                </div>
+              ) : null}
+              {debt.note ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>توضیحات</span>
+                  <span style={{ fontSize: 12 }}>{debt.note}</span>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          {kind === 'cheque' && cheque ? (
+            <div
+              style={{
+                padding: '14px',
+                borderRadius: 16,
+                background: 'var(--glass-chrome)',
+                border: 'var(--glass-border)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>طرف حساب</span>
+                <span style={{ fontSize: 13, fontWeight: 700 }}>{cheque.party}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>نوع چک</span>
+                <span style={{ fontSize: 12, fontWeight: 700 }}>
+                  {cheque.direction === 'payable' ? 'چک پرداختی (صادره)' : 'چک دریافتی'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>مبلغ چک</span>
+                <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--hy-teal)' }}>
+                  {formatMoney(cheque.amount)}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>بانک</span>
+                <span style={{ fontSize: 12 }}>{cheque.bankName}</span>
+              </div>
+              {cheque.sayadId ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>شناسه صیاد</span>
+                  <span style={{ fontSize: 12, fontFamily: 'monospace' }} dir="ltr">
+                    {cheque.sayadId}
+                  </span>
+                </div>
+              ) : null}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>وضعیت</span>
+                <span style={{ fontSize: 12, fontWeight: 700 }}>
+                  {cheque.status === 'cleared' ? 'پاس‌شده' : cheque.status === 'bounced' ? 'برگشتی' : 'در جریان وصول'}
+                </span>
+              </div>
+              {cheque.dueDate ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: 'var(--hy-text-secondary)' }}>سررسید</span>
+                  <span style={{ fontSize: 12 }}>{formatPersianDateFull(cheque.dueDate)}</span>
                 </div>
               ) : null}
             </div>
@@ -272,7 +457,7 @@ export function SharedAssetDetailSheet({
               lineHeight: 1.6,
             }}
           >
-            💡 این مورد از طریق اشتراک هوشمند حسابیار در دسترس شما قرار گرفته است. در صورت نیاز به لغو اتصال، می‌توانید از دکمه زیر استفاده کنید.
+            💡 این مورد از طریق اشتراک هوشمند حسابیار در دسترس شما قرار گرفته است و تغییرات مالک به‌صورت خودکار برایتان همگام‌سازی می‌شود.
           </div>
         </div>
 

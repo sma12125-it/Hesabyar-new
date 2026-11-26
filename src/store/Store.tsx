@@ -36,7 +36,12 @@ import { isValidIsoDate, todayIso } from '../lib/iso'
 import { actorStamp } from '../lib/actor'
 import { validateAccountName, validateAmount } from '../lib/money'
 import { applyShareToData, type SharePayload } from '../lib/share'
-import { getStableUserId } from '../lib/userShare'
+import {
+  getStableUserId,
+  isIncomingSharedAsset,
+  serializeInstallmentShareDetails,
+  syncSharedAssetState,
+} from '../lib/userShare'
 import type {
   Account,
   AccountClassification,
@@ -112,6 +117,8 @@ interface StoreValue {
     sourceAssetId?: string
   }) => Promise<void>
   removeSharedAccount: (shareIdOrAccountId: string) => Promise<void>
+  upsertSharedInstallmentPlan: (input: { plan: InstallmentPlan; items: InstallmentItem[] }) => Promise<void>
+  removeSharedInstallmentPlan: (shareIdOrPlanId: string) => Promise<void>
   applyShared: (ledgerId: string, payload: SharePayload) => Promise<void>
   importCloud: (data: {
     accounts: Account[]
@@ -343,6 +350,78 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     )
     await persistSnapshot(prev, { ...prev, accounts: nextAccounts })
   }, [persistSnapshot])
+
+  const upsertSharedInstallmentPlan = useCallback(async (input: { plan: InstallmentPlan; items: InstallmentItem[] }) => {
+    const prev = dataRef.current
+    const myId = getStableUserId()
+    const incomingPlan: InstallmentPlan = {
+      ...input.plan,
+      isShared: true,
+      recipientUserId: input.plan.recipientUserId ?? myId,
+    }
+    const existing = prev.plans.find(
+      (p) =>
+        p.id === incomingPlan.id ||
+        (incomingPlan.shareId && p.shareId === incomingPlan.shareId) ||
+        (incomingPlan.sourceAssetId && p.sourceAssetId === incomingPlan.sourceAssetId),
+    )
+    const targetPlanId = existing?.id ?? incomingPlan.id
+    const nextPlan: InstallmentPlan = existing
+      ? {
+          ...existing,
+          ...incomingPlan,
+          id: targetPlanId,
+          createdAt: existing.createdAt,
+        }
+      : incomingPlan
+
+    const nextPlanItems: InstallmentItem[] = input.items.map((item) => ({
+      ...item,
+      id: item.id || `${targetPlanId}_i_${item.index}`,
+      planId: targetPlanId,
+      transactionId: undefined,
+    }))
+
+    const existingItems = prev.items.filter((i) => i.planId === targetPlanId)
+    if (
+      existing &&
+      JSON.stringify(existing) === JSON.stringify(nextPlan) &&
+      JSON.stringify(existingItems) === JSON.stringify(nextPlanItems)
+    ) {
+      return
+    }
+
+    const nextPlans = existing
+      ? prev.plans.map((p) => (p.id === targetPlanId ? nextPlan : p))
+      : [...prev.plans, nextPlan]
+    const nextItems = [
+      ...prev.items.filter((i) => i.planId !== targetPlanId),
+      ...nextPlanItems,
+    ]
+
+    const { withoutSync } = await import('../lib/sync')
+    await withoutSync(() => persistSnapshot(prev, { ...prev, plans: nextPlans, items: nextItems }))
+  }, [persistSnapshot])
+
+  const removeSharedInstallmentPlan = useCallback(async (shareIdOrPlanId: string) => {
+    const prev = dataRef.current
+    const target = prev.plans.find(
+      (p) => p.id === shareIdOrPlanId || p.shareId === shareIdOrPlanId || p.sourceAssetId === shareIdOrPlanId,
+    )
+    if (!target) return
+    const nextPlans = prev.plans.filter((p) => p.id !== target.id)
+    const nextItems = prev.items.filter((i) => i.planId !== target.id)
+    const { withoutSync } = await import('../lib/sync')
+    await withoutSync(() => persistSnapshot(prev, { ...prev, plans: nextPlans, items: nextItems }))
+  }, [persistSnapshot])
+
+  const syncOwnedPlanShare = useCallback((planId: string) => {
+    const current = dataRef.current
+    const plan = current.plans.find((p) => p.id === planId)
+    if (!plan || isIncomingSharedAsset(plan, getStableUserId())) return
+    const planItems = current.items.filter((i) => i.planId === planId)
+    void syncSharedAssetState('installment', plan.id, plan.name, serializeInstallmentShareDetails(plan, planItems))
+  }, [])
 
   const updateAccount = useCallback(async (
     id: string,
@@ -647,6 +726,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       annualRatePercent: built.annualRatePercent,
       createdAt: now,
       updatedAt: now,
+      ownerUserId: getStableUserId(),
     }
     const generated = generateInstallmentItems(plan.id, built.amounts, plan.totalCount, plan.startDate)
     await persistSnapshot(prev, {
@@ -711,6 +791,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           plans: prev.plans.map((row) => (row.id === id ? next : row)),
           items: [...prev.items.filter((item) => item.planId !== id), ...generated],
         })
+        syncOwnedPlanShare(id)
         return
       }
     }
@@ -718,7 +799,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...prev,
       plans: prev.plans.map((row) => (row.id === id ? next : row)),
     })
-  }, [persistSnapshot])
+    syncOwnedPlanShare(id)
+  }, [persistSnapshot, syncOwnedPlanShare])
 
   const updateInstallmentItem = useCallback(async (id: string, patch: UpdateInstallmentItemInput) => {
     const prev = dataRef.current
@@ -737,7 +819,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...prev,
       items: prev.items.map((row) => (row.id === id ? nextItem : row)),
     })
-  }, [persistSnapshot])
+    syncOwnedPlanShare(item.planId)
+  }, [persistSnapshot, syncOwnedPlanShare])
 
   const archiveInstallmentPlan = useCallback(async (id: string) => {
     const prev = dataRef.current
@@ -747,7 +830,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...prev,
       plans: prev.plans.map((row) => (row.id === id ? { ...row, status: 'archived', updatedAt: Date.now() } : row)),
     })
-  }, [persistSnapshot])
+    syncOwnedPlanShare(id)
+  }, [persistSnapshot, syncOwnedPlanShare])
 
   const restoreInstallmentPlan = useCallback(async (id: string) => {
     const prev = dataRef.current
@@ -760,7 +844,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...prev,
       plans: prev.plans.map((row) => (row.id === id ? { ...row, status, updatedAt: Date.now() } : row)),
     })
-  }, [persistSnapshot])
+    syncOwnedPlanShare(id)
+  }, [persistSnapshot, syncOwnedPlanShare])
 
   const deleteInstallmentPlan = useCallback(async (id: string) => {
     const prev = dataRef.current
@@ -819,6 +904,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         items: allItems,
         plans: prev.plans.map((row) => (row.id === plan.id ? nextPlan : row)),
       })
+      syncOwnedPlanShare(plan.id)
       return
     }
 
@@ -840,12 +926,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       items: allItems,
       plans: prev.plans.map((row) => (row.id === plan.id ? nextPlan : row)),
     })
-  }, [persistSnapshot])
+    syncOwnedPlanShare(plan.id)
+  }, [persistSnapshot, syncOwnedPlanShare])
 
   const unpayInstallment = useCallback(async (itemId: string) => {
     const prev = dataRef.current
+    const item = prev.items.find((i) => i.id === itemId)
     await persistSnapshot(prev, unpayInstallmentItem(itemId, prev))
-  }, [persistSnapshot])
+    if (item) syncOwnedPlanShare(item.planId)
+  }, [persistSnapshot, syncOwnedPlanShare])
 
   const resetDemo = useCallback(async () => {
     const demo = demoDataset()
@@ -1008,6 +1097,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       attachShare,
       addSharedAccount,
       removeSharedAccount,
+      upsertSharedInstallmentPlan,
+      removeSharedInstallmentPlan,
       applyShared,
       importCloud,
     }),
@@ -1055,6 +1146,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       attachShare,
       addSharedAccount,
       removeSharedAccount,
+      upsertSharedInstallmentPlan,
+      removeSharedInstallmentPlan,
       applyShared,
       importCloud,
     ],

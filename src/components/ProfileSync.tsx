@@ -3,13 +3,16 @@ import * as db from '../db/db'
 import { syncProfile } from '../lib/profileCloud'
 import {
   listSharedAssets,
+  pullDongViaServer,
   pullReadableDong,
   pushMemberDong,
   pushOwnerDong,
+  syncDongViaServer,
 } from '../lib/profileApi'
-import { isSharedDong, type SharedAssetView } from '../lib/profile'
+import { isSharedDong, mergeSharedDong, type SharedAssetView } from '../lib/profile'
 import { replaceSharedAssets } from '../lib/shareInbox'
 import { ensureSession, notifyUser, onLocalChange, supabaseConfig } from '../lib/sync'
+import { autoRegisterCurrentProfile } from '../lib/userShare'
 import type { DongEvent } from '../types'
 import { useExtras } from '../store/Extras'
 
@@ -36,7 +39,26 @@ export function ProfileSync() {
     async function pullDong() {
       const incoming = await pullReadableDong()
       if (closed) return
-      await extrasRef.current.absorbSharedDong(incoming)
+
+      const localEvents = (await db.getKv<DongEvent[]>('dongEvents')) ?? extrasRef.current.dongEvents
+      const remoteIds = Array.from(
+        new Set(
+          [...incoming, ...localEvents]
+            .map((e) => e.remoteId)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      )
+
+      const serverStates = await pullDongViaServer(remoteIds)
+      if (closed) return
+
+      const serverMap = new Map(serverStates.filter((e) => e.remoteId).map((e) => [e.remoteId!, e]))
+      const reconciled = incoming.map((ev) => {
+        const srv = ev.remoteId ? serverMap.get(ev.remoteId) : undefined
+        return srv ? mergeSharedDong(ev, srv) : ev
+      })
+
+      await extrasRef.current.absorbSharedDong(reconciled)
     }
 
     async function pullAssets() {
@@ -53,12 +75,29 @@ export function ProfileSync() {
         const events = (await db.getKv<DongEvent[]>('dongEvents')) ?? extrasRef.current.dongEvents
         for (const event of events) {
           if (!isSharedDong(event)) continue
+          let currentEvent = event
           if (event.shareRole === 'member') {
             await pushMemberDong(event)
           } else {
             const remoteId = await pushOwnerDong(event)
             if (remoteId && event.remoteId !== remoteId) {
-              await extrasRef.current.saveDongEvent({ ...event, remoteId })
+              currentEvent = { ...event, remoteId }
+              await extrasRef.current.saveDongEvent(currentEvent)
+            }
+          }
+          if (currentEvent.remoteId) {
+            const serverMerged = await syncDongViaServer(currentEvent)
+            if (serverMerged && !closed) {
+              await extrasRef.current.absorbSharedDong(
+                [
+                  {
+                    ...serverMerged,
+                    id: currentEvent.id,
+                    shareRole: currentEvent.shareRole ?? serverMerged.shareRole,
+                  },
+                ],
+                { pruneMembers: false },
+              )
             }
           }
         }
@@ -72,6 +111,7 @@ export function ProfileSync() {
       const session = await ensureSession()
       if (!session || closed) return
       await syncProfile()
+      void autoRegisterCurrentProfile()
       if (closed) return
       try {
         await pullDong()
@@ -136,7 +176,7 @@ export function ProfileSync() {
       window.clearTimeout(timer)
       timer = window.setTimeout(() => {
         void pushSharedDong().catch(fail)
-      }, 400)
+      }, 300)
     })
 
     const poll = window.setInterval(() => {
@@ -146,8 +186,12 @@ export function ProfileSync() {
       if (document.visibilityState === 'hidden') return
       void refresh().catch(fail)
     }
+    const onProfileChanged = () => {
+      void autoRegisterCurrentProfile()
+    }
     const onSession = () => {
       socket?.close()
+      void autoRegisterCurrentProfile()
       void (async () => {
         const session = await ensureSession()
         if (!session || closed) return
@@ -156,6 +200,7 @@ export function ProfileSync() {
       })()
     }
     window.addEventListener('hy-cloud-session', onSession)
+    window.addEventListener('hy-profile-updated', onProfileChanged)
     window.addEventListener('online', onWake)
     window.addEventListener('visibilitychange', onWake)
     window.addEventListener('focus', onWake)
@@ -168,6 +213,7 @@ export function ProfileSync() {
       stopListen()
       socket?.close()
       window.removeEventListener('hy-cloud-session', onSession)
+      window.removeEventListener('hy-profile-updated', onProfileChanged)
       window.removeEventListener('online', onWake)
       window.removeEventListener('visibilitychange', onWake)
       window.removeEventListener('focus', onWake)

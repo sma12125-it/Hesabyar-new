@@ -248,4 +248,159 @@ describe('Hesabyar API Backend & Security', () => {
     expect(toolNames).toContain('record_expense_or_income')
     expect(toolNames).toContain('transfer_money')
   })
+
+  it('11. POST /profiles/register and GET /profiles/lookup support short/full User ID and @handle without colliding', async () => {
+    const suffix = Date.now().toString(36)
+    const reg1 = await apiFetch('/profiles/register', {
+      method: 'POST',
+      body: {
+        userId: `usr_api_1_${suffix}`,
+        fullUserId: `aaaa1111-1111-4111-8111-${suffix.padStart(12, '0').slice(0, 12)}`,
+        shortUserId: `aaaa1111_${suffix}`,
+        handle: `ali_api_${suffix}`,
+        displayName: 'علی تست',
+      },
+    })
+    expect(reg1.status).toBe(200)
+    expect(reg1.body.success).toBe(true)
+
+    const byHandle = await apiFetch(`/profiles/lookup?q=${encodeURIComponent(`@ali_api_${suffix}`)}`)
+    expect(byHandle.status).toBe(200)
+    expect(byHandle.body.profile.displayName).toBe('علی تست')
+
+    const byShortId = await apiFetch(`/profiles/lookup?q=${encodeURIComponent(`aaaa1111_${suffix}`)}`)
+    expect(byShortId.status).toBe(200)
+    expect(byShortId.body.profile.handle).toBe(`ali_api_${suffix}`)
+
+    const missing = await apiFetch('/profiles/lookup?q=definitely_not_registered_user_xyz')
+    expect(missing.status).toBe(404)
+  })
+
+  it('12. /shares/* supports installment/debt/cheque sharing, syncs state, and rejects invalid assetKind', async () => {
+    const badKind = await apiFetch('/shares/share', {
+      method: 'POST',
+      body: {
+        assetKind: 'crypto_wallet',
+        assetId: 'x1',
+        ownerUserId: 'usr_o',
+        granteeUser: { userId: 'usr_g', handle: 'g', displayName: 'G' },
+      },
+    })
+    expect(badKind.status).toBe(400)
+
+    const suffix = Date.now().toString(36)
+    const shareRes = await apiFetch('/shares/share', {
+      method: 'POST',
+      body: {
+        assetKind: 'cheque',
+        assetId: `chk_http_${suffix}`,
+        assetName: 'چک دفتر',
+        assetDetails: { party: 'تامین‌کننده', amount: 8_000_000, status: 'pending', cvv: '888' },
+        ownerUserId: `owner_${suffix}`,
+        ownerDisplayName: 'حامد',
+        granteeUser: { userId: `grantee_${suffix}`, handle: `grantee_${suffix}`, displayName: 'نرگس' },
+      },
+    })
+    expect(shareRes.status).toBe(200)
+    expect(shareRes.body.success).toBe(true)
+    expect(shareRes.body.share.assetDetails).not.toHaveProperty('cvv')
+
+    const syncRes = await apiFetch('/shares/sync', {
+      method: 'POST',
+      body: {
+        assetKind: 'cheque',
+        assetId: `chk_http_${suffix}`,
+        ownerUserId: `owner_${suffix}`,
+        assetName: 'چک دفتر',
+        assetDetails: { party: 'تامین‌کننده', amount: 8_000_000, status: 'cleared' },
+      },
+    })
+    expect(syncRes.status).toBe(200)
+    expect(syncRes.body.updatedCount).toBe(1)
+
+    const incoming = await apiFetch(`/shares/incoming?userId=${encodeURIComponent(`grantee_${suffix}`)}`)
+    expect(incoming.status).toBe(200)
+    const found = incoming.body.shares.find((s: any) => s.assetId === `chk_http_${suffix}`)
+    expect(found?.assetDetails?.status).toBe('cleared')
+  })
+
+  it('13. /dong/sync requires auth, converges settledTransfers, and blocks unauthorized access', async () => {
+    const remoteId = `dong_http_${Date.now()}`
+    const baseEvent = {
+      id: 'local-d1',
+      remoteId,
+      title: 'شام تیمی',
+      date: '2026-11-26',
+      shareRole: 'owner',
+      participants: [
+        { id: 'a', name: 'علی' },
+        { id: 'b', name: 'سارا' },
+      ],
+      expenses: [{ id: 'e1', title: 'پیتزا', amount: 200_000, paidById: 'a', splitAmongIds: ['a', 'b'], updatedAt: 100 }],
+      settledTransfers: [],
+      settledTransferTimestamps: {},
+      createdAt: 100,
+      updatedAt: 100,
+    }
+
+    const unauth = await apiFetch('/dong/sync', {
+      method: 'POST',
+      body: { remoteId, event: baseEvent },
+    })
+    expect(unauth.status).toBe(401)
+
+    const ownerSync = await apiFetch('/dong/sync', {
+      method: 'POST',
+      token: 'test-user-a',
+      body: { remoteId, event: baseEvent },
+    })
+    expect(ownerSync.status).toBe(200)
+    expect(ownerSync.body.success).toBe(true)
+
+    // Unauthorized second dev user must be rejected with 403 when not in authorizedUserIds or RLS
+    const unauthMember = await apiFetch('/dong/sync', {
+      method: 'POST',
+      token: 'test-user-b',
+      body: {
+        remoteId,
+        event: {
+          ...baseEvent,
+          shareRole: 'member',
+          settledTransfers: ['b->a:100000'],
+          settledTransferTimestamps: { 'b->a:100000': { settled: true, updatedAt: 200 } },
+        },
+      },
+    })
+    expect(unauthMember.status).toBe(403)
+
+    // Owner updates transfer settlement -> pull returns updated settlement
+    const settledSync = await apiFetch('/dong/sync', {
+      method: 'POST',
+      token: 'test-user-a',
+      body: {
+        remoteId,
+        event: {
+          ...baseEvent,
+          settled: true,
+          settledUpdatedAt: 250,
+          settledTransfers: ['b->a:100000'],
+          settledTransferTimestamps: { 'b->a:100000': { settled: true, updatedAt: 250 } },
+          updatedAt: 250,
+        },
+      },
+    })
+    expect(settledSync.status).toBe(200)
+    expect(settledSync.body.event.settled).toBe(true)
+    expect(settledSync.body.event.settledTransfers).toEqual(['b->a:100000'])
+
+    const pullOwner = await apiFetch('/dong/pull', {
+      method: 'POST',
+      token: 'test-user-a',
+      body: { remoteIds: [remoteId] },
+    })
+    expect(pullOwner.status).toBe(200)
+    expect(pullOwner.body.events).toHaveLength(1)
+    expect(pullOwner.body.events[0].settledTransfers).toEqual(['b->a:100000'])
+  })
 })
+

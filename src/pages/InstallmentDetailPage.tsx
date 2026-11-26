@@ -9,7 +9,9 @@ import {
 } from '../lib/installments'
 import { daysUntil, todayIso } from '../lib/iso'
 import { formatRial, toFaDigits } from '../lib/money'
+import { getStableUserId, isIncomingSharedAsset, serializeInstallmentShareDetails } from '../lib/userShare'
 import { useStore } from '../store/Store'
+import { SharedAssetDetailSheet } from '../components/SharedAssetDetailSheet'
 import { SwipeRow } from '../components/SwipeRow'
 import { useUiActions } from '../components/UiActions'
 import { useExtras } from '../store/Extras'
@@ -31,9 +33,11 @@ export function InstallmentDetailPage({
   const actions = useUiActions()
   const [menu, setMenu] = useState(false)
   const [showPaidArchive, setShowPaidArchive] = useState(false)
+  const [shareDetailOpen, setShareDetailOpen] = useState(false)
   const plan = plans.find((p) => p.id === id)
   const planItems = items.filter((i) => i.planId === id).sort((a, b) => a.index - b.index)
   const today = todayIso()
+  const myUserId = getStableUserId()
 
   if (!plan) {
     return (
@@ -48,12 +52,37 @@ export function InstallmentDetailPage({
     )
   }
 
+  const isIncomingShared = isIncomingSharedAsset(plan, myUserId)
   const paid = paidCount(planItems, today)
   const remaining = remainingAmount(planItems, today)
   const next = nextPayableItem(planItems, today)
   const overdueItem = planItems.find((i) => itemEffectiveStatus(i, today) === 'overdue')
-  const canPay = plan.status === 'active' && Boolean(next)
+  const canPay = !isIncomingShared && plan.status === 'active' && Boolean(next)
   const nextDueLabel = next ? formatPersianDateFull(next.dueDate) : '—'
+
+  function openShareSheet() {
+    if (!plan) return
+    window.dispatchEvent(
+      new CustomEvent('hy-open-share', {
+        detail: {
+          kind: 'installment',
+          item: {
+            id: plan.id,
+            name: plan.name,
+            installmentAmount: plan.installmentAmount,
+            totalCount: plan.totalCount,
+            startDate: plan.startDate,
+            status: plan.status,
+            planKind: plan.kind,
+            principal: plan.principal,
+            annualRatePercent: plan.annualRatePercent,
+            items: planItems,
+            details: serializeInstallmentShareDetails(plan, planItems),
+          },
+        },
+      }),
+    )
+  }
 
   // Separate paid (archived) and pending/overdue (active payable) items
   const paidItems = planItems.filter((i) => itemEffectiveStatus(i, today) === 'paid')
@@ -83,44 +112,81 @@ export function InstallmentDetailPage({
 
       {menu ? (
         <div className="menu-card lg">
-          <button
-            type="button"
-            onClick={() => {
-              setMenu(false)
-              onEdit()
-            }}
-          >
-            ویرایش برنامه
-          </button>
-          {plan.status === 'archived' ? (
+          {isIncomingShared ? (
             <button
               type="button"
               onClick={() => {
                 setMenu(false)
-                void restoreInstallmentPlan(plan.id)
+                setShareDetailOpen(true)
               }}
             >
-              بازگردانی از آرشیو
+              ℹ️ جزئیات و خروج از اشتراک
             </button>
           ) : (
-            <button
-              type="button"
-              onClick={() => {
-                setMenu(false)
-                void archiveInstallmentPlan(plan.id)
-              }}
-            >
-              آرشیو برنامه
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenu(false)
+                  openShareSheet()
+                }}
+              >
+                🤝 اشتراک‌گذاری برنامه
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMenu(false)
+                  onEdit()
+                }}
+              >
+                ویرایش برنامه
+              </button>
+              {plan.status === 'archived' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenu(false)
+                    void restoreInstallmentPlan(plan.id)
+                  }}
+                >
+                  بازگردانی از آرشیو
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMenu(false)
+                    void archiveInstallmentPlan(plan.id)
+                  }}
+                >
+                  آرشیو برنامه
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setMenu(false)
+                  actions?.deletePlan(plan.id)
+                }}
+              >
+                حذف برنامه
+              </button>
+            </>
           )}
-          <button
-            type="button"
-            onClick={() => {
-              setMenu(false)
-              actions?.deletePlan(plan.id)
-            }}
-          >
-            حذف برنامه
+        </div>
+      ) : null}
+
+      {isIncomingShared ? (
+        <div className="banner archive" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span className="bico">🤝</span>
+            <span>
+              اشتراک‌گذاری شده توسط <strong>{plan.ownerDisplayName || 'کاربر دیگر'}</strong> (همگام‌سازی خودکار)
+            </span>
+          </div>
+          <button type="button" className="cat-mini" onClick={() => setShareDetailOpen(true)}>
+            ℹ️ جزئیات اشتراک
           </button>
         </div>
       ) : null}
@@ -215,19 +281,35 @@ export function InstallmentDetailPage({
       </div>
 
       <div className="action-row">
-        <button
-          className={`action-chip lg-light${canPay ? '' : ' disabled'}`}
-          type="button"
-          style={{ flex: 2 }}
-          disabled={!canPay}
-          onClick={() => next && onPay(next.id)}
-        >
-          <span className="aico">✓</span>
-          {overdueItem ? 'پرداخت قسط معوق' : 'پرداخت قسط'}
-        </button>
-        <button className="action-chip lg-light" type="button" onClick={onEdit}>
-          <span className="aico">✎</span>ویرایش
-        </button>
+        {isIncomingShared ? (
+          <button
+            className="action-chip lg-light"
+            type="button"
+            style={{ flex: 1 }}
+            onClick={() => setShareDetailOpen(true)}
+          >
+            <span className="aico">🤝</span>مشخصات اشتراک و مدیریت دسترسی
+          </button>
+        ) : (
+          <>
+            <button
+              className={`action-chip lg-light${canPay ? '' : ' disabled'}`}
+              type="button"
+              style={{ flex: 2 }}
+              disabled={!canPay}
+              onClick={() => next && onPay(next.id)}
+            >
+              <span className="aico">✓</span>
+              {overdueItem ? 'پرداخت قسط معوق' : 'پرداخت قسط'}
+            </button>
+            <button className="action-chip lg-light" type="button" onClick={openShareSheet}>
+              <span className="aico">🤝</span>اشتراک
+            </button>
+            <button className="action-chip lg-light" type="button" onClick={onEdit}>
+              <span className="aico">✎</span>ویرایش
+            </button>
+          </>
+        )}
       </div>
 
       <div className="section-head">
@@ -342,6 +424,7 @@ export function InstallmentDetailPage({
                       today={today}
                       paidDate={tx?.date || item.paidAt}
                       accountName={acc?.name}
+                      readOnly={isIncomingShared}
                       onPay={undefined}
                     />
                   )
@@ -354,7 +437,13 @@ export function InstallmentDetailPage({
         {/* Unpaid / Active installments - always ordered at the top */}
         {unpaidItems.length > 0 ? (
           unpaidItems.map((item) => (
-            <ItemRow key={item.id} item={item} today={today} onPay={canPay ? onPay : undefined} />
+            <ItemRow
+              key={item.id}
+              item={item}
+              today={today}
+              readOnly={isIncomingShared}
+              onPay={canPay ? onPay : undefined}
+            />
           ))
         ) : paidItems.length > 0 ? (
           <div
@@ -376,6 +465,14 @@ export function InstallmentDetailPage({
           <p className="sheet-sub">هیچ قسطی در این برنامه تعریف نشده است.</p>
         )}
       </div>
+      {shareDetailOpen ? (
+        <SharedAssetDetailSheet
+          kind="installment"
+          plan={plan}
+          planItems={planItems}
+          onClose={() => setShareDetailOpen(false)}
+        />
+      ) : null}
     </div>
   )
 }
@@ -385,17 +482,19 @@ function ItemRow({
   today,
   paidDate,
   accountName,
+  readOnly,
   onPay,
 }: {
   item: InstallmentItem
   today: string
   paidDate?: string
   accountName?: string
+  readOnly?: boolean
   onPay?: (itemId: string) => void
 }) {
   const status = itemEffectiveStatus(item, today)
   const lateDays = status === 'overdue' ? Math.abs(daysUntil(item.dueDate, today)) : 0
-  const clickable = status !== 'paid' && onPay
+  const clickable = !readOnly && status !== 'paid' && onPay
   const actions = useUiActions()
   const rowClass = `inst-row lg-row${status === 'overdue' ? ' highlight-overdue' : ''}`
   const effectivePaidDate = paidDate || item.paidAt || item.dueDate
@@ -443,7 +542,7 @@ function ItemRow({
         >
           {status === 'paid' ? 'پرداخت‌شده' : status === 'overdue' ? 'معوق' : 'مانده'}
         </span>
-        {status === 'paid' ? (
+        {status === 'paid' && !readOnly ? (
           <button className="cat-mini inst-unpay" type="button" onClick={() => actions?.unpayItem(item.id)}>
             برگشت به مانده
           </button>
@@ -455,14 +554,14 @@ function ItemRow({
   return (
     <SwipeRow
       onEdit={
-        actions
+        !readOnly && actions
           ? () => {
               if (status === 'paid' && item.transactionId) actions.editTransaction(item.transactionId)
               else actions.editItem(item.id)
             }
           : undefined
       }
-      onDelete={actions ? () => actions.deleteItem(item.id) : undefined}
+      onDelete={!readOnly && actions ? () => actions.deleteItem(item.id) : undefined}
     >
     {status === 'paid' ? (
       <div className={rowClass}>{body}</div>

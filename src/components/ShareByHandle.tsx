@@ -3,11 +3,21 @@ import { useExtras } from '../store/Extras'
 import { lookupHandle, revokeAssetShare, shareAssetWithHandle } from '../lib/profileApi'
 import { handleError, normalizeHandle, stripSecrets, type SharedAssetView } from '../lib/profile'
 import { replaceSharedAssets, sharedAssetViews, subscribeSharedAssets } from '../lib/shareInbox'
+import { fetchIncomingShares, lookupUserByIdOrHandle, type IncomingSharedAsset } from '../lib/userShare'
 import { notifyUser } from '../lib/sync'
 import { toFaDigits } from '../lib/money'
+import type { ShareAssetKind } from '../types'
 
 export function useSharedAssets(): SharedAssetView[] {
   return useSyncExternalStore(subscribeSharedAssets, sharedAssetViews, sharedAssetViews)
+}
+
+const SHARE_KIND_DESC: Record<ShareAssetKind, string> = {
+  card: 'شماره کارت و شبا برای این شناسه دیده می‌شود. CVV فرستاده نمی‌شود.',
+  account: 'نام حساب، نوع، شماره حساب و موجودی دیده می‌شود. دفتر تراکنش‌ها فرستاده نمی‌شود.',
+  installment: 'نام برنامه، مبلغ هر قسط، سررسیدها و وضعیت پرداخت اقساط دیده می‌شود.',
+  debt: 'نام طرف حساب، مبلغ، سررسید و وضعیت تسویه بدهی یا طلب دیده می‌شود.',
+  cheque: 'مبلغ، بانک، سررسید، صیاد و وضعیت چک دیده می‌شود.',
 }
 
 export function ShareByHandle({
@@ -16,7 +26,7 @@ export function ShareByHandle({
   title,
   payload,
 }: {
-  kind: 'card' | 'account'
+  kind: ShareAssetKind
   localId: string
   title: string
   payload: Record<string, unknown>
@@ -29,33 +39,48 @@ export function ShareByHandle({
   const safePayload = useMemo(() => stripSecrets(payload), [payload])
 
   async function share() {
-    const clean = normalizeHandle(handle)
-    const problem = handleError(clean)
-    if (problem) {
-      notifyUser(problem)
+    const raw = handle.trim()
+    const clean = normalizeHandle(raw)
+    if (!raw) {
+      notifyUser('User ID یا شناسه کاربری را وارد کنید')
       return
     }
     setBusy(true)
     try {
-      const found = await lookupHandle(clean)
-      if (!found) {
-        notifyUser('این شناسه در حسابیار پیدا نشد')
-        return
+      let resolvedHandle = clean
+      let resolvedDisplay = clean
+      const resolved = await lookupUserByIdOrHandle(raw)
+      if (resolved) {
+        resolvedHandle = resolved.handle || clean
+        resolvedDisplay = resolved.displayName || resolvedHandle
+      } else {
+        const problem = handleError(clean)
+        if (problem) {
+          notifyUser('کاربری با این User ID یا شناسه در سرور پیدا نشد')
+          return
+        }
+        const found = await lookupHandle(clean)
+        if (!found) {
+          notifyUser('این شناسه در حسابیار پیدا نشد')
+          return
+        }
+        resolvedHandle = found.handle
+        resolvedDisplay = found.displayName
       }
-      await shareAssetWithHandle(kind, localId, found.handle, safePayload)
+      await shareAssetWithHandle(kind, localId, resolvedHandle, safePayload)
       const next: SharedAssetView = {
-        id: `${kind}:${localId}:${found.handle}`,
+        id: `${kind}:${localId}:${resolvedHandle}`,
         kind,
         localId,
-        handle: found.handle,
-        displayName: found.displayName,
+        handle: resolvedHandle,
+        displayName: resolvedDisplay,
         payload: safePayload,
         updatedAt: new Date().toISOString(),
         mine: true,
       }
-      replaceSharedAssets([next, ...assets.filter((item) => !(item.mine && item.kind === kind && item.localId === localId && item.handle === found.handle))])
+      replaceSharedAssets([next, ...assets.filter((item) => !(item.mine && item.kind === kind && item.localId === localId && item.handle === resolvedHandle))])
       setHandle('')
-      notifyUser(`${title} برای ${found.displayName} (${found.handle}) قابل دیدن شد`)
+      notifyUser(`${title} برای ${resolvedDisplay} (${resolvedHandle}) قابل دیدن شد`)
     } catch (err) {
       notifyUser(err instanceof Error ? err.message : 'اشتراک انجام نشد')
     } finally {
@@ -83,16 +108,12 @@ export function ShareByHandle({
       </button>
       {open ? (
         <div className="share-handle-panel">
-          <p className="sheet-sub">
-            {kind === 'card'
-              ? 'شماره کارت و شبا برای این شناسه دیده می‌شود. CVV فرستاده نمی‌شود.'
-              : 'نام حساب، نوع، شماره حساب و موجودی دیده می‌شود. دفتر تراکنش‌ها فرستاده نمی‌شود.'}
-          </p>
+          <p className="sheet-sub">{SHARE_KIND_DESC[kind]}</p>
           <div className="share-handle-row">
             <input
               className="field-input"
               value={handle}
-              placeholder="شناسه حسابیار"
+              placeholder="User ID یا شناسه حسابیار"
               aria-label={`شناسه برای اشتراک ${title}`}
               onChange={(e) => setHandle(e.target.value)}
             />
@@ -117,7 +138,13 @@ export function ShareByHandle({
   )
 }
 
-import { fetchIncomingShares, type IncomingSharedAsset } from '../lib/userShare'
+const KIND_BADGES: Record<ShareAssetKind, string> = {
+  card: '💳 کارت مشترک',
+  account: '🏦 حساب مشترک',
+  installment: '📅 اقساط مشترک',
+  debt: '🤝 بدهی/طلب مشترک',
+  cheque: '🧾 چک مشترک',
+}
 
 export function IncomingShares() {
   const assets = useSharedAssets()
@@ -144,7 +171,7 @@ export function IncomingShares() {
     <section className="lg report-card share-incoming" style={{ margin: '14px 0' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <h2 style={{ fontSize: 14, fontWeight: 800, margin: 0, color: 'var(--hy-text)' }}>
-          🤝 با شناسهٔ من به اشتراک گذاشته شده (حساب‌ها و کارت‌های مشترک)
+          🤝 با شناسهٔ من به اشتراک گذاشته شده
         </h2>
         <span
           style={{
@@ -164,7 +191,6 @@ export function IncomingShares() {
       </p>
 
       <div className="share-incoming-list" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {/* Real server-synced shares */}
         {serverShares.map((item) => (
           <article
             key={item.id}
@@ -188,7 +214,7 @@ export function IncomingShares() {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span>{item.assetKind === 'card' ? '💳 کارت مشترک' : '🏦 حساب مشترک'}</span>
+                <span>{KIND_BADGES[item.assetKind] || '🤝 مورد مشترک'}</span>
                 <span style={{ color: 'var(--hy-accent)' }}>· {item.assetName}</span>
               </div>
               <span style={{ fontSize: 11, color: 'var(--hy-text-secondary)', fontWeight: 600 }}>
@@ -196,30 +222,66 @@ export function IncomingShares() {
               </span>
             </div>
 
-            {item.assetKind === 'card' ? (
-              <CardFacts payload={item.assetDetails || {}} />
-            ) : (
-              <AccountFacts payload={item.assetDetails || {}} formatMoney={formatMoney} />
-            )}
+            <AssetFacts kind={item.assetKind} payload={item.assetDetails || {}} formatMoney={formatMoney} />
           </article>
         ))}
 
-        {/* Local shares if any */}
         {incoming.map((item) => (
           <article key={`${item.kind}:${item.id}`} className="share-incoming-card">
             <div className="share-incoming-title">
-              {item.kind === 'card' ? 'کارت' : 'حساب'} · از {item.displayName || item.handle}
+              {KIND_BADGES[item.kind]} · از {item.displayName || item.handle}
               <span>@{item.handle}</span>
             </div>
-            {item.kind === 'card' ? (
-              <CardFacts payload={item.payload} />
-            ) : (
-              <AccountFacts payload={item.payload} formatMoney={formatMoney} />
-            )}
+            <AssetFacts kind={item.kind} payload={item.payload} formatMoney={formatMoney} />
           </article>
         ))}
       </div>
     </section>
+  )
+}
+
+function AssetFacts({
+  kind,
+  payload,
+  formatMoney,
+}: {
+  kind: ShareAssetKind
+  payload: Record<string, unknown>
+  formatMoney: (amount: number) => string
+}) {
+  if (kind === 'card') return <CardFacts payload={payload} />
+  if (kind === 'account') return <AccountFacts payload={payload} formatMoney={formatMoney} />
+  if (kind === 'installment') {
+    const installmentAmount = Number(payload.installmentAmount ?? 0)
+    const totalCount = Number(payload.totalCount ?? 0)
+    return (
+      <dl>
+        <div><dt>عنوان</dt><dd>{text(payload.name) || '—'}</dd></div>
+        <div><dt>مبلغ هر قسط</dt><dd>{Number.isFinite(installmentAmount) ? formatMoney(installmentAmount) : '—'}</dd></div>
+        <div><dt>تعداد اقساط</dt><dd>{toFaDigits(Number.isFinite(totalCount) ? totalCount : 0)} قسط</dd></div>
+        <div><dt>شروع</dt><dd>{text(payload.startDate) || '—'}</dd></div>
+      </dl>
+    )
+  }
+  if (kind === 'debt') {
+    const amount = Number(payload.amount ?? 0)
+    return (
+      <dl>
+        <div><dt>طرف حساب</dt><dd>{text(payload.party) || '—'}</dd></div>
+        <div><dt>مبلغ</dt><dd>{Number.isFinite(amount) ? formatMoney(amount) : '—'}</dd></div>
+        <div><dt>وضعیت</dt><dd>{payload.status === 'settled' ? 'تسویه‌شده' : 'جاری'}</dd></div>
+        <div><dt>سررسید</dt><dd>{text(payload.dueDate) || '—'}</dd></div>
+      </dl>
+    )
+  }
+  const amount = Number(payload.amount ?? 0)
+  return (
+    <dl>
+      <div><dt>طرف حساب</dt><dd>{text(payload.party) || '—'}</dd></div>
+      <div><dt>مبلغ چک</dt><dd>{Number.isFinite(amount) ? formatMoney(amount) : '—'}</dd></div>
+      <div><dt>بانک</dt><dd>{text(payload.bankName) || '—'}</dd></div>
+      <div><dt>سررسید</dt><dd>{text(payload.dueDate) || '—'}</dd></div>
+    </dl>
   )
 }
 

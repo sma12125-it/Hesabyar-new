@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { lookupHandle, revokeDongShare, shareDongWithHandle } from '../lib/profileApi'
-import { handleError, isDongGuest, normalizeHandle } from '../lib/profile'
+import { HANDLE_PATTERN, isDongGuest, normalizeHandle } from '../lib/profile'
+import { lookupUserByIdOrHandle } from '../lib/userShare'
 import { notifyUser } from '../lib/sync'
 import { useExtras } from '../store/Extras'
 import type { DongEvent, DongParticipant } from '../types'
@@ -49,27 +50,45 @@ export function DongMemberShare({ event, participant }: { event: DongEvent; part
 
   async function connect() {
     const clean = normalizeHandle(handle)
-    const problem = handleError(clean)
-    if (problem) {
-      notifyUser(problem)
+    if (!clean) {
+      notifyUser('شناسه کاربری یا User ID را وارد کنید')
       return
     }
     setBusy(true)
     try {
-      const found = await lookupHandle(clean)
-      if (!found) {
-        notifyUser('این شناسه در حسابیار پیدا نشد')
+      let resolvedHandle = ''
+      let resolvedDisplay = ''
+
+      const profileMatch = await lookupUserByIdOrHandle(clean)
+      if (profileMatch) {
+        resolvedHandle = profileMatch.handle
+        resolvedDisplay = profileMatch.displayName
+      } else if (HANDLE_PATTERN.test(clean)) {
+        const direct = await lookupHandle(clean)
+        if (direct) {
+          resolvedHandle = direct.handle
+          resolvedDisplay = direct.displayName
+        }
+      }
+
+      if (!resolvedHandle || !HANDLE_PATTERN.test(resolvedHandle)) {
+        notifyUser(
+          profileMatch
+            ? 'این کاربر هنوز شناسه کاربری دستی (@handle) در پروفایل خود تنظیم نکرده است'
+            : 'کاربری با این User ID یا شناسه پیدا نشد',
+        )
         return
       }
+
       const links = [
-        ...(event.memberLinks ?? []).filter((item) => item.participantId !== participant.id && item.handle !== found.handle),
-        { participantId: participant.id, handle: found.handle, displayName: found.displayName },
+        ...(event.memberLinks ?? []).filter((item) => item.participantId !== participant.id && item.handle !== resolvedHandle),
+        { participantId: participant.id, handle: resolvedHandle, displayName: resolvedDisplay || resolvedHandle },
       ]
       const next: DongEvent = { ...event, memberLinks: links, linksUpdatedAt: Date.now() }
-      const shared = await shareDongWithHandle(next, found.handle, participant.id)
+      const shared = await shareDongWithHandle(next, resolvedHandle, participant.id)
       await saveDongEvent({ ...next, remoteId: shared.eventId, memberLinks: links, linksUpdatedAt: next.linksUpdatedAt })
       setHandle('')
-      notifyUser(`${participant.name} به ${found.displayName} (${found.handle}) وصل شد و سفر را زنده می‌بیند`)
+      notifyUser(`${participant.name} به ${resolvedDisplay || resolvedHandle} (@${resolvedHandle}) وصل شد و سفر را زنده می‌بیند`)
     } catch (err) {
       notifyUser(err instanceof Error ? err.message : 'اتصال انجام نشد')
     } finally {
@@ -109,7 +128,7 @@ export function DongMemberShare({ event, participant }: { event: DongEvent; part
           <input
             className="field-input"
             value={handle}
-            placeholder="شناسه حسابیار عضو"
+            placeholder="User ID یا شناسه @handle عضو"
             aria-label={`شناسه حسابیار ${participant.name}`}
             onChange={(e) => setHandle(e.target.value)}
             onKeyDown={(e) => {

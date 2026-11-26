@@ -96,6 +96,7 @@ export function AccountsPage({
   const pendingShares = useMemo(() => {
     const myIdLower = myUserId.trim().toLowerCase()
     return incomingShares.filter((s) => {
+      if (s.assetKind !== 'account' && s.assetKind !== 'card') return false
       if (s.status === 'rejected') return false
       const ownerIdLower = (s.ownerUserId || '').trim().toLowerCase()
       if (ownerIdLower && ownerIdLower === myIdLower) return false

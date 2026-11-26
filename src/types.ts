@@ -7,6 +7,7 @@ export type LegacyTxKind = TxKind | 'transfer'
 export type InstallmentPlanStatus = 'active' | 'completed' | 'archived'
 export type InstallmentItemStatus = 'pending' | 'paid' | 'overdue'
 export type PlanBadge = 'overdue' | 'due-soon' | 'ok'
+export type ShareAssetKind = 'card' | 'account' | 'installment' | 'debt' | 'cheque'
 
 export interface Account {
   id: string
@@ -115,6 +116,12 @@ export interface InstallmentPlan {
   annualRatePercent?: number
   createdAt: number
   updatedAt: number
+  shareId?: string
+  isShared?: boolean
+  ownerDisplayName?: string
+  ownerUserId?: string
+  recipientUserId?: string
+  sourceAssetId?: string
 }
 
 export interface InstallmentItem {
@@ -386,7 +393,9 @@ export interface DongEvent {
   madreKharj?: DongMadreKharj
   note?: string
   settled?: boolean
+  settledUpdatedAt?: number
   settledTransfers?: string[]
+  settledTransferTimestamps?: Record<string, { settled: boolean; updatedAt: number }>
   createdAt: number
   updatedAt?: number
   /** Supabase id after the event is shared. Absent until the owner shares it. */
@@ -404,6 +413,8 @@ export interface DongEvent {
   managerParticipantId?: string
   /** Pending changes proposed by members awaiting manager approval. */
   pendingApprovals?: DongPendingApproval[]
+  approvalsUpdatedAt?: number
+  handledApprovalIds?: string[]
 }
 
 export interface ReminderSettings {
@@ -431,6 +442,12 @@ export interface Cheque {
   clearedAt?: string
   transactionId?: string
   updatedAt?: number
+  shareId?: string
+  isShared?: boolean
+  ownerDisplayName?: string
+  ownerUserId?: string
+  recipientUserId?: string
+  sourceAssetId?: string
 }
 
 export type DebtLoanDirection = 'borrowed' | 'lent'
@@ -451,6 +468,12 @@ export interface DebtLoan {
   updatedAt?: number
   pocketId?: string
   repaidAmount?: number
+  shareId?: string
+  isShared?: boolean
+  ownerDisplayName?: string
+  ownerUserId?: string
+  recipientUserId?: string
+  sourceAssetId?: string
 }
 
 

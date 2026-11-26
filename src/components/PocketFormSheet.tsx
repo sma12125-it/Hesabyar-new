@@ -101,7 +101,7 @@ export function PocketFormSheet({
       <div className="sheet-body-scroll">
         {error ? (
           <div className="banner error">
-            <span className="bico">⚠</span>
+            <span className="bico">⚠️</span>
             <span>{error}</span>
           </div>
         ) : null}

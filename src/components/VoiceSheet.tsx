@@ -325,7 +325,7 @@ export function VoiceSheet({
         categoryId: categoryId || (effectiveDraft.kind === 'income' ? 'other-inc' : 'other-exp'),
         note: effectiveDraft.note || (effectiveDraft.kind === 'income' ? 'درآمد صوتی' : 'هزینه صوتی'),
       })
-      notifyUser('تراکنش صوتی با موفقیت ثبت شد ✨')
+      notifyUser('تراکنش صوتی با موفقیت ثبت شد')
       onClose()
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'ثبت تراکنش انجام نشد'
@@ -342,9 +342,9 @@ export function VoiceSheet({
         {/* Header */}
         <div className="voice-modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span className="voice-modal-sparkle">✨</span>
+            <span className="voice-modal-sparkle">🎙️</span>
             <div>
-              <h2 className="voice-modal-title">دستیار صوتی هوشمند حساب‌یار</h2>
+              <h2 className="voice-modal-title">ثبت صوتی تراکنش</h2>
               <p className="voice-modal-subtitle">با گفتار طبیعی به زبان فارسی، تراکنش خود را ثبت کنید</p>
             </div>
           </div>
@@ -367,7 +367,7 @@ export function VoiceSheet({
           >
             <div className="voice-orb-inner">
               <span className="voice-orb-icon">
-                {processing ? '⏳' : listening ? '🎙️' : '🎤'}
+                {processing ? '⏳' : '🎙️'}
               </span>
             </div>
           </div>
@@ -391,7 +391,7 @@ export function VoiceSheet({
             </div>
           ) : processing ? (
             <div className="voice-tap-hint" style={{ color: 'var(--hy-teal)' }}>
-              ✨ در حال تحلیل هوشمند گفتار، استخراج مبلغ و حساب بانکی…
+              در حال تحلیل گفتار، استخراج مبلغ و حساب بانکی…
             </div>
           ) : (
             <div className="voice-tap-hint">
@@ -408,7 +408,7 @@ export function VoiceSheet({
                 ? '🔴 در حال شنیدن گفتار شما (بدون عجله صحبت کنید)…'
                 : processing
                 ? '⏳ در حال تبدیل گفتار به متن فارسی…'
-                : 'متن فرمان صوتی (دقیق و قابل ویرایش):'}
+                : 'متن فرمان صوتی (قابل ویرایش):'}
             </span>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               {text && !listening && !processing && (
@@ -441,7 +441,7 @@ export function VoiceSheet({
                 listening
                   ? 'در حال گوش دادن... بگویید مثلاً: پنجاه هزار تومان کرایه تاکسی بانک ملت'
                   : processing
-                  ? 'در حال پردازش هوشمند صدا...'
+                  ? 'در حال پردازش صدا...'
                   : 'روی میکروفن لمس کرده و صحبت کنید، یا متن را اینجا بنویسید...'
               }
               rows={2}
@@ -521,7 +521,9 @@ export function VoiceSheet({
                   </div>
                 )}
               </div>
-              <div className="voice-draft-icon">{effectiveDraft.kind === 'income' ? '💰' : '🛒'}</div>
+              <div className="voice-draft-icon">
+                {effectiveDraft.kind === 'income' ? '➕' : '➖'}
+              </div>
             </div>
 
             {/* Account & Category Selectors */}
@@ -569,7 +571,7 @@ export function VoiceSheet({
             disabled={processing}
             onClick={toggleListening}
           >
-            {processing ? '⏳ در حال پردازش گفتار…' : listening ? '⏹️ پایان صحبت و پردازش' : '🎙️ شروع صحبت'}
+            {processing ? '⏳ در حال پردازش گفتار…' : listening ? 'پایان صحبت و پردازش' : '🎙️ شروع صحبت'}
           </button>
 
           <button
@@ -578,7 +580,7 @@ export function VoiceSheet({
             disabled={!effectiveDraft || saving || processing || activeAccounts.length === 0}
             onClick={() => void handleConfirm()}
           >
-            {saving ? 'در حال ثبت…' : processing ? 'در حال پردازش گفتار…' : '✨ تایید و ثبت تراکنش'}
+            {saving ? 'در حال ثبت…' : processing ? 'در حال پردازش گفتار…' : 'تأیید و ثبت تراکنش'}
           </button>
         </div>
       </div>
